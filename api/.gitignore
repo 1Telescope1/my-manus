@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Runtime logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+server.log
+
+# Local environment and runtime config
+.env
+.env.example
+config.yaml
+config.local.yaml
+*.local.yaml
+
+# Test and coverage output
+coverage/
+.nyc_output/
+
+# Caches
+.cache/
+.eslintcache
+.swc/
+.parcel-cache/
+.turbo/
+
+# Prisma/local database artifacts
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+docs/
+agent.md
