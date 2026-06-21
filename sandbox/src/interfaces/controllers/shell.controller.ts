@@ -1,9 +1,14 @@
 ﻿import { Body, Controller, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { homedir } from 'node:os';
-import { ShellExecuteRequest } from '../schemas/shell';
+import { BadRequestException } from '../errors/exceptions';
+import { ShellExecuteRequest, ShellReadRequest, ShellWaitRequest } from '../schemas/shell';
 import { type ApiResponse, ResponseEnvelope } from '../schemas/base';
-import { type ShellExecuteResult } from '../../models/shell';
+import {
+  type ShellExecuteResult,
+  type ShellReadResult,
+  type ShellWaitResult,
+} from '../../models/shell';
 import { ShellService } from '../../services/shell.service';
 
 @ApiTags('Shell模块')
@@ -31,5 +36,36 @@ export class ShellController {
     );
 
     return ResponseEnvelope.success(result);
+  }
+
+  /** 根据会话 ID 读取命令输出。 */
+  @Post('read-shell-output')
+  async readShellOutput(
+    @Body() request: ShellReadRequest,
+  ): Promise<ApiResponse<ShellReadResult>> {
+    if (!request.session_id || request.session_id === '') {
+      throw new BadRequestException('Shell会话ID为空, 请核实后重试');
+    }
+
+    const result = await this.shellService.readShellOutput(request.session_id, request.console);
+
+    return ResponseEnvelope.success(result);
+  }
+
+  /** 等待指定会话中的进程结束。 */
+  @Post('wait-process')
+  async waitProcess(
+    @Body() request: ShellWaitRequest,
+  ): Promise<ApiResponse<ShellWaitResult>> {
+    if (!request.session_id || request.session_id === '') {
+      throw new BadRequestException('Shell会话ID为空, 请核实后重试');
+    }
+
+    const result = await this.shellService.waitProcess(request.session_id, request.seconds);
+
+    return ResponseEnvelope.success(
+      result,
+      `进程结束, 返回状态码(returncode): ${result.returncode}`,
+    );
   }
 }
