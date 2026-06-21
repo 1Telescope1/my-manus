@@ -32,7 +32,7 @@ coverage/
 .parcel-cache/
 .turbo/
 
-# Prisma/local database artifacts
+# Local database artifacts
 *.db
 *.db-journal
 *.sqlite
