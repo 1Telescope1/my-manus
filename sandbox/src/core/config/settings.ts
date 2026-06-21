@@ -25,7 +25,7 @@ export type SandboxSettings = {
 
 let cachedSettings: SandboxSettings | null = null;
 
-/** 读取 sandbox 运行配置，对齐 Python `Settings` 和 `.env` 行为。 */
+/** 读取 sandbox 运行配置和 `.env` 行为。 */
 export function getSettings(): SandboxSettings {
   if (cachedSettings) {
     return cachedSettings;
@@ -42,3 +42,4 @@ export function getSettings(): SandboxSettings {
 
   return cachedSettings;
 }
+

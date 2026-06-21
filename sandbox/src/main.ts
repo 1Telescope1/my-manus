@@ -5,7 +5,7 @@ import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { getSettings } from './core/config/settings';
-import { GlobalExceptionFilter } from './interfaces/errors/exceptions/exception-handler';
+import { GlobalExceptionFilter } from './interfaces/errors/exception-handler';
 
 function getNestLoggerLevels(logLevel: string): LogLevel[] | false {
   switch (logLevel.toUpperCase()) {
@@ -65,7 +65,7 @@ async function resolveAvailablePort(startPort: number): Promise<number> {
 function setupOpenApi(app: Awaited<ReturnType<typeof NestFactory.create>>): void {
   const config = new DocumentBuilder()
     .setTitle('MoocManus 沙箱系统')
-    .setDescription('该沙箱系统中预装了 Chrome、Python、Node.js，支持运行 Shell 命令、文件管理等功能')
+    .setDescription('该沙箱系统预装了常用运行环境，支持运行 Shell 命令、文件管理等功能')
     .setVersion('1.0.0')
     .addTag('文件模块', '包含文件增删改查等 API 接口，用于实现对沙箱文件的操作。')
     .addTag('Shell模块', '包含执行/查看 Shell 等 API 接口，用于实现操控沙箱内部的 Shell 命令。')
@@ -107,3 +107,5 @@ void bootstrap().finally(() => {
     Logger.log('MoocManus 沙箱关闭成功');
   });
 });
+
+

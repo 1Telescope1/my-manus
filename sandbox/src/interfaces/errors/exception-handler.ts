@@ -6,14 +6,14 @@
   HttpStatus,
   Logger,
 } from '@nestjs/common';
-import { ResponseEnvelope } from '../../schemas/base';
+import { ResponseEnvelope } from '../schemas/base';
 import { AppException } from './exceptions';
 
 type JsonResponse = {
   status(code: number): { json(body: unknown): void };
 };
 
-/** 将所有异常统一包装成 Python `Response` 结构。 */
+/** 将所有异常统一包装成统一响应结构。 */
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(GlobalExceptionFilter.name);
@@ -51,3 +51,4 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       .json(ResponseEnvelope.fail(HttpStatus.INTERNAL_SERVER_ERROR, '服务器出现异常，请稍后尝试'));
   }
 }
+

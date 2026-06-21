@@ -1,6 +1,6 @@
 ﻿import { HttpStatus, Logger } from '@nestjs/common';
 
-/** 应用基础异常，对齐 Python `AppException`。 */
+/** 应用基础异常。 */
 export class AppException extends Error {
   private static readonly logger = new Logger(AppException.name);
 
@@ -27,3 +27,4 @@ export class BadRequestException extends AppException {
     super(msg, HttpStatus.BAD_REQUEST);
   }
 }
+

@@ -6,7 +6,7 @@ export type ApiResponse<T = unknown> = {
   data: T | EmptyObject;
 };
 
-/** 基础 API 响应结构，对齐 Python `Response` 泛型模型。 */
+/** 基础 API 响应结构。 */
 export class ResponseEnvelope {
   /** 成功响应，业务状态码固定为 200。 */
   static success<T>(data?: T, msg = 'success'): ApiResponse<T> {
@@ -26,3 +26,4 @@ export class ResponseEnvelope {
     };
   }
 }
+
