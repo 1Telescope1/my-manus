@@ -1,3 +1,4 @@
+﻿/** 提取当前视口可见元素的 HTML，用于后续转换 Markdown。 */
 export const GET_VISIBLE_CONTENT_FUNC = `() => {
   const visibleElements = [];
   const viewportHeight = window.innerHeight;
@@ -35,6 +36,7 @@ export const GET_VISIBLE_CONTENT_FUNC = `() => {
   return '<div>' + visibleElements.join(' ') + '</div>';
 }`;
 
+/** 提取当前视口内可交互元素，并给每个元素写入 data-manus-id。 */
 export const GET_INTERACTIVE_ELEMENTS_FUNC = `() => {
   const interactiveElements = [];
   const viewportHeight = window.innerHeight;
@@ -135,6 +137,7 @@ export const GET_INTERACTIVE_ELEMENTS_FUNC = `() => {
   return interactiveElements;
 }`;
 
+/** 注入 console.log 代理，把页面日志缓存到 window.console.logs。 */
 export const INJECT_CONSOLE_LOGS_FUNC = `() => {
   window.console.logs = [];
   const originalLog = console.log;
@@ -143,3 +146,4 @@ export const INJECT_CONSOLE_LOGS_FUNC = `() => {
     originalLog.apply(console, args);
   };
 }`;
+

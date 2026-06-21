@@ -1,4 +1,4 @@
-import {
+﻿import {
   chromium,
   type Browser as PlaywrightBrowserInstance,
   type ElementHandle,
@@ -23,6 +23,12 @@ type InteractiveElement = {
 
 type BrowserElementHandle = ElementHandle<SVGElement | HTMLElement>;
 
+/**
+ * Playwright 浏览器适配器。
+ *
+ * 只实现 infrastructure 层能力：通过 CDP 连接已有 Chromium，
+ * 并按 domain Browser 协议暴露导航、查看页面、点击、输入、滚动、截图和 console 操作。
+ */
 export class PlaywrightBrowser extends BrowserPort {
   private browser: PlaywrightBrowserInstance | null = null;
   private page: Page | null = null;
@@ -35,6 +41,7 @@ export class PlaywrightBrowser extends BrowserPort {
     super();
   }
 
+  /** 确保浏览器和默认页面可用；缺失时按 Python 逻辑懒初始化。 */
   private async ensureBrowser(): Promise<void> {
     if (!this.browser || !this.page) {
       const initialized = await this.initialize();
@@ -44,6 +51,7 @@ export class PlaywrightBrowser extends BrowserPort {
     }
   }
 
+  /** 确保当前 page 指向浏览器上下文中的最新页面。 */
   private async ensurePage(): Promise<void> {
     await this.ensureBrowser();
 
@@ -79,6 +87,7 @@ export class PlaywrightBrowser extends BrowserPort {
     return this.page;
   }
 
+  /** 提取可见 HTML，并用 node-html-markdown 转成 Markdown。 */
   private async extractContent(): Promise<string> {
     const page = this.getCurrentPage();
     const visibleContent = (await page.evaluate(GET_VISIBLE_CONTENT_FUNC)) as string;
@@ -106,6 +115,7 @@ export class PlaywrightBrowser extends BrowserPort {
     return typeof response.content === 'string' ? response.content : '';
   }
 
+  /** 提取当前视口内可交互元素，并刷新 index 到 DOM 选择器的缓存。 */
   private async extractInteractiveElements(): Promise<string[]> {
     await this.ensurePage();
     const page = this.getCurrentPage();
@@ -139,6 +149,7 @@ export class PlaywrightBrowser extends BrowserPort {
     });
   }
 
+  /** 初始化 CDP 连接；失败时按 Python 版本最多重试 5 次。 */
   async initialize(): Promise<boolean> {
     const maxRetries = 5;
     let retryInterval = 1_000;
@@ -189,6 +200,7 @@ export class PlaywrightBrowser extends BrowserPort {
     return false;
   }
 
+  /** 关闭页面和浏览器连接，并清空本地缓存状态。 */
   async cleanup(): Promise<void> {
     try {
       if (this.browser) {
@@ -218,6 +230,7 @@ export class PlaywrightBrowser extends BrowserPort {
     }
   }
 
+  /** 等待 document.readyState 变为 complete。 */
   async waitForPageLoad(timeout = 15): Promise<boolean> {
     await this.ensurePage();
     const page = this.getCurrentPage();
@@ -483,3 +496,5 @@ export class PlaywrightBrowser extends BrowserPort {
     };
   }
 }
+
+
