@@ -5,6 +5,7 @@ import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { getSettings } from './core/config/settings';
+import { GlobalExceptionFilter } from './interfaces/errors/exceptions/exception-handler';
 
 function getNestLoggerLevels(logLevel: string): LogLevel[] | false {
   switch (logLevel.toUpperCase()) {
@@ -90,6 +91,7 @@ async function bootstrap(): Promise<void> {
     allowedHeaders: '*',
   });
   app.setGlobalPrefix('api');
+  app.useGlobalFilters(new GlobalExceptionFilter());
   app.enableShutdownHooks();
   setupOpenApi(app);
 
