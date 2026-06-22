@@ -2,12 +2,20 @@
 import { ApiTags } from '@nestjs/swagger';
 import { homedir } from 'node:os';
 import { BadRequestException } from '../errors/exceptions';
-import { ShellExecuteRequest, ShellReadRequest, ShellWaitRequest } from '../schemas/shell';
+import {
+  ShellExecuteRequest,
+  ShellKillRequest,
+  ShellReadRequest,
+  ShellWaitRequest,
+  ShellWriteRequest,
+} from '../schemas/shell';
 import { type ApiResponse, ResponseEnvelope } from '../schemas/base';
 import {
   type ShellExecuteResult,
+  type ShellKillResult,
   type ShellReadResult,
   type ShellWaitResult,
+  type ShellWriteResult,
 } from '../../models/shell';
 import { ShellService } from '../../services/shell.service';
 
@@ -67,5 +75,38 @@ export class ShellController {
       result,
       `进程结束, 返回状态码(returncode): ${result.returncode}`,
     );
+  }
+
+  /** 向指定会话的子进程写入数据。 */
+  @Post('write-shell-input')
+  async writeShellInput(
+    @Body() request: ShellWriteRequest,
+  ): Promise<ApiResponse<ShellWriteResult>> {
+    if (!request.session_id || request.session_id === '') {
+      throw new BadRequestException('Shell会话ID为空, 请核实后重试');
+    }
+
+    const result = await this.shellService.writeShellInput(
+      request.session_id,
+      request.input_text,
+      request.press_enter ?? true,
+    );
+
+    return ResponseEnvelope.success(result, '向进程写入数据成功');
+  }
+
+  /** 终止指定会话的子进程。 */
+  @Post('kill-process')
+  async killProcess(
+    @Body() request: ShellKillRequest,
+  ): Promise<ApiResponse<ShellKillResult>> {
+    if (!request.session_id || request.session_id === '') {
+      throw new BadRequestException('Shell会话ID为空, 请核实后重试');
+    }
+
+    const result = await this.shellService.killProcess(request.session_id);
+    const message = result.status === 'terminated' ? '进程终止' : '进程已结束';
+
+    return ResponseEnvelope.success(result, message);
   }
 }
