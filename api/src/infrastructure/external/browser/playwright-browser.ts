@@ -41,7 +41,7 @@ export class PlaywrightBrowser extends BrowserPort {
     super();
   }
 
-  /** 确保浏览器和默认页面可用；缺失时按 Python 逻辑懒初始化。 */
+  /** 确保浏览器和默认页面可用；缺失时执行懒初始化。 */
   private async ensureBrowser(): Promise<void> {
     if (!this.browser || !this.page) {
       const initialized = await this.initialize();
@@ -149,7 +149,7 @@ export class PlaywrightBrowser extends BrowserPort {
     });
   }
 
-  /** 初始化 CDP 连接；失败时按 Python 版本最多重试 5 次。 */
+  /** 初始化 CDP 连接；失败时最多重试 5 次。 */
   async initialize(): Promise<boolean> {
     const maxRetries = 5;
     let retryInterval = 1_000;
@@ -496,5 +496,6 @@ export class PlaywrightBrowser extends BrowserPort {
     };
   }
 }
+
 
 

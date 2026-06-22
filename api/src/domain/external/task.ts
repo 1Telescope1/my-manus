@@ -3,7 +3,7 @@
 /**
  * 任务运行器边界。
  *
- * 对齐 Python 的 `TaskRunner`：具体 runner 负责执行任务、释放资源，
+ * 具体 runner 负责执行任务、释放资源，
  * 并在任务结束时处理回调逻辑。
  */
 export abstract class TaskRunner {
@@ -20,8 +20,8 @@ export abstract class TaskRunner {
 /**
  * 任务实例边界。
  *
- * Python Protocol 中还定义了 `get/create/destroy` classmethod。
- * TS 侧 concrete task 可自行提供 static 方法；抽象实例协议只描述运行时对象能力。
+ * 具体任务类还需要提供 `get/create/destroy` 静态生命周期方法。
+ * 抽象实例协议只描述运行时对象能力。
  */
 export abstract class Task {
   /** 启动当前任务。 */
@@ -46,11 +46,12 @@ export abstract class Task {
 /**
  * 任务 concrete class 的静态侧约定。
  *
- * 不直接放进 `Task` abstract class，是因为 TS 静态方法无法像 Python
- * classmethod 那样自然参与实例抽象继承，而且不同实现可能需要额外依赖。
+ * 不直接放进 `Task` abstract class，是因为静态方法
+ * 无法自然参与实例抽象继承，而且不同实现可能需要额外依赖。
  */
 export interface TaskConstructor<TTask extends Task = Task> {
   get(taskId: string): TTask | undefined;
   create(taskRunner: TaskRunner, ...dependencies: unknown[]): TTask;
   destroy(): Promise<void>;
 }
+

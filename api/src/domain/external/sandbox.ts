@@ -6,9 +6,9 @@ export type SandboxFileData = Buffer | NodeJS.ReadableStream;
 /**
  * 沙箱能力边界。
  *
- * 该抽象类只对齐 Python 的 `Sandbox` Protocol：文件操作、Shell 进程操作、
- * 浏览器实例获取，以及沙箱自身生命周期。当前 Python 侧还没有 concrete
- * implementation，所以 TS 侧暂时只保留端口，不主动补真实实现。
+ * 该抽象类描述沙箱文件操作、Shell 进程操作、
+ * 浏览器实例获取，以及沙箱自身生命周期。当前还没有 concrete
+ * implementation，所以暂时只保留端口，不主动补真实实现。
  */
 export abstract class Sandbox {
   /** 执行指定会话和目录下的命令。 */
@@ -102,10 +102,11 @@ export abstract class Sandbox {
 }
 
 /**
- * TypeScript 不适合在 abstract class 上强制抽象静态方法。
- * 该接口保留 Python `Sandbox.create/get` 的静态侧语义，供具体实现类声明使用。
+ * 抽象类不适合强制约束静态方法。
+ * 该接口保留沙箱创建和查询的静态侧约定，供具体实现类声明使用。
  */
 export interface SandboxConstructor<TSandbox extends Sandbox = Sandbox> {
   create(): Promise<TSandbox>;
   get(id: string): Promise<TSandbox | null>;
 }
+
