@@ -1,4 +1,4 @@
-﻿import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+﻿import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { homedir, hostname, userInfo } from 'node:os';
@@ -21,6 +21,66 @@ class ProcessWaitTimeoutError extends Error {}
 export class ShellService {
   private readonly logger = new Logger(ShellService.name);
   private readonly activeShells = new Map<string, Shell>();
+
+  /** 查找当前 Windows 环境可用的 PowerShell 可执行文件。 */
+  private resolveWindowsShell(): string {
+    for (const candidate of ['powershell.exe', 'pwsh.exe']) {
+      const result = spawnSync('where.exe', [candidate], { stdio: 'ignore', windowsHide: true });
+      if (result.status === 0) {
+        return candidate;
+      }
+    }
+
+    return 'powershell.exe';
+  }
+
+  /** Windows 下强制终止进程树，避免只杀掉外层 shell 后留下子进程。 */
+  private killWindowsProcessTree(pid: number): Promise<void> {
+    return new Promise((resolve) => {
+      const child = spawn('taskkill.exe', ['/PID', String(pid), '/T', '/F'], {
+        stdio: 'ignore',
+        windowsHide: true,
+      });
+
+      child.once('close', () => resolve());
+      child.once('error', () => resolve());
+    });
+  }
+
+  /** 终止子进程；Windows 下超时后会清理完整进程树。 */
+  private async terminateProcess(child: ChildProcessWithoutNullStreams, gracefulSeconds: number): Promise<void> {
+    if (child.exitCode !== null) {
+      return;
+    }
+
+    try {
+      child.kill();
+    } catch {
+      return;
+    }
+
+    try {
+      await this.waitForExit(child, gracefulSeconds);
+      return;
+    } catch (error) {
+      if (!(error instanceof ProcessWaitTimeoutError)) {
+        throw error;
+      }
+    }
+
+    if (process.platform === 'win32' && child.pid) {
+      await this.killWindowsProcessTree(child.pid);
+      await this.waitForExit(child, 1).catch(() => undefined);
+      return;
+    }
+
+    try {
+      child.kill('SIGKILL');
+    } catch {
+      return;
+    }
+    await this.waitForExit(child, 1).catch(() => undefined);
+  }
 
   /** 将用户主目录替换成 `~`，用于生成控制台提示符。 */
   private static getDisplayPath(path: string): string {
@@ -54,7 +114,7 @@ export class ShellService {
         command;
 
       return spawn(
-        'powershell.exe',
+        this.resolveWindowsShell(),
         ['-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', powershellCommand],
         { cwd: execDir, stdio: 'pipe', windowsHide: true },
       );
@@ -234,12 +294,10 @@ export class ShellService {
         if (oldProcess.exitCode === null) {
           this.logger.debug(`正在终止会话中的上一个进程: ${sessionId}`);
           try {
-            oldProcess.kill();
-            await this.waitForExit(oldProcess, 1);
+            await this.terminateProcess(oldProcess, 1);
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
-            this.logger.warn(`强制终止 Shell 会话中的进程 ${sessionId} 失败: ${message}`);
-            oldProcess.kill('SIGKILL');
+            this.logger.warn(`终止 Shell 会话中的进程 ${sessionId} 失败: ${message}`);
           }
         }
 
@@ -307,7 +365,8 @@ export class ShellService {
     }
 
     try {
-      const textToSend = inputText + (pressEnter ? '\n' : '');
+      const lineEnding = process.platform === 'win32' ? '\r\n' : '\n';
+      const textToSend = inputText + (pressEnter ? lineEnding : '');
       shell.output += textToSend;
       const latestRecord = shell.console_records.at(-1);
       if (latestRecord) {
@@ -346,19 +405,8 @@ export class ShellService {
 
     try {
       if (shell.process.exitCode === null) {
-        this.logger.log(`尝试优雅终止进程: ${sessionId}`);
-        shell.process.kill();
-
-        try {
-          await this.waitForExit(shell.process, 3);
-        } catch (error) {
-          if (error instanceof ProcessWaitTimeoutError) {
-            this.logger.warn(`尝试强制关闭进程: ${sessionId}`);
-            shell.process.kill('SIGKILL');
-          } else {
-            throw error;
-          }
-        }
+        this.logger.log(`尝试终止进程: ${sessionId}`);
+        await this.terminateProcess(shell.process, 3);
 
         this.logger.log(`进程已终止，返回代码为 ${shell.process.exitCode}`);
         return { status: 'terminated', returncode: shell.process.exitCode };
@@ -373,4 +421,7 @@ export class ShellService {
     }
   }
 }
+
+
+
 
