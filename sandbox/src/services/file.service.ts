@@ -73,7 +73,7 @@ export class FileService {
     return path.split(sep).join('/');
   }
 
-  /** 将简单 glob 规则转换成正则表达式，支持 `*`、`?` 和 `**/`。 */
+  /** 将简单 glob 规则转换成正则表达式，支持 `*`、`?` 和 `**/
   private static globToRegExp(globPattern: string): RegExp {
     const pattern = FileService.normalizeRelativePath(globPattern);
     let regex = '^';

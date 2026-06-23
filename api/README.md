@@ -17,7 +17,7 @@ Create `.env` from `.env.example` and set local Redis/Postgres/COS values as nee
 npm run start:local
 ```
 
-Local startup runs the TypeScript source through the Nest CLI, so source changes do not require `npm run build` first. The service uses `/api` as the global prefix, matching the Python FastAPI app. If port `8000` is already in use, startup falls back to `8001`.
+Local startup runs the TypeScript source through the Nest CLI, so source changes do not require `npm run build` first. The service uses `/api` as the global prefix, matching the Python FastAPI app. If port `8080` is already in use, startup falls back to `8081`.
 
 ## Current Scope
 

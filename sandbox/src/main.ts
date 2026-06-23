@@ -1,6 +1,5 @@
-﻿import 'reflect-metadata';
-import { createServer } from 'node:net';
-import { Logger, type LogLevel } from '@nestjs/common';
+import 'reflect-metadata';
+import { Logger, type INestApplication, type LogLevel } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
@@ -30,39 +29,25 @@ function isPortInUse(error: unknown): boolean {
   return error instanceof Error && (error as NodeJS.ErrnoException).code === 'EADDRINUSE';
 }
 
-async function isLocalhostPortAvailable(port: number): Promise<boolean> {
-  return new Promise((resolve, reject) => {
-    const server = createServer();
-
-    server.once('error', (error) => {
-      if (isPortInUse(error)) {
-        resolve(false);
-        return;
-      }
-      reject(error);
-    });
-
-    server.once('listening', () => {
-      server.close(() => resolve(true));
-    });
-
-    // 预检查 127.0.0.1，避免 Windows 下 0.0.0.0 与 localhost 判断不一致。
-    server.listen(port, '127.0.0.1');
-  });
-}
-
-async function resolveAvailablePort(startPort: number): Promise<number> {
+async function listenOnAvailablePort(app: INestApplication, startPort: number): Promise<number> {
   let port = startPort;
 
-  while (!(await isLocalhostPortAvailable(port))) {
-    Logger.warn(`端口 ${port} 已被占用，尝试 ${port + 1}。`);
-    port += 1;
-  }
+  while (true) {
+    try {
+      await app.listen(port);
+      return port;
+    } catch (error) {
+      if (!isPortInUse(error)) {
+        throw error;
+      }
 
-  return port;
+      Logger.warn(`端口 ${port} 已被占用，尝试 ${port + 1}。`);
+      port += 1;
+    }
+  }
 }
 
-function setupOpenApi(app: Awaited<ReturnType<typeof NestFactory.create>>): void {
+function setupOpenApi(app: INestApplication): void {
   const config = new DocumentBuilder()
     .setTitle('MoocManus 沙箱系统')
     .setDescription('该沙箱系统预装了常用运行环境，支持运行 Shell 命令、文件管理等功能')
@@ -95,9 +80,7 @@ async function bootstrap(): Promise<void> {
   app.enableShutdownHooks();
   setupOpenApi(app);
 
-  const port = await resolveAvailablePort(settings.port);
-
-  await app.listen(port);
+  const port = await listenOnAvailablePort(app, settings.port);
   Logger.log(`MoocManus TS Sandbox listening on http://localhost:${port}/api`);
   Logger.log(`MoocManus TS Sandbox docs available at http://localhost:${port}/docs`);
 }
@@ -107,5 +90,3 @@ void bootstrap().finally(() => {
     Logger.log('MoocManus 沙箱关闭成功');
   });
 });
-
-

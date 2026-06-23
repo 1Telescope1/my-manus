@@ -1,8 +1,8 @@
-﻿import { config as loadEnv } from 'dotenv';
+import { config as loadEnv } from 'dotenv';
 
 loadEnv();
 
-const DEFAULT_PORT = 8001;
+const DEFAULT_PORT = 8080;
 
 function optionalNumber(value: string | undefined, fallback: number): number {
   if (!value || !value.trim()) {
