@@ -1,7 +1,3 @@
-# TypeScript API
-
-NestJS TypeScript parity implementation of the Python API in `../../api`.
-
 ## Setup
 
 ```powershell

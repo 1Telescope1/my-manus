@@ -1,0 +1,14 @@
+node_modules
+dist
+build
+coverage
+.cache
+.turbo
+*.log
+server.log
+.env
+.git
+.gitignore
+.idea
+.vscode
+docs
