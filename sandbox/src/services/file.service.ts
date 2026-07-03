@@ -1,4 +1,4 @@
-﻿import { spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { createWriteStream, existsSync } from 'node:fs';
 import {
   copyFile,
@@ -73,7 +73,7 @@ export class FileService {
     return path.split(sep).join('/');
   }
 
-  /** 将简单 glob 规则转换成正则表达式，支持 `*`、`?` 和 `**/
+  /** 将简单 glob 规则转换成正则表达式，支持星号、问号和双星规则。 */
   private static globToRegExp(globPattern: string): RegExp {
     const pattern = FileService.normalizeRelativePath(globPattern);
     let regex = '^';
