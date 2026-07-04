@@ -45,13 +45,13 @@ export class SettingsService {
   readonly cosBucket = process.env.COS_BUCKET ?? '';
   readonly cosDomain = process.env.COS_DOMAIN ?? '';
 
-  readonly sandboxAddress = process.env.SANDBOX_ADDRESS ?? '';
-  readonly sandboxImage = process.env.SANDBOX_IMAGE ?? 'mooc-manus-sandbox';
-  readonly sandboxNamePrefix = process.env.SANDBOX_NAME_PREFIX ?? 'mooc-manus-sandbox';
+  readonly sandboxAddress = optionalString(process.env.SANDBOX_ADDRESS);
+  readonly sandboxImage = optionalString(process.env.SANDBOX_IMAGE);
+  readonly sandboxNamePrefix = optionalString(process.env.SANDBOX_NAME_PREFIX);
   readonly sandboxTtlMinutes = optionalNumber(process.env.SANDBOX_TTL_MINUTES, 60);
-  readonly sandboxNetwork = process.env.SANDBOX_NETWORK ?? 'mooc-manus-network';
+  readonly sandboxNetwork = optionalString(process.env.SANDBOX_NETWORK);
   readonly sandboxChromeArgs = process.env.SANDBOX_CHROME_ARGS ?? '';
-  readonly sandboxHttpsProxy = process.env.SANDBOX_HTTPS_PROXY ?? '';
-  readonly sandboxHttpProxy = process.env.SANDBOX_HTTP_PROXY ?? '';
-  readonly sandboxNoProxy = process.env.SANDBOX_NO_PROXY ?? '';
+  readonly sandboxHttpsProxy = optionalString(process.env.SANDBOX_HTTPS_PROXY);
+  readonly sandboxHttpProxy = optionalString(process.env.SANDBOX_HTTP_PROXY);
+  readonly sandboxNoProxy = optionalString(process.env.SANDBOX_NO_PROXY);
 }
