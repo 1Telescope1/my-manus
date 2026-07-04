@@ -1,4 +1,5 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, type NestModule } from '@nestjs/common';
+import { AutoExtendTimeoutMiddleware } from './core/middleware';
 import { FileController } from './interfaces/controllers/file.controller';
 import { ShellController } from './interfaces/controllers/shell.controller';
 import { SupervisorController } from './interfaces/controllers/supervisor.controller';
@@ -9,6 +10,10 @@ import { SupervisorService } from './services/supervisor.service';
 /** 聚合 sandbox 当前已有的 router，并注册服务单例。 */
 @Module({
   controllers: [FileController, ShellController, SupervisorController],
-  providers: [FileService, ShellService, SupervisorService],
+  providers: [FileService, ShellService, SupervisorService, AutoExtendTimeoutMiddleware],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(AutoExtendTimeoutMiddleware).forRoutes('*');
+  }
+}

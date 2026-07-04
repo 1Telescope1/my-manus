@@ -50,6 +50,11 @@ export class SupervisorService {
     return this.expandEnabledState;
   }
 
+  /** 只读属性，返回是否已经开启超时销毁。 */
+  get isTimeoutActive(): boolean {
+    return this.timeoutActive;
+  }
+
   /** 开启自动保活。 */
   enableExpand(): void {
     this.expandEnabledState = true;
