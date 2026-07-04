@@ -14,6 +14,7 @@ import { SupervisorService } from './services/supervisor.service';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
+    // 自动保活需要观察所有 API 请求，因此在模块层注册到全部路由。
     consumer.apply(AutoExtendTimeoutMiddleware).forRoutes('*');
   }
 }

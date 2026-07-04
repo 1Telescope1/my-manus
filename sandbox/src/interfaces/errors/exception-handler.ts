@@ -19,9 +19,11 @@ export class GlobalExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(GlobalExceptionFilter.name);
 
   catch(exception: unknown, host: ArgumentsHost): void {
+    // 当前过滤器只处理 HTTP 请求上下文，因此先取出底层响应对象。
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<JsonResponse>();
 
+    // 业务异常已经携带业务状态码、消息和扩展数据，直接透传给响应结构。
     if (exception instanceof AppException) {
       this.logger.error(`AppException: ${exception.msg}`);
       response
@@ -30,6 +32,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       return;
     }
 
+    // Nest 内置异常可能返回字符串或对象，这里统一提取成可读消息。
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
       const exceptionResponse = exception.getResponse();
@@ -44,6 +47,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       return;
     }
 
+    // 未知异常只暴露通用错误文案，详细堆栈保留在控制台日志中。
     const error = exception instanceof Error ? exception : new Error(String(exception));
     this.logger.error(`Exception: ${error.message}`, error.stack);
     response

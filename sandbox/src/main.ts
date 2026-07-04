@@ -7,6 +7,7 @@ import { getSettings } from './core/config/settings';
 import { GlobalExceptionFilter } from './interfaces/errors/exception-handler';
 
 function getNestLoggerLevels(logLevel: string): LogLevel[] | false {
+  // 将环境变量中的日志级别映射成 Nest 支持的日志通道列表。
   switch (logLevel.toUpperCase()) {
     case 'DEBUG':
       return ['error', 'warn', 'log', 'debug', 'verbose'];
@@ -26,10 +27,12 @@ function getNestLoggerLevels(logLevel: string): LogLevel[] | false {
 }
 
 function isPortInUse(error: unknown): boolean {
+  // Node 在端口被占用时会抛出带 EADDRINUSE code 的系统异常。
   return error instanceof Error && (error as NodeJS.ErrnoException).code === 'EADDRINUSE';
 }
 
 async function listenOnAvailablePort(app: INestApplication, startPort: number): Promise<number> {
+  // 从配置端口开始监听，如果被占用则不断尝试下一个端口。
   let port = startPort;
 
   while (true) {
@@ -38,6 +41,7 @@ async function listenOnAvailablePort(app: INestApplication, startPort: number): 
       return port;
     } catch (error) {
       if (!isPortInUse(error)) {
+        // 非端口占用错误不做兜底，直接向上抛出，避免掩盖启动问题。
         throw error;
       }
 
@@ -48,6 +52,7 @@ async function listenOnAvailablePort(app: INestApplication, startPort: number): 
 }
 
 function setupOpenApi(app: INestApplication): void {
+  // OpenAPI 文档只描述当前沙箱暴露的 HTTP 接口，不参与业务逻辑。
   const config = new DocumentBuilder()
     .setTitle('MoocManus 沙箱系统')
     .setDescription('该沙箱系统预装了常用运行环境，支持运行 Shell 命令、文件管理等功能')
@@ -62,6 +67,7 @@ function setupOpenApi(app: INestApplication): void {
 }
 
 async function bootstrap(): Promise<void> {
+  // 启动时统一读取配置，并按配置控制 Nest 控制台日志级别。
   const settings = getSettings();
   const app = await NestFactory.create(AppModule, {
     logger: getNestLoggerLevels(settings.logLevel),
@@ -69,17 +75,22 @@ async function bootstrap(): Promise<void> {
 
   Logger.log('MoocManus 沙箱正在初始化');
 
+  // 沙箱服务通常会被外部 API 或调试工具直接访问，因此默认放开 CORS。
   app.enableCors({
     origin: '*',
     credentials: true,
     methods: '*',
     allowedHeaders: '*',
   });
+  // 所有接口统一挂载到 /api 下，和调用侧约定保持一致。
   app.setGlobalPrefix('api');
+  // 统一异常响应结构，保证业务异常和未知异常都返回 code/msg/data。
   app.useGlobalFilters(new GlobalExceptionFilter());
+  // 开启 Nest 关闭钩子，便于容器或进程退出时释放资源。
   app.enableShutdownHooks();
   setupOpenApi(app);
 
+  // 监听配置端口；如果端口已被占用，则自动使用后续可用端口。
   const port = await listenOnAvailablePort(app, settings.port);
   Logger.log(`MoocManus TS Sandbox listening on http://localhost:${port}/api`);
   Logger.log(`MoocManus TS Sandbox docs available at http://localhost:${port}/docs`);

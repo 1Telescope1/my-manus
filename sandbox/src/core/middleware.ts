@@ -26,6 +26,7 @@ export class AutoExtendTimeoutMiddleware implements NestMiddleware {
     const requestPath = getRequestPath(request);
 
     // 2. 判断逻辑，仅在符合条件时延长超时销毁时间 3 分钟。
+    // 超时管理接口本身不触发自动延长，避免手动控制和自动保活互相影响。
     const ignorePaths = [
       '/api/supervisor/activate-timeout',
       '/api/supervisor/extend-timeout',
@@ -42,6 +43,7 @@ export class AutoExtendTimeoutMiddleware implements NestMiddleware {
       this.supervisorService.expandEnabled
     ) {
       try {
+        // 每次普通 API 调用只小幅延长，避免无人访问时沙箱长期存活。
         await this.supervisorService.extendTimeout(3);
         this.logger.debug(`调用 API 请求而自动延长超时销毁时长: ${requestPath}`);
       } catch (error) {
