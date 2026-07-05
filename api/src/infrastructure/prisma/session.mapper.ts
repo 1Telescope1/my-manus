@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { Event } from '../../domain/models/event';
 import { createFileModel, FileModel } from '../../domain/models/file';
 import { Memory } from '../../domain/models/memory';
@@ -19,7 +20,7 @@ export type SessionPersistenceRecord = {
   createdAt: Date;
 };
 
-export function sessionToPersistence(session: Session): Record<string, unknown> {
+export function sessionToPersistence(session: Session): Prisma.SessionCreateInput {
   return {
     // 1. 基础字段：直接使用领域模型中的普通字段。
     id: session.id,
@@ -32,9 +33,9 @@ export function sessionToPersistence(session: Session): Record<string, unknown> 
     status: session.status,
 
     // 2. 复杂字段：转换成可以写入 JSON 字段的普通对象。
-    events: session.events,
-    files: session.files,
-    memories: serializeMemories(session.memories),
+    events: toJsonValue(session.events),
+    files: toJsonValue(session.files),
+    memories: toJsonValue(serializeMemories(session.memories)),
   };
 }
 
@@ -56,10 +57,8 @@ export function persistenceToSession(record: SessionPersistenceRecord): Session 
   });
 }
 
-export function sessionUpdateToPersistence(session: Session): Record<string, unknown> {
-  const data = sessionToPersistence(session);
-  delete data.updatedAt;
-  delete data.createdAt;
+export function sessionUpdateToPersistence(session: Session): Prisma.SessionUpdateInput {
+  const data: Prisma.SessionUpdateInput = sessionToPersistence(session);
   return data;
 }
 
@@ -100,4 +99,8 @@ function normalizeSessionStatus(status: string): SessionStatus {
   return Object.values(SessionStatus).includes(status as SessionStatus)
     ? (status as SessionStatus)
     : SessionStatus.PENDING;
+}
+
+function toJsonValue(value: unknown): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
