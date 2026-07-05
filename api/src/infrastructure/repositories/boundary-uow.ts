@@ -3,8 +3,9 @@ import { NotImplementedBoundaryError } from '../../core/errors/not-implemented-b
 import { BaseEvent } from '../../domain/models/event';
 import { FileModel } from '../../domain/models/file';
 import { Memory } from '../../domain/models/memory';
+import { Session, SessionStatus } from '../../domain/models/session';
 import { FileRepository } from '../../domain/repositories/file.repository';
-import { SessionModel, SessionRepository, SessionStatus } from '../../domain/repositories/session.repository';
+import { SessionRepository } from '../../domain/repositories/session.repository';
 import { UnitOfWork } from '../../domain/repositories/unit-of-work';
 
 class BoundaryFileRepository extends FileRepository {
@@ -18,15 +19,15 @@ class BoundaryFileRepository extends FileRepository {
 }
 
 class BoundarySessionRepository extends SessionRepository {
-  async save(_session: SessionModel): Promise<void> {
+  async save(_session: Session): Promise<void> {
     throw new NotImplementedBoundaryError('SessionRepository.save');
   }
 
-  async getAll(): Promise<SessionModel[]> {
+  async getAll(): Promise<Session[]> {
     throw new NotImplementedBoundaryError('SessionRepository.getAll');
   }
 
-  async getById(_sessionId: string): Promise<SessionModel | null> {
+  async getById(_sessionId: string): Promise<Session | null> {
     throw new NotImplementedBoundaryError('SessionRepository.getById');
   }
 

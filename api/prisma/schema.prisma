@@ -7,13 +7,20 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Demo {
-  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  name        String   @default("") @db.VarChar(255)
-  avatar      String   @default("") @db.VarChar(255)
-  description String   @default("") @db.Text
-  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
-  createdAt   DateTime @default(now()) @map("created_at")
+model Session {
+  id                 String    @id @default(uuid()) @db.VarChar(255)
+  sandboxId          String?   @map("sandbox_id") @db.VarChar(255)
+  taskId             String?   @map("task_id") @db.VarChar(255)
+  title              String    @default("") @db.VarChar(255)
+  unreadMessageCount Int       @default(0) @map("unread_message_count")
+  latestMessage      String    @default("") @map("latest_message") @db.Text
+  latestMessageAt    DateTime? @map("latest_message_at")
+  events             Json      @default("[]")
+  files              Json      @default("[]")
+  memories           Json      @default("{}")
+  status             String    @default("") @db.VarChar(255)
+  updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
 
-  @@map("demos")
+  @@map("sessions")
 }

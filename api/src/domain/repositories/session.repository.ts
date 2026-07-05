@@ -1,14 +1,12 @@
 import { BaseEvent } from '../models/event';
 import { FileModel } from '../models/file';
 import { Memory } from '../models/memory';
-
-export type SessionStatus = string;
-export type SessionModel = Record<string, unknown>;
+import { Session, SessionStatus } from '../models/session';
 
 export abstract class SessionRepository {
-  abstract save(session: SessionModel): Promise<void>;
-  abstract getAll(): Promise<SessionModel[]>;
-  abstract getById(sessionId: string): Promise<SessionModel | null>;
+  abstract save(session: Session): Promise<void>;
+  abstract getAll(): Promise<Session[]>;
+  abstract getById(sessionId: string): Promise<Session | null>;
   abstract deleteById(sessionId: string): Promise<void>;
   abstract updateTitle(sessionId: string, title: string): Promise<void>;
   abstract updateLatestMessage(
