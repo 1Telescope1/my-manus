@@ -1,3 +1,4 @@
+﻿import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 
 export enum MCPTransport {
@@ -67,11 +68,28 @@ export const MCPConfigSchema = z
 
 export type MCPConfig = z.infer<typeof MCPConfigSchema>;
 
-export const AppConfigSchema = z.object({
-  llm_config: LLMConfigSchema,
-  agent_config: AgentConfigSchema,
-  mcp_config: MCPConfigSchema,
+export const A2AServerConfigSchema = z.object({
+  id: z.string().default(() => randomUUID()),
+  base_url: z.string(),
+  enabled: z.boolean().default(true),
 });
+
+export type A2AServerConfig = z.infer<typeof A2AServerConfigSchema>;
+
+export const A2AConfigSchema = z.object({
+  a2a_servers: z.array(A2AServerConfigSchema).default([]),
+});
+
+export type A2AConfig = z.infer<typeof A2AConfigSchema>;
+
+export const AppConfigSchema = z
+  .object({
+    llm_config: LLMConfigSchema,
+    agent_config: AgentConfigSchema,
+    mcp_config: MCPConfigSchema,
+    a2a_config: A2AConfigSchema.default({ a2a_servers: [] }),
+  })
+  .passthrough();
 
 export type AppConfig = z.infer<typeof AppConfigSchema>;
 
@@ -80,5 +98,6 @@ export function createDefaultAppConfig(): AppConfig {
     llm_config: LLMConfigSchema.parse({}),
     agent_config: AgentConfigSchema.parse({}),
     mcp_config: MCPConfigSchema.parse({}),
+    a2a_config: A2AConfigSchema.parse({}),
   };
 }
