@@ -205,6 +205,12 @@ export class A2ATool extends BaseTool {
     }
     return this.manager.invoke(id, query);
   }
+
+  /** 清理 A2A 工具包资源。 */
+  async cleanup(): Promise<void> {
+    await this.manager?.cleanup();
+    this.initialized = false;
+  }
 }
 
 function errorMessage(error: unknown): string {

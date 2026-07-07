@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { FileModel } from './file';
 import { Plan, Step } from './plan';
+import { SearchResultItem } from './search';
+import { ToolResult } from './tool-result';
 
 export enum PlanEventStatus {
   CREATED = 'created',
@@ -57,14 +59,46 @@ export type MessageEvent = BaseEvent & {
   attachments: FileModel[];
 };
 
+export type BrowserToolContent = {
+  screenshot: string;
+};
+
+export type SearchToolContent = {
+  results: SearchResultItem[];
+};
+
+export type ShellToolContent = {
+  console: unknown;
+};
+
+export type FileToolContent = {
+  content: string;
+};
+
+export type MCPToolContent = {
+  result: unknown;
+};
+
+export type A2AToolContent = {
+  a2a_result: unknown;
+};
+
+export type ToolContent =
+  | BrowserToolContent
+  | SearchToolContent
+  | ShellToolContent
+  | FileToolContent
+  | MCPToolContent
+  | A2AToolContent;
+
 export type ToolEvent = BaseEvent & {
   type: 'tool';
   tool_call_id: string;
   tool_name: string;
-  tool_content?: unknown;
+  tool_content?: ToolContent;
   function_name: string;
   function_args: Record<string, any>;
-  function_result?: unknown;
+  function_result?: ToolResult;
   status: ToolEventStatus;
 };
 
