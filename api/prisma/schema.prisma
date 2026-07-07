@@ -24,3 +24,17 @@ model Session {
 
   @@map("sessions")
 }
+
+model File {
+  id        String   @id @default(uuid()) @db.VarChar(255)
+  filename  String   @default("") @db.VarChar(255)
+  filepath  String   @default("") @db.VarChar(255)
+  key       String   @default("") @db.VarChar(255)
+  extension String   @default("") @db.VarChar(255)
+  mimeType  String   @default("") @map("mime_type") @db.VarChar(255)
+  size      Int      @default(0)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("files")
+}
