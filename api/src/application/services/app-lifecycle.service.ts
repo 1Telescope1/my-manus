@@ -8,7 +8,6 @@ import { AgentService } from './agent.service';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { CosClient } from '../../infrastructure/storage/cos.client';
 import { RedisClient } from '../../infrastructure/storage/redis.client';
-import { PrismaMigrationService } from '../../infrastructure/prisma/prisma-migration.service';
 
 const AGENT_SHUTDOWN_TIMEOUT_MS = 30_000;
 
@@ -19,17 +18,13 @@ export class AppLifecycleService implements OnApplicationBootstrap, OnApplicatio
 
   constructor(
     private readonly agentService: AgentService,
-    private readonly migrationService: PrismaMigrationService,
     private readonly redis: RedisClient,
     private readonly postgres: PrismaService,
     private readonly cos: CosClient,
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
-    // 1. 运行数据库迁移。
-    await this.migrationService.migrate();
-
-    // 2. 按顺序初始化 Redis、Postgres 和 COS 客户端。
+    // 按顺序初始化 Redis、Postgres 和 COS 客户端。
     await this.redis.init();
     await this.postgres.init();
     await this.cos.init();
