@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AppConfigService } from './application/services/app-config.service';
+import { AppLifecycleService } from './application/services/app-lifecycle.service';
 import { FileService } from './application/services/file.service';
 import { AgentService } from './application/services/agent.service';
 import { SessionService } from './application/services/session.service';
@@ -14,6 +15,7 @@ import { SessionController } from './interfaces/controllers/session.controller';
 import { StatusController } from './interfaces/controllers/status.controller';
 import { FileAppConfigRepository } from './infrastructure/repositories/file-app-config.repository';
 import { PrismaService } from './infrastructure/prisma/prisma.service';
+import { PrismaMigrationService } from './infrastructure/prisma/prisma-migration.service';
 import { RedisClient } from './infrastructure/storage/redis.client';
 import { CosClient } from './infrastructure/storage/cos.client';
 import { repositoryProviders } from './interfaces/repository-dependencies';
@@ -26,6 +28,7 @@ import { SessionVncGateway } from './interfaces/gateways/session-vnc.gateway';
   imports: [CoreConfigModule],
   controllers: [StatusController, AppConfigController, FileController, SessionController],
   providers: [
+    PrismaMigrationService,
     PrismaService,
     RedisClient,
     CosClient,
@@ -52,6 +55,7 @@ import { SessionVncGateway } from './interfaces/gateways/session-vnc.gateway';
     SessionService,
     AgentService,
     SessionVncGateway,
+    AppLifecycleService,
   ],
 })
 export class AppModule {}

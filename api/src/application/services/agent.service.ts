@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnApplicationShutdown } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { FileStorage } from '../../domain/external/file-storage';
 import { JSONParser } from '../../domain/external/json-parser';
 import { SandboxConstructor } from '../../domain/external/sandbox';
@@ -22,7 +22,7 @@ export type ChatOptions = {
 };
 
 @Injectable()
-export class AgentService implements OnApplicationShutdown {
+export class AgentService {
   private readonly logger = new Logger(AgentService.name);
   private readonly sandboxClass: SandboxConstructor = DockerSandbox;
 
@@ -252,9 +252,6 @@ export class AgentService implements OnApplicationShutdown {
     this.logger.log('所有会话任务资源清除成功');
   }
 
-  async onApplicationShutdown(): Promise<void> {
-    await this.shutdown();
-  }
 }
 
 function parseEvent(payload: unknown): Event {

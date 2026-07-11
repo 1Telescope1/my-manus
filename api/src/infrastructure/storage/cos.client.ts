@@ -1,19 +1,15 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import COS from 'cos-nodejs-sdk-v5';
 import { SettingsService } from '../../core/config/settings';
 
 type CosProtocol = 'http' | 'http:' | 'https' | 'https:';
 
 @Injectable()
-export class CosClient implements OnModuleInit, OnModuleDestroy {
+export class CosClient {
   private readonly logger = new Logger(CosClient.name);
   private cosClient?: COS;
 
   constructor(private readonly settings: SettingsService) {}
-
-  async onModuleInit(): Promise<void> {
-    await this.init();
-  }
 
   async init(): Promise<void> {
     if (this.cosClient) {
@@ -29,13 +25,11 @@ export class CosClient implements OnModuleInit, OnModuleDestroy {
     this.logger.log('COS client initialized');
   }
 
-  async onModuleDestroy(): Promise<void> {
-    await this.shutdown();
-  }
-
   async shutdown(): Promise<void> {
-    this.cosClient = undefined;
-    this.logger.log('COS client closed');
+    if (this.cosClient) {
+      this.cosClient = undefined;
+      this.logger.log('关闭腾讯云Cos对象存储成功');
+    }
   }
 
   get client(): COS {
