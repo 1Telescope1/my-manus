@@ -1,0 +1,41 @@
+# 依赖与构建产物
+node_modules/
+dist/
+coverage/
+
+# 测试与缓存
+test/
+tests/
+.nyc_output/
+*.tsbuildinfo
+.cache/
+
+# 临时文件和日志
+tmp/
+*.tmp
+*.log
+*.swp
+*.swo
+*~
+
+# Git、环境变量和本地配置
+.git/
+.gitignore
+.gitattributes
+.gitmodules
+.env
+.env.local
+.env.*.local
+
+# 编辑器和操作系统文件
+.idea/
+.vscode/
+*.iml
+*.code-workspace
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# 本地协作文档
+docs/
+agent.md
