@@ -4,8 +4,8 @@
     build:
       # 2. 使用 sandbox 项目根目录作为构建上下文。
       context: ../
-      # 3. 使用 .devops 下的 Dockerfile 构建开发容器镜像。
-      dockerfile: .devops/Dockerfile
+      # 3. 使用项目根目录的完整沙箱镜像，启动 Supervisor、API、Chrome 和 VNC。
+      dockerfile: Dockerfile
     # 4. 将宿主机项目目录挂载到容器 /sandbox，便于容器内直接访问当前代码。
     volumes:
       - ../:/sandbox
