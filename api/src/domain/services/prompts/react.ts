@@ -12,7 +12,8 @@ export const EXECUTION_PROMPT = `
 - 需要进度通报时使用 message_notify_user。
 - 需要用户输入时使用 message_ask_user。
 
-返回 JSON，字段包括 success、attachments、result。
+仅返回一个合法的 JSON 对象，不要使用 Markdown 代码块，不要在 JSON 前后添加说明文字。
+字段包括 success、attachments、result。
 
 用户消息:
 {message}
@@ -30,5 +31,6 @@ export const EXECUTION_PROMPT = `
 export const SUMMARIZE_PROMPT = `
 任务已完成，你需要将最终结果交付给用户。
 
-返回 JSON，字段包括 message、attachments。
+仅返回一个合法的 JSON 对象，不要使用 Markdown 代码块，不要在 JSON 前后添加说明文字。
+字段包括 message、attachments。
 `;

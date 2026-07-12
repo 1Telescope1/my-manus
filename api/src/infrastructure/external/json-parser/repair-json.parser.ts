@@ -29,23 +29,68 @@ export class RepairJSONParser extends JSONParser {
   private normalizeJsonText(text: string): string {
     let normalized = text.trim();
 
-    // 模型有时会把 JSON 包在 Markdown 代码块中。
-    normalized = normalized
-      .replace(/^```(?:json)?\s*/i, '')
-      .replace(/\s*```$/i, '')
-      .trim();
+    // 优先从 Markdown JSON 代码块开始查找，但不依赖结束围栏存在。
+    const fencedStart = /```(?:json)?\s*/i.exec(normalized);
+    if (fencedStart) {
+      normalized = normalized.slice(fencedStart.index + fencedStart[0].length);
+    }
 
-    // 兼容 JSON 前后附带简短说明文字的情况。
-    const objectStart = normalized.indexOf('{');
-    const arrayStart = normalized.indexOf('[');
-    const starts = [objectStart, arrayStart].filter((index) => index >= 0);
-    const start = starts.length > 0 ? Math.min(...starts) : -1;
-    const end = Math.max(normalized.lastIndexOf('}'), normalized.lastIndexOf(']'));
+    const start = this.findJsonStart(normalized);
+    if (start < 0) {
+      return normalized.replace(/\s*```\s*$/i, '').trim();
+    }
 
-    if (start >= 0 && end >= start) {
+    const end = this.findCompleteJsonEnd(normalized, start);
+    if (end >= 0) {
+      // 只提取第一个结构完整的 JSON 值，忽略其后的 Markdown 说明。
       return normalized.slice(start, end + 1);
     }
 
-    return normalized;
+    // 结构不完整时保留从起始符开始的内容，交给 jsonrepair 尝试修复。
+    return normalized.slice(start).replace(/\s*```\s*$/i, '').trim();
+  }
+
+  private findJsonStart(text: string): number {
+    const objectStart = text.indexOf('{');
+    const arrayStart = text.indexOf('[');
+    const starts = [objectStart, arrayStart].filter((index) => index >= 0);
+    return starts.length > 0 ? Math.min(...starts) : -1;
+  }
+
+  private findCompleteJsonEnd(text: string, start: number): number {
+    const stack: string[] = [];
+    let inString = false;
+    let escaped = false;
+
+    for (let index = start; index < text.length; index += 1) {
+      const char = text[index];
+
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+        } else if (char === '\\') {
+          escaped = true;
+        } else if (char === '"') {
+          inString = false;
+        }
+        continue;
+      }
+
+      if (char === '"') {
+        inString = true;
+      } else if (char === '{' || char === '[') {
+        stack.push(char);
+      } else if (char === '}' || char === ']') {
+        const expectedOpen = char === '}' ? '{' : '[';
+        if (stack.pop() !== expectedOpen) {
+          return -1;
+        }
+        if (stack.length === 0) {
+          return index;
+        }
+      }
+    }
+
+    return -1;
   }
 }
