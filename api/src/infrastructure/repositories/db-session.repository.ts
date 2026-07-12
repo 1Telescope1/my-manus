@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { BaseEvent } from '../../domain/models/event';
 import { FileModel } from '../../domain/models/file';
@@ -24,13 +24,15 @@ type SessionDelegate = {
 
 @Injectable()
 export class DbSessionRepository extends SessionRepository {
-  constructor(private readonly prisma: PrismaService) {
+  constructor(
+    @Inject(PrismaService)
+    private readonly prisma: PrismaService | Prisma.TransactionClient,
+  ) {
     super();
   }
 
   private get sessionClient(): SessionDelegate {
-    // @ts-ignore Prisma Client 的 session delegate 由 prisma generate 生成；编辑器类型缓存未刷新时会误报。
-    return this.prisma.session;
+    return (this.prisma as unknown as { session: SessionDelegate }).session;
   }
 
   /** 根据传递的领域模型更新或者新增会话。 */

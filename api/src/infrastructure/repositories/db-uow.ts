@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { FileRepository } from '../../domain/repositories/file.repository';
 import { SessionRepository } from '../../domain/repositories/session.repository';
@@ -19,29 +20,31 @@ export class DbUnitOfWork extends UnitOfWork {
     this.session = new DbSessionRepository(this.prisma);
   }
 
-  /** 提交数据库持久化。 */
-  async commit(): Promise<void> {
-    // Prisma 的交互式事务在回调正常返回时自动提交。
-  }
-
-  /** 数据库回滚操作。 */
-  async rollback(): Promise<void> {
-    // Prisma 的交互式事务在回调抛出异常时自动回滚。
-  }
-
   /** 进入 UoW 操作上下文，所有仓储共享同一个事务客户端。 */
   async run<T>(fn: (uow: UnitOfWork) => Promise<T>): Promise<T> {
     try {
       return await this.prisma.$transaction(async (transactionClient) => {
-        // 1. 为当前事务创建新的 UoW 实例。
-        const active = new DbUnitOfWork(transactionClient as unknown as PrismaService);
-
-        // 2. 在事务内执行业务逻辑。
-        return fn(active);
+        return fn(new TransactionUnitOfWork(transactionClient));
       });
     } catch (error) {
       DbUnitOfWork.logger.warn(`UoW 操作失败: ${(error as Error).message}`);
       throw error;
     }
+  }
+}
+
+/** 事务范围内的仓储集合，由 Prisma 决定提交或回滚。 */
+class TransactionUnitOfWork extends UnitOfWork {
+  readonly file: FileRepository;
+  readonly session: SessionRepository;
+
+  constructor(transactionClient: Prisma.TransactionClient) {
+    super();
+    this.file = new DbFileRepository(transactionClient);
+    this.session = new DbSessionRepository(transactionClient);
+  }
+
+  async run<T>(fn: (uow: UnitOfWork) => Promise<T>): Promise<T> {
+    return fn(this);
   }
 }

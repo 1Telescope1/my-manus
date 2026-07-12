@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { FileModel } from '../../domain/models/file';
 import { FileRepository } from '../../domain/repositories/file.repository';
 import { PrismaService } from '../prisma/prisma.service';
@@ -17,13 +18,15 @@ type FileDelegate = {
 
 @Injectable()
 export class DbFileRepository extends FileRepository {
-  constructor(private readonly prisma: PrismaService) {
+  constructor(
+    @Inject(PrismaService)
+    private readonly prisma: PrismaService | Prisma.TransactionClient,
+  ) {
     super();
   }
 
   private get fileClient(): FileDelegate {
-    // @ts-ignore Prisma Client 的 file delegate 由 prisma generate 生成；编辑器类型缓存未刷新时会误报。
-    return this.prisma.file;
+    return (this.prisma as unknown as { file: FileDelegate }).file;
   }
 
   /** 根据传入的领域模型更新或者新增文件记录。 */
