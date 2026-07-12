@@ -1,0 +1,20 @@
+# Root deployment secrets
+.env
+.env.local
+.env.*.local
+
+# Dependencies and build output
+node_modules/
+dist/
+build/
+.next/
+coverage/
+*.tsbuildinfo
+
+# Logs and local tooling
+*.log
+.cache/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

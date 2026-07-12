@@ -16,7 +16,7 @@ export class FileAppConfigRepository implements AppConfigRepository {
   private readonly logger = new Logger(FileAppConfigRepository.name);
   private readonly configPath: string;
 
-  constructor(settings: SettingsService) {
+  constructor(private readonly settings: SettingsService) {
     this.configPath = resolve(process.cwd(), settings.appConfigFilepath);
   }
 
@@ -26,7 +26,16 @@ export class FileAppConfigRepository implements AppConfigRepository {
     try {
       const raw = await readFile(this.configPath, 'utf8');
       const parsed = raw.trim() ? YAML.parse(raw) : createDefaultAppConfig();
-      return AppConfigSchema.parse(parsed);
+      const config = AppConfigSchema.parse(parsed);
+      config.llm_config = {
+        ...config.llm_config,
+        ...(this.settings.llmBaseUrl ? { base_url: this.settings.llmBaseUrl } : {}),
+        ...(this.settings.llmApiKey ? { api_key: this.settings.llmApiKey } : {}),
+        ...(this.settings.llmModelName ? { model_name: this.settings.llmModelName } : {}),
+        temperature: this.settings.llmTemperature,
+        max_tokens: this.settings.llmMaxTokens,
+      };
+      return AppConfigSchema.parse(config);
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
       this.logger.error(`读取应用配置失败: ${err.message}`);

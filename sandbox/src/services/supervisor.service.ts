@@ -35,10 +35,10 @@ export class SupervisorService {
   constructor() {
     // 1. 读取 supervisor 超时配置。
     const settings = getSettings();
-    this.timeoutActive = settings.serverTimeoutMinutes !== null && settings.serverTimeoutMinutes !== undefined;
+    this.timeoutActive = settings.serverTimeoutMinutes > 0;
 
     // 2. 检测是否配置了自动销毁。
-    if (settings.serverTimeoutMinutes !== null && settings.serverTimeoutMinutes !== undefined) {
+    if (this.timeoutActive) {
       // 3. 设置销毁时间和定时器。
       this.shutdownTime = addMinutes(new Date(), settings.serverTimeoutMinutes);
       this.setupTimer(settings.serverTimeoutMinutes);

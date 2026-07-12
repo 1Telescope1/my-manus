@@ -1,0 +1,144 @@
+name: manus
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-manus}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    command:
+      - /bin/sh
+      - -c
+      - |
+        if [ -n "$${REDIS_PASSWORD}" ]; then
+          exec redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru --requirepass "$${REDIS_PASSWORD}"
+        else
+          exec redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+        fi
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "if [ -n \"$$REDIS_PASSWORD\" ]; then redis-cli -a \"$$REDIS_PASSWORD\" ping; else redis-cli ping; fi"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  sandbox:
+    build:
+      context: ./sandbox
+    image: manus-sandbox:latest
+    restart: unless-stopped
+    environment:
+      LOG_LEVEL: ${SANDBOX_LOG_LEVEL:-INFO}
+      SERVER_TIMEOUT_MINUTES: ${SANDBOX_SERVER_TIMEOUT_MINUTES:-0}
+      CHROME_ARGS: ${SANDBOX_CHROME_ARGS:-}
+      HTTPS_PROXY: ${SANDBOX_HTTPS_PROXY:-}
+      HTTP_PROXY: ${SANDBOX_HTTP_PROXY:-}
+      NO_PROXY: ${SANDBOX_NO_PROXY:-localhost,127.0.0.1,sandbox,api,redis,postgres}
+    shm_size: 1gb
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/api/supervisor/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  api:
+    build:
+      context: ./api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      ENV: ${API_ENV:-production}
+      LOG_LEVEL: ${API_LOG_LEVEL:-INFO}
+      PORT: "8000"
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-manus}}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_DB: ${REDIS_DB:-0}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      SANDBOX_ADDRESS: ${SANDBOX_ADDRESS:-sandbox}
+      SANDBOX_IMAGE: ${SANDBOX_IMAGE:-manus-sandbox:latest}
+      SANDBOX_NAME_PREFIX: ${SANDBOX_NAME_PREFIX:-manus-sandbox}
+      SANDBOX_TTL_MINUTES: ${SANDBOX_TTL_MINUTES:-60}
+      SANDBOX_NETWORK: ${SANDBOX_NETWORK:-}
+      SANDBOX_CHROME_ARGS: ${SANDBOX_CHROME_ARGS:-}
+      SANDBOX_HTTPS_PROXY: ${SANDBOX_HTTPS_PROXY:-}
+      SANDBOX_HTTP_PROXY: ${SANDBOX_HTTP_PROXY:-}
+      SANDBOX_NO_PROXY: ${SANDBOX_NO_PROXY:-localhost,127.0.0.1,sandbox,api,redis,postgres}
+      APP_CONFIG_FILEPATH: ${API_APP_CONFIG_FILEPATH:-/app/data/config.yaml}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.deepseek.com}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL_NAME: ${LLM_MODEL_NAME:-deepseek-reasoner}
+      LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.7}
+      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-8192}
+      COS_SECRET_ID: ${COS_SECRET_ID:-}
+      COS_SECRET_KEY: ${COS_SECRET_KEY:-}
+      COS_REGION: ${COS_REGION:-}
+      COS_SCHEME: ${COS_SCHEME:-https}
+      COS_BUCKET: ${COS_BUCKET:-}
+      COS_DOMAIN: ${COS_DOMAIN:-}
+    volumes:
+      - api_config:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      sandbox:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8000/api/status').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  ui:
+    build:
+      context: ./ui
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-/api}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8088}:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+    depends_on:
+      ui:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:
+  api_config:

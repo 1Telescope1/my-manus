@@ -39,6 +39,7 @@ export class DockerSandbox extends Sandbox {
   constructor(
     private readonly ip?: string | null,
     private readonly containerName?: string | null,
+    private readonly externallyManaged = false,
   ) {
     super();
     // 沙箱内部服务固定监听 8080，浏览器调试和 VNC 端口也由容器内服务暴露。
@@ -160,7 +161,7 @@ export class DockerSandbox extends Sandbox {
     // 如果配置了固定沙箱地址，则直接连接已有沙箱，不再创建新容器。
     if (settings.sandboxAddress) {
       const ip = await this.resolveHostnameToIp(settings.sandboxAddress);
-      return new DockerSandbox(ip);
+      return new DockerSandbox(ip, null, true);
     }
 
     // 未配置固定地址时，按镜像和容器参数创建一次性沙箱容器。
@@ -171,7 +172,7 @@ export class DockerSandbox extends Sandbox {
   async destroy(): Promise<boolean> {
     try {
       // 只有由当前实例持有容器名时，才尝试删除对应容器。
-      if (this.containerName) {
+      if (this.containerName && !this.externallyManaged) {
         const docker = new Dockerode();
         await docker.getContainer(this.containerName).remove({ force: true });
       }
@@ -190,7 +191,7 @@ export class DockerSandbox extends Sandbox {
     if (settings.sandboxAddress) {
       try {
         const ip = await this.resolveHostnameToIp(settings.sandboxAddress);
-        return new DockerSandbox(ip, id);
+        return new DockerSandbox(ip, null, true);
       } catch (error) {
         console.error(`解析沙箱地址失败: ${errorMessage(error)}`);
         return null;

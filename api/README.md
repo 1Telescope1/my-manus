@@ -19,7 +19,7 @@ npm install
 npm run prisma:generate
 ```
 
-根据 `.env.example` 创建本地 `.env`，配置 PostgreSQL、Redis、COS 和沙箱参数。
+统一在项目根目录 `.env` 中配置 PostgreSQL、Redis、COS 和沙箱参数，并通过根目录 Docker Compose 启动依赖。
 
 ## 启动服务
 
@@ -31,7 +31,7 @@ npm run start:local
 
 ## Docker 启动
 
-先确保本机已经存在 `.env`、`config.yaml`，以及 `SANDBOX_IMAGE` 指向的沙箱镜像。然后执行：
+先确保项目根目录 `.env` 已完成配置，并通过 Docker Compose 启动所需服务。运行时应用配置由 API 自动创建并持久化，无需手工维护 `config.yaml`。然后执行：
 
 ```powershell
 docker compose up -d --build

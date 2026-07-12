@@ -4,9 +4,9 @@ build
 coverage
 .cache
 .turbo
-*.log
 server.log
 .env
+*.log
 .git
 .gitignore
 .idea

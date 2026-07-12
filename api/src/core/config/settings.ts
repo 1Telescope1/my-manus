@@ -27,6 +27,12 @@ export class SettingsService {
   readonly port = optionalNumber(process.env.PORT, 8000);
   readonly appConfigFilepath = process.env.APP_CONFIG_FILEPATH ?? 'config.yaml';
 
+  readonly llmBaseUrl = optionalString(process.env.LLM_BASE_URL);
+  readonly llmApiKey = optionalString(process.env.LLM_API_KEY);
+  readonly llmModelName = optionalString(process.env.LLM_MODEL_NAME);
+  readonly llmTemperature = optionalNumber(process.env.LLM_TEMPERATURE, 0.7);
+  readonly llmMaxTokens = optionalNumber(process.env.LLM_MAX_TOKENS, 8192);
+
   readonly databaseUrl = normalizeDatabaseUrl(
     process.env.DATABASE_URL ?? process.env.SQLALCHEMY_DATABASE_URI,
   );
@@ -46,8 +52,8 @@ export class SettingsService {
   readonly cosDomain = process.env.COS_DOMAIN ?? '';
 
   readonly sandboxAddress = optionalString(process.env.SANDBOX_ADDRESS);
-  readonly sandboxImage = optionalString(process.env.SANDBOX_IMAGE);
-  readonly sandboxNamePrefix = optionalString(process.env.SANDBOX_NAME_PREFIX);
+  readonly sandboxImage = optionalString(process.env.SANDBOX_IMAGE) ?? 'manus-sandbox:latest';
+  readonly sandboxNamePrefix = optionalString(process.env.SANDBOX_NAME_PREFIX) ?? 'manus-sandbox';
   readonly sandboxTtlMinutes = optionalNumber(process.env.SANDBOX_TTL_MINUTES, 60);
   readonly sandboxNetwork = optionalString(process.env.SANDBOX_NETWORK);
   readonly sandboxChromeArgs = process.env.SANDBOX_CHROME_ARGS ?? '';
