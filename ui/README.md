@@ -1,76 +1,92 @@
-# MoocManus 前端 UI
+# MoocManus UI
 
-基于 Next.js 构建的前端用户界面，提供会话管理、AI 对话、远程桌面（VNC）等交互功能。
+`ui` 是 MoocManus 的 Web 前端，基于 Next.js 16 App Router、React 19、TypeScript、Tailwind CSS 4 和 Radix UI 构建。它提供会话列表、流式对话、计划/工具过程、文件预览、设置管理和 noVNC 桌面查看。
 
-## 技术栈
+## 目录结构
 
-- Next.js 16 (React 19)
-- TypeScript
-- Tailwind CSS 4
-- Radix UI (组件库)
-- noVNC (远程桌面)
-
-## 项目结构
-
-```
+```text
 ui/
+├── public/                         # 静态资源
 ├── src/
-│   ├── app/               # 页面路由
-│   │   ├── page.tsx       # 首页
-│   │   └── sessions/      # 会话页面
-│   ├── components/        # 组件
-│   │   ├── ui/            # 基础 UI 组件
-│   │   └── tool-use/      # 工具使用相关组件
-│   ├── lib/
-│   │   └── api/           # API 客户端
-│   ├── hooks/             # 自定义 Hooks
-│   └── providers/         # Context Providers
-├── public/                # 静态资源
-├── next.config.ts         # Next.js 配置
+│   ├── app/
+│   │   ├── page.tsx                # 首页：创建任务并跳转会话
+│   │   ├── sessions/page.tsx       # /sessions 重定向入口
+│   │   ├── sessions/[id]/page.tsx  # 会话详情页
+│   │   ├── layout.tsx              # 全局布局与 Provider
+│   │   └── globals.css
+│   ├── components/
+│   │   ├── tool-use/               # 各类 Agent 工具事件渲染
+│   │   ├── ui/                     # 基础 UI 组件
+│   │   ├── chat-*.tsx              # 对话头部、输入、消息
+│   │   ├── plan-panel.tsx           # 计划进度
+│   │   ├── file-preview-panel.tsx   # 文件预览
+│   │   ├── vnc-*.tsx                # noVNC 远程桌面
+│   │   └── manus-settings.tsx       # LLM/Agent/MCP/A2A 设置
+│   ├── hooks/                       # 会话列表与详情状态逻辑
+│   ├── providers/                   # 全局 SessionsProvider
+│   ├── lib/api/                     # HTTP、SSE、文件 API 客户端
+│   └── config/app.config.ts         # 前端展示配置
 ├── Dockerfile
-├── package.json
-└── tsconfig.json
+├── next.config.ts
+└── package.json
 ```
 
-## API 调用
+## 页面与数据流
 
-项目通过环境变量 `NEXT_PUBLIC_API_BASE_URL` 配置 API 地址：
+```text
+首页输入任务
+  → POST /sessions 创建会话
+  → 跳转 /sessions/:id?init=...
+  → useSessionDetail 发送初始消息
+  → POST /sessions/:id/chat（SSE）
+  → 按事件类型更新消息、计划、工具、文件和状态
+```
 
-- **开发环境**：默认 `http://localhost:8000/api`（直连 API 服务）
-- **生产环境**：构建时设置为 `/api`（通过 Nginx 反向代理）
+- `SessionsProvider` 通过 `/sessions/stream` 订阅会话列表，并带指数退避重连；初始列表由普通 GET 请求兜底。
+- `useSessionDetail` 加载历史事件、消费聊天 SSE、停止任务、读取文件和 Shell 输出。
+- `tool-use/` 根据工具类型分别展示 Browser、Bash、File、Search、MCP、A2A 等调用。
+- `vnc-viewer.tsx` 使用 `@novnc/novnc`，通过 API 的 WebSocket 网关查看会话 Sandbox 桌面。
+- 设置面板直接读写后端运行期配置；敏感模型密钥由后端保存，前端不应硬编码。
 
 ## 本地开发
 
-### 环境准备
+### 前置要求
 
-- Node.js >= 22
-- npm >= 10
+- Node.js 22+（与 Dockerfile 保持一致）
+- 已启动 API 服务
 
-### 安装与启动
-
-```bash
-# 安装依赖
+```powershell
 npm install
-
-# 启动开发服务器
+$env:NEXT_PUBLIC_API_BASE_URL='http://localhost:8000/api'
 npm run dev
 ```
 
-开发服务器默认运行在 `http://localhost:3000`，API 请求自动转发到 `http://localhost:8000/api`。
+访问 <http://localhost:3000>。
 
-### 构建
+常用命令：
 
-```bash
+```powershell
+npm run dev
+npm run lint
 npm run build
 npm run start
 ```
 
-## Docker 部署
+## 配置
 
-UI 服务通过根目录的 `docker-compose.yml` 统一部署。Dockerfile 采用多阶段构建：
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `NEXT_PUBLIC_API_BASE_URL` | `http://localhost:8000/api`（客户端代码兜底） | API 基础地址；根 Docker 构建传入 `/api` |
 
-1. **deps** - 安装 npm 依赖
-2. **builder** - 构建 Next.js 应用（standalone 模式）
-3. **runner** - 最小化生产镜像
+这是 Next.js 公共构建变量，生产环境修改后必须重新执行 `npm run build` 或重新构建镜像。通过 Nginx 部署时建议使用同源相对路径 `/api`，可避免 CORS 和 WebSocket 地址不一致。
 
-构建时通过 `NEXT_PUBLIC_API_BASE_URL=/api` 参数将 API 地址设置为相对路径，由 Nginx 统一代理。
+## API 交互约定
+
+- 普通请求由 `lib/api/fetch.ts` 解包后端 `{ code, msg, data }` 响应。
+- 会话列表和聊天使用 POST SSE，而不是浏览器原生 GET `EventSource`；客户端使用 `fetch` 读取 `ReadableStream` 并解析事件块。
+- 上传使用 `multipart/form-data`，下载使用文件响应或可访问 URL。
+- VNC 地址从当前 API 基础地址推导为 `ws://` 或 `wss://`。
+
+## Docker
+
+Dockerfile 分为依赖、构建、运行三阶段，生产镜像运行 Next.js standalone 输出，并使用非 root 用户 `nextjs`。服务监听 `0.0.0.0:3000`。
