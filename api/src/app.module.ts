@@ -4,6 +4,7 @@ import { AppLifecycleService } from './application/services/app-lifecycle.servic
 import { FileService } from './application/services/file.service';
 import { AgentService } from './application/services/agent.service';
 import { SessionService } from './application/services/session.service';
+import { SessionStreamService } from './application/services/session-stream.service';
 import { StatusService } from './application/services/status.service';
 import { CoreConfigModule } from './core/config/core-config.module';
 import { FileStorage } from './domain/external/file-storage';
@@ -72,6 +73,7 @@ import { RedisStreamTaskManager } from './infrastructure/external/task/redis-str
     AppConfigService,
     FileService,
     SessionService,
+    SessionStreamService,
     AgentService,
     SessionVncGateway,
     AppLifecycleService,

@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Post, Req, Res } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { AgentService } from '../../application/services/agent.service';
 import { SessionService } from '../../application/services/session.service';
+import { SessionStreamService } from '../../application/services/session-stream.service';
 import { NotFoundError } from '../../core/errors/app-exception';
 import { ApiResponse, ResponseEnvelope } from '../../core/response/api-response';
 import { Event } from '../../domain/models/event';
@@ -20,12 +21,11 @@ import {
   ShellReadResponse,
 } from '../dto/session.dto';
 
-const SESSION_SLEEP_INTERVAL = 5_000;
-
 @Controller('sessions')
 export class SessionController {
   constructor(
     private readonly sessionService: SessionService,
+    private readonly sessionStreamService: SessionStreamService,
     private readonly agentService: AgentService,
   ) {}
 
@@ -43,24 +43,21 @@ export class SessionController {
   @Post('stream')
   async streamSessions(@Req() request: Request, @Res() response: Response): Promise<void> {
     prepareSseResponse(response);
-    let closed = false;
-    request.on('close', () => {
-      closed = true;
+    await new Promise<void>((resolve) => {
+      // 1. 订阅进程内共享的会话列表更新。
+      const unsubscribe = this.sessionStreamService.subscribe((sessions) => {
+        if (!response.destroyed && !response.writableEnded) {
+          const sessionItems = sessions.map((session) => this.toListItem(session));
+          writeSseEvent(response, 'sessions', { sessions: sessionItems });
+        }
+      });
+
+      // 2. 客户端断开后释放当前订阅；最后一个订阅离开时停止数据库轮询。
+      request.once('close', () => {
+        unsubscribe();
+        resolve();
+      });
     });
-
-    while (!closed) {
-      // 1. 获取所有会话列表。
-      const sessions = await this.sessionService.getAllSessions();
-
-      // 2. 循环遍历并组装数据。
-      const sessionItems = sessions.map((session) => this.toListItem(session));
-
-      // 3. 将会话列表转换为流式事件数据并返回。
-      writeSseEvent(response, 'sessions', { sessions: sessionItems });
-
-      // 4. 睡眠指定时间避免高频响应。
-      await sleep(SESSION_SLEEP_INTERVAL);
-    }
   }
 
   /** 获取所有任务会话基础信息列表。 */
@@ -187,8 +184,4 @@ function prepareSseResponse(response: Response): void {
 function writeSseEvent(response: Response, event: string, data: unknown): void {
   response.write(`event: ${event}\n`);
   response.write(`data: ${JSON.stringify(data)}\n\n`);
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
