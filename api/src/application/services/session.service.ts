@@ -1,18 +1,18 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { NotFoundError, ServerRequestsError } from '../../core/errors/app-exception';
-import { SandboxConstructor } from '../../domain/external/sandbox';
+import { SandboxManager } from '../../domain/external/sandbox';
 import { FileModel } from '../../domain/models/file';
 import { createSession, Session } from '../../domain/models/session';
 import { UnitOfWork } from '../../domain/repositories/unit-of-work';
-import { DockerSandbox } from '../../infrastructure/external/sandbox/docker-sandbox';
 import { FileReadResponse, ShellReadResponse } from '../../interfaces/dto/session.dto';
 
 @Injectable()
 export class SessionService {
   private readonly logger = new Logger(SessionService.name);
-  private readonly sandboxClass: SandboxConstructor = DockerSandbox;
-
-  constructor(private readonly uow: UnitOfWork) {}
+  constructor(
+    private readonly uow: UnitOfWork,
+    private readonly sandboxManager: SandboxManager,
+  ) {}
 
   /** 创建一个空白的新任务会话。 */
   async createSession(): Promise<Session> {
@@ -127,7 +127,7 @@ export class SessionService {
     if (!session.sandbox_id) {
       throw new NotFoundError('当前会话无沙箱环境');
     }
-    const sandbox = await this.sandboxClass.get(session.sandbox_id);
+    const sandbox = await this.sandboxManager.get(session.sandbox_id);
     if (!sandbox) {
       throw new NotFoundError('当前会话沙箱不存在或已销毁');
     }

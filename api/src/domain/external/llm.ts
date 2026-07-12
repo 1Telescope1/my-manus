@@ -12,3 +12,8 @@ export abstract class LLM {
     toolChoice?: string | null;
   }): Promise<LLMMessage>;
 }
+
+/** 根据运行时配置创建独立的模型客户端。 */
+export abstract class LLMFactory<TConfig = unknown> {
+  abstract create(config: TConfig): LLM;
+}

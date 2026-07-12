@@ -9,6 +9,9 @@ import { CoreConfigModule } from './core/config/core-config.module';
 import { FileStorage } from './domain/external/file-storage';
 import { JSONParser } from './domain/external/json-parser';
 import { SearchEngine } from './domain/external/search-engine';
+import { LLMFactory } from './domain/external/llm';
+import { SandboxManager } from './domain/external/sandbox';
+import { TaskManager } from './domain/external/task';
 import { AppConfigController } from './interfaces/controllers/app-config.controller';
 import { FileController } from './interfaces/controllers/file.controller';
 import { SessionController } from './interfaces/controllers/session.controller';
@@ -22,6 +25,9 @@ import { CosFileStorage } from './infrastructure/external/file-storage/cos-file-
 import { RepairJSONParser } from './infrastructure/external/json-parser/repair-json.parser';
 import { BingSearchEngine } from './infrastructure/external/search/bing-search.engine';
 import { SessionVncGateway } from './interfaces/gateways/session-vnc.gateway';
+import { OpenAILLMFactory } from './infrastructure/external/llm/openai-llm.factory';
+import { DockerSandboxManager } from './infrastructure/external/sandbox/docker-sandbox.manager';
+import { RedisStreamTaskManager } from './infrastructure/external/task/redis-stream-task.manager';
 
 @Module({
   imports: [CoreConfigModule],
@@ -34,6 +40,9 @@ import { SessionVncGateway } from './interfaces/gateways/session-vnc.gateway';
     CosFileStorage,
     RepairJSONParser,
     BingSearchEngine,
+    OpenAILLMFactory,
+    DockerSandboxManager,
+    RedisStreamTaskManager,
     {
       provide: FileStorage,
       useExisting: CosFileStorage,
@@ -45,6 +54,18 @@ import { SessionVncGateway } from './interfaces/gateways/session-vnc.gateway';
     {
       provide: SearchEngine,
       useExisting: BingSearchEngine,
+    },
+    {
+      provide: LLMFactory,
+      useExisting: OpenAILLMFactory,
+    },
+    {
+      provide: SandboxManager,
+      useExisting: DockerSandboxManager,
+    },
+    {
+      provide: TaskManager,
+      useExisting: RedisStreamTaskManager,
     },
     ...repositoryProviders,
     StatusService,

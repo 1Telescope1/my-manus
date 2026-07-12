@@ -1,18 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { FileStorage } from '../../domain/external/file-storage';
 import { JSONParser } from '../../domain/external/json-parser';
-import { SandboxConstructor } from '../../domain/external/sandbox';
+import { SandboxManager } from '../../domain/external/sandbox';
+import { LLMFactory } from '../../domain/external/llm';
 import { SearchEngine } from '../../domain/external/search-engine';
-import { Task } from '../../domain/external/task';
+import { Task, TaskManager } from '../../domain/external/task';
 import { BaseEvent, Event, events } from '../../domain/models/event';
+import { LLMConfig } from '../../domain/models/app-config';
 import { Session, SessionStatus } from '../../domain/models/session';
 import { UnitOfWork } from '../../domain/repositories/unit-of-work';
 import { AgentTaskRunner } from '../../domain/services/agent-task-runner';
-import { DockerSandbox } from '../../infrastructure/external/sandbox/docker-sandbox';
-import { OpenAILLM } from '../../infrastructure/external/llm/openai-llm';
-import { RedisStreamTask } from '../../infrastructure/external/task/redis-stream-task';
 import { FileAppConfigRepository } from '../../infrastructure/repositories/file-app-config.repository';
-import { RedisClient } from '../../infrastructure/storage/redis.client';
 
 export type ChatOptions = {
   message?: string;
@@ -24,15 +22,15 @@ export type ChatOptions = {
 @Injectable()
 export class AgentService {
   private readonly logger = new Logger(AgentService.name);
-  private readonly sandboxClass: SandboxConstructor = DockerSandbox;
-
   constructor(
     private readonly uow: UnitOfWork,
     private readonly appConfigRepository: FileAppConfigRepository,
     private readonly jsonParser: JSONParser,
     private readonly searchEngine: SearchEngine,
     private readonly fileStorage: FileStorage,
-    private readonly redis: RedisClient,
+    private readonly taskManager: TaskManager,
+    private readonly sandboxManager: SandboxManager,
+    private readonly llmFactory: LLMFactory<LLMConfig>,
   ) {
     this.logger.log('AgentService初始化成功');
   }
@@ -46,20 +44,20 @@ export class AgentService {
     }
 
     // 2. 调用任务类的 get 方法获取任务实例。
-    return RedisStreamTask.get(taskId);
+    return this.taskManager.get(taskId);
   }
 
   /** 根据传递的会话创建一个新任务。 */
   private async createTask(session: Session): Promise<Task> {
     // 1. 获取沙箱实例。
     let sandbox = session.sandbox_id
-      ? await this.sandboxClass.get(session.sandbox_id)
+      ? await this.sandboxManager.get(session.sandbox_id)
       : null;
 
     // 2. 无法获取沙箱时创建一个新的沙箱。
     if (!sandbox) {
       // 3. 沙箱可能已被释放，创建后更新会话信息。
-      sandbox = await this.sandboxClass.create();
+      sandbox = await this.sandboxManager.create();
       session.sandbox_id = sandbox.id;
       await this.uow.run(async (active) => {
         await active.session.save(session);
@@ -77,7 +75,7 @@ export class AgentService {
     const appConfig = await this.appConfigRepository.load();
     const taskRunner = new AgentTaskRunner(
       () => this.uow,
-      new OpenAILLM(appConfig.llm_config),
+      this.llmFactory.create(appConfig.llm_config),
       appConfig.agent_config,
       appConfig.mcp_config,
       appConfig.a2a_config,
@@ -90,7 +88,7 @@ export class AgentService {
     );
 
     // 6. 创建任务并更新会话中的任务信息。
-    const task = RedisStreamTask.create(taskRunner, this.redis);
+    const task = this.taskManager.create(taskRunner);
     session.task_id = task.id;
     await this.uow.run(async (active) => {
       await active.session.save(session);
@@ -248,7 +246,7 @@ export class AgentService {
   /** 关闭 Agent 服务并释放所有任务资源。 */
   async shutdown(): Promise<void> {
     this.logger.log('正在清除所有会话任务资源并释放');
-    await RedisStreamTask.destroy();
+    await this.taskManager.destroy();
     this.logger.log('所有会话任务资源清除成功');
   }
 

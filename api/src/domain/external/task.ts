@@ -20,8 +20,7 @@ export abstract class TaskRunner {
 /**
  * 任务实例边界。
  *
- * 具体任务类还需要提供 `get/create/destroy` 静态生命周期方法。
- * 抽象实例协议只描述运行时对象能力。
+ * 抽象实例协议只描述运行时对象能力，任务注册和销毁由 TaskManager 管理。
  */
 export abstract class Task {
   /** 启动当前任务。 */
@@ -43,15 +42,15 @@ export abstract class Task {
   abstract readonly done: boolean;
 }
 
-/**
- * 任务 concrete class 的静态侧约定。
- *
- * 不直接放进 `Task` abstract class，是因为静态方法
- * 无法自然参与实例抽象继承，而且不同实现可能需要额外依赖。
- */
-export interface TaskConstructor<TTask extends Task = Task> {
-  get(taskId: string): TTask | undefined;
-  create(taskRunner: TaskRunner, ...dependencies: unknown[]): TTask;
-  destroy(): Promise<void>;
+/** 管理当前 API 进程拥有的任务实例。 */
+export abstract class TaskManager {
+  /** 创建任务并注册到当前进程。 */
+  abstract create(taskRunner: TaskRunner): Task;
+
+  /** 根据任务 ID 获取当前进程中的任务。 */
+  abstract get(taskId: string): Task | undefined;
+
+  /** 停止并释放当前进程中仍被管理的全部任务。 */
+  abstract destroy(): Promise<void>;
 }
 

@@ -5,7 +5,6 @@ import { RedisClient } from '../../storage/redis.client';
 import { RedisStreamMessageQueue } from '../message-queue/redis-stream-message-queue';
 
 export class RedisStreamTask extends Task {
-  private static readonly taskRegistry = new Map<string, RedisStreamTask>();
   private readonly taskId = randomUUID();
   private execution?: Promise<void>;
   private cancelled = false;
@@ -15,11 +14,11 @@ export class RedisStreamTask extends Task {
   constructor(
     private readonly taskRunner: TaskRunner,
     redis: RedisClient,
+    private readonly onRelease: (taskId: string) => void,
   ) {
     super();
     this.input = new RedisStreamMessageQueue(`task:input:${this.taskId}`, redis);
     this.output = new RedisStreamMessageQueue(`task:output:${this.taskId}`, redis);
-    RedisStreamTask.taskRegistry.set(this.taskId, this);
   }
 
   async invoke(): Promise<void> {
@@ -32,7 +31,7 @@ export class RedisStreamTask extends Task {
 
   cancel(): boolean {
     this.cancelled = true;
-    this.cleanupRegistry();
+    this.release();
     return true;
   }
 
@@ -52,22 +51,6 @@ export class RedisStreamTask extends Task {
     return !this.execution;
   }
 
-  static get(taskId: string): RedisStreamTask | undefined {
-    return RedisStreamTask.taskRegistry.get(taskId);
-  }
-
-  static create(taskRunner: TaskRunner, redis: RedisClient): RedisStreamTask {
-    return new RedisStreamTask(taskRunner, redis);
-  }
-
-  static async destroy(): Promise<void> {
-    for (const task of RedisStreamTask.taskRegistry.values()) {
-      task.cancel();
-      await task.taskRunner.destroy();
-    }
-    RedisStreamTask.taskRegistry.clear();
-  }
-
   private async executeTask(): Promise<void> {
     try {
       if (!this.cancelled) {
@@ -75,12 +58,12 @@ export class RedisStreamTask extends Task {
       }
     } finally {
       await this.taskRunner.onDone(this);
-      this.cleanupRegistry();
+      this.release();
       this.execution = undefined;
     }
   }
 
-  private cleanupRegistry(): void {
-    RedisStreamTask.taskRegistry.delete(this.taskId);
+  private release(): void {
+    this.onRelease(this.taskId);
   }
 }

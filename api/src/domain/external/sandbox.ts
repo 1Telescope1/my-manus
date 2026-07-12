@@ -101,12 +101,9 @@ export abstract class Sandbox {
   abstract readonly vncUrl: string;
 }
 
-/**
- * 抽象类不适合强制约束静态方法。
- * 该接口保留沙箱创建和查询的静态侧约定，供具体实现类声明使用。
- */
-export interface SandboxConstructor<TSandbox extends Sandbox = Sandbox> {
-  create(): Promise<TSandbox>;
-  get(id: string): Promise<TSandbox | null>;
+/** 负责创建和查找沙箱实例，隔离具体运行环境实现。 */
+export abstract class SandboxManager {
+  abstract create(): Promise<Sandbox>;
+  abstract get(id: string): Promise<Sandbox | null>;
 }
 
