@@ -27,6 +27,7 @@ import { toast } from 'sonner'
 import type { SessionFile } from '@/lib/api/types'
 import { sessionFileToAttachment } from '@/lib/session-events'
 import type { AttachmentFile } from '@/lib/session-events'
+import { ManusSettings } from '@/components/manus-settings'
 
 export interface SessionHeaderProps {
   /** 任务/会话标题 */
@@ -191,6 +192,7 @@ export function SessionHeader({
           <FileSearchCorner />
         </Button>
       )}
+      <ManusSettings />
     </header>
   )
 }

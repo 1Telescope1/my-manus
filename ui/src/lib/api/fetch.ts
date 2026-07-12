@@ -4,7 +4,7 @@ import type { ApiResponse } from "./types";
  * API 配置
  */
 const API_CONFIG = {
-  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8088/api",
+  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api",
   timeout: 30000, // 30秒
 } as const;
 
