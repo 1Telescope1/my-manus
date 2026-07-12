@@ -88,7 +88,38 @@ export abstract class BaseAgent {
           toolCall.function.arguments,
           {},
         );
-        const tool = this.getTool(functionName);
+        const tool = this.findTool(functionName);
+
+        if (!tool) {
+          const availableToolNames = this.getAvailableTools().map(
+            (schema) => schema.function.name,
+          );
+          const result: ToolResult = {
+            success: false,
+            message:
+              `未知工具: ${functionName}。` +
+              `请仅使用以下可用工具重新尝试: ${availableToolNames.join(', ')}`,
+          };
+
+          yield events.tool({
+            tool_call_id: toolCallId,
+            tool_name: 'unknown',
+            function_name: functionName,
+            function_args: functionArgs,
+            function_result: result,
+            status: ToolEventStatus.CALLED,
+          });
+
+          // 未知工具是模型可自行纠正的输出错误。将失败结果回传给模型，
+          // 避免异常冒泡并导致整个 AgentTaskRunner 提前终止。
+          toolMessages.push({
+            role: 'tool',
+            tool_call_id: toolCallId,
+            function_name: functionName,
+            content: JSON.stringify(result),
+          });
+          continue;
+        }
 
         yield events.tool({
           tool_call_id: toolCallId,
@@ -146,11 +177,15 @@ export abstract class BaseAgent {
   }
 
   protected getTool(toolName: string): BaseTool {
-    const found = this.tools.find((tool) => tool.hasTool(toolName));
+    const found = this.findTool(toolName);
     if (!found) {
       throw new Error(`未知工具: ${toolName}`);
     }
     return found;
+  }
+
+  protected findTool(toolName: string): BaseTool | undefined {
+    return this.tools.find((tool) => tool.hasTool(toolName));
   }
 
   protected async invokeLlm(messages: LLMMessage[], format?: string): Promise<LLMMessage> {
