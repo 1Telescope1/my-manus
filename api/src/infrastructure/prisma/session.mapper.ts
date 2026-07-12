@@ -73,7 +73,18 @@ function serializeMemories(memories: Record<string, Memory>): Record<string, unk
 }
 
 function normalizeEvents(events: unknown): Event[] {
-  return Array.isArray(events) ? (events as Event[]) : [];
+  if (!Array.isArray(events)) {
+    return [];
+  }
+
+  // JSON 字段不会保留 Date 类型，读取后需要恢复事件时间，供 SSE DTO 转为时间戳。
+  return events.map((event) => {
+    const value = event as Event;
+    return {
+      ...value,
+      created_at: value.created_at ? new Date(value.created_at) : new Date(),
+    } as Event;
+  });
 }
 
 function normalizeFiles(files: unknown): FileModel[] {

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { RedisClientType } from 'redis';
 import { MessageQueue } from '../../../domain/external/message-queue';
 import { RedisClient } from '../../storage/redis.client';
 
@@ -23,10 +24,28 @@ export class RedisStreamMessageQueue extends MessageQueue {
   }
 
   async get(startId = '0', blockMs?: number): Promise<[string | null, unknown]> {
-    const messages = await this.redis.client.xRead(
-      { key: this.streamName, id: startId },
-      { COUNT: 1, BLOCK: blockMs },
-    );
+    // Redis 的阻塞命令会独占当前连接。使用独立连接读取输出流，避免同一任务的
+    // 输入队列命令排在 XREAD BLOCK 0 后面而永远无法执行。
+    const client = blockMs === undefined
+      ? this.redis.client
+      : this.redis.client.duplicate() as RedisClientType;
+
+    if (client !== this.redis.client) {
+      client.on('error', () => undefined);
+      await client.connect();
+    }
+
+    let messages;
+    try {
+      messages = await client.xRead(
+        { key: this.streamName, id: startId },
+        { COUNT: 1, BLOCK: blockMs },
+      );
+    } finally {
+      if (client !== this.redis.client && client.isOpen) {
+        await client.quit();
+      }
+    }
     if (!messages?.length || !messages[0].messages.length) {
       return [null, null];
     }
