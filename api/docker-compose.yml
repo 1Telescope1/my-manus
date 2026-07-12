@@ -1,0 +1,85 @@
+services:
+  postgres:
+    image: postgres:17.6
+    container_name: manus-db-dev
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-manus}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - manus_postgres_data_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - manus-network-dev
+
+  redis:
+    image: redis:8.2
+    container_name: manus-redis-dev
+    ports:
+      - "${REDIS_HOST_PORT:-6379}:6379"
+    volumes:
+      - manus_redis_data_dev:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - manus-network-dev
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: manus-api-dev
+    env_file:
+      - .env
+    environment:
+      PORT: "8000"
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-manus}
+      SQLALCHEMY_DATABASE_URI: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-manus}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      SANDBOX_ADDRESS: ""
+      SANDBOX_IMAGE: ${SANDBOX_IMAGE:-devops-mooc_manus_sandbox_dev:latest}
+      SANDBOX_NETWORK: manus-network-dev
+      APP_CONFIG_FILEPATH: /app/config.yaml
+    ports:
+      - "${API_PORT:-8000}:8000"
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:8000/api/status').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - manus-network-dev
+
+volumes:
+  manus_postgres_data_dev:
+    name: manus_postgres_data_dev
+  manus_redis_data_dev:
+    name: manus_redis_data_dev
+
+networks:
+  manus-network-dev:
+    name: manus-network-dev
+    external: true
