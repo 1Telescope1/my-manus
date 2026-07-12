@@ -15,6 +15,7 @@ export type UseSessionDetailResult = {
   refreshFiles: () => Promise<void>
   sendMessage: (message: string, attachmentIds: string[]) => Promise<void>
   streaming: boolean
+  waitingForAgent: boolean
 }
 
 /**
@@ -31,6 +32,7 @@ export function useSessionDetail(
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
   const [streaming, setStreaming] = useState(false)
+  const [waitingForAgent, setWaitingForAgent] = useState(false)
   const [skipEmptyStream, setSkipEmptyStream] = useState(initialSkipEmptyStream || false)
   const emptyStreamCleanupRef = useRef<(() => void) | null>(null)
   const messageStreamCleanupRef = useRef<(() => void) | null>(null)
@@ -230,14 +232,22 @@ export function useSessionDetail(
       setSkipEmptyStream(false)
       isSendMessageRef.current = true
       setStreaming(true)
+      setWaitingForAgent(true)
       
       // 立即更新状态为 running，不等待 SSE 事件
       setSession((prev) => prev ? { ...prev, status: 'running' } : null)
       
       const onEvent = (ev: SSEEventData) => {
         appendEvent(ev)
+        const messageData = ev.type === 'message'
+          ? ev.data as { role?: string }
+          : null
+        if (ev.type !== 'message' || messageData?.role !== 'user') {
+          setWaitingForAgent(false)
+        }
         if (ev.type === 'done') {
           setStreaming(false)
+          setWaitingForAgent(false)
           isSendMessageRef.current = false
           // 清理消息流的 cleanup
           if (messageStreamCleanupRef.current) {
@@ -255,12 +265,14 @@ export function useSessionDetail(
         (err) => {
           if (err.name === 'AbortError') {
             setStreaming(false)
+            setWaitingForAgent(false)
             isSendMessageRef.current = false
             return
           }
           // 流正常结束（服务端关闭连接），重置状态并启动空流监听后续事件
           if (err.message === 'SSE_STREAM_END') {
             setStreaming(false)
+            setWaitingForAgent(false)
             isSendMessageRef.current = false
             if (messageStreamCleanupRef.current) {
               messageStreamCleanupRef.current()
@@ -272,6 +284,7 @@ export function useSessionDetail(
           // 实际错误
           setError(err instanceof Error ? err : new Error('流式响应异常'))
           setStreaming(false)
+          setWaitingForAgent(false)
           isSendMessageRef.current = false
           setSession((prev) => prev ? { ...prev, status: 'completed' } : null)
           if (messageStreamCleanupRef.current) {
@@ -297,5 +310,6 @@ export function useSessionDetail(
     refreshFiles,
     sendMessage,
     streaming,
+    waitingForAgent,
   }
 }

@@ -8,7 +8,7 @@ import {
   ToolEventStatus,
 } from '../../models/event';
 import { createFileModel } from '../../models/file';
-import { Message } from '../../models/message';
+import { Message, messageToText } from '../../models/message';
 import { createStep, ExecutionStatus, Plan, Step } from '../../models/plan';
 import { UnitOfWork } from '../../repositories/unit-of-work';
 import { BaseTool } from '../tools/base-tool';
@@ -93,11 +93,16 @@ export class ReActAgent extends BaseAgent {
   async *summarize(): AsyncGenerator<Event> {
     for await (const event of this.invoke(SUMMARIZE_PROMPT)) {
       if (event.type === 'message') {
-        const parsed = await this.jsonParser.invoke<Message>(event.message);
+        const parsed = await this.jsonParser.invoke<Partial<Message> & Record<string, unknown>>(
+          event.message,
+        );
+        const attachmentPaths = Array.isArray(parsed.attachments)
+          ? parsed.attachments.filter((filepath): filepath is string => typeof filepath === 'string')
+          : [];
         yield events.message({
           role: 'assistant',
-          message: parsed.message,
-          attachments: parsed.attachments.map((filepath) => createFileModel({ filepath })),
+          message: messageToText(parsed.message ?? parsed),
+          attachments: attachmentPaths.map((filepath) => createFileModel({ filepath })),
         });
       } else {
         yield event;

@@ -60,6 +60,7 @@ export function SessionDetailView({ sessionId, initialMessage, initialAttachment
     refreshFiles,
     sendMessage,
     streaming,
+    waitingForAgent,
   } = useSessionDetail(sessionId, hasInitialMessage)
 
   const timeline = useMemo(() => eventsToTimeline(events), [events])
@@ -74,6 +75,14 @@ export function SessionDetailView({ sessionId, initialMessage, initialAttachment
   const prevToolCountRef = useRef(0)
 
   const hasPreview = previewFile !== null || previewTool !== null
+
+  useEffect(() => {
+    if (!streaming) return
+    scrollContainerRef.current?.scrollTo({
+      top: scrollContainerRef.current.scrollHeight,
+      behavior: 'smooth',
+    })
+  }, [streaming, waitingForAgent, timeline.length])
 
   /**
    * 将 previewTool 解析为 timeline 中最新版本的工具对象。
@@ -284,10 +293,18 @@ export function SessionDetailView({ sessionId, initialMessage, initialAttachment
                   />
                 ))}
 
-                {(session?.status === 'running' || (hasInitialMessage && !initialMessageSentRef.current)) && (
-                  <div className="flex items-center gap-2 text-sm text-gray-500 py-3">
-                    <Loader2 className="size-4 animate-spin" />
-                    <span>正在思考中...</span>
+                {(streaming || session?.status === 'running' || (hasInitialMessage && timeline.length === 0)) && (
+                  <div
+                    className="flex items-center gap-2 py-3 text-sm text-gray-500"
+                    role="status"
+                    aria-live="polite"
+                  >
+                    <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                    <span>
+                      {waitingForAgent || (hasInitialMessage && timeline.length === 0)
+                        ? 'Agent 正在准备...'
+                        : '正在思考中...'}
+                    </span>
                   </div>
                 )}
 

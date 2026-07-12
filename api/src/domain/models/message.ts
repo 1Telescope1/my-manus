@@ -3,9 +3,31 @@ export type Message = {
   attachments: string[];
 };
 
-export function createMessage(input: Partial<Message> = {}): Message {
+export type MessageInput = {
+  message?: unknown;
+  attachments?: unknown;
+};
+
+export function messageToText(value: unknown): string {
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (value == null) {
+    return '';
+  }
+
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
+export function createMessage(input: MessageInput = {}): Message {
   return {
-    message: input.message ?? '',
-    attachments: input.attachments ?? [],
+    message: messageToText(input.message),
+    attachments: Array.isArray(input.attachments)
+      ? input.attachments.filter((item): item is string => typeof item === 'string')
+      : [],
   };
 }

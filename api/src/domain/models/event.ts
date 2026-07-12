@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { FileModel } from './file';
+import { messageToText } from './message';
 import { Plan, Step } from './plan';
 import { SearchResultItem } from './search';
 import { ToolResult } from './tool-result';
@@ -137,7 +138,7 @@ export const events = {
       ...baseEvent('message'),
       type: 'message',
       role: input.role ?? 'assistant',
-      message: input.message ?? '',
+      message: messageToText(input.message),
       attachments: input.attachments ?? [],
     };
   },

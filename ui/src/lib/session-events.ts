@@ -151,7 +151,13 @@ export function eventsToTimeline(events: SSEEventData[]): TimelineItem[] {
             });
           }
         } else if (msg.role === "assistant") {
-          // 所有 assistant 消息都直接添加，不去重
+          // 规划阶段可能返回空消息；没有文本和附件时不生成空白消息块。
+          const hasMessage = typeof msg.message === "string" && msg.message.trim().length > 0;
+          const hasAttachments = Array.isArray(msg.attachments) && msg.attachments.length > 0;
+          if (!hasMessage && !hasAttachments) {
+            break;
+          }
+
           list.push({
             kind: "assistant",
             id: stableId("assistant", messageIndex++, String(list.length)),
@@ -299,7 +305,11 @@ export function eventsToTimeline(events: SSEEventData[]): TimelineItem[] {
     }
   }
 
-  return list;
+  // 兼容历史事件：无描述且没有任何工具的步骤没有可展示内容。
+  return list.filter((item) => {
+    if (item.kind !== "step") return true;
+    return item.data.description.trim().length > 0 || item.tools.length > 0;
+  });
 }
 
 /**

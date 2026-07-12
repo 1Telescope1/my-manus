@@ -6,7 +6,7 @@ import remarkGfm from 'remark-gfm'
 import { cn } from '@/lib/utils'
 
 export interface MarkdownContentProps {
-  content: string
+  content: unknown
   className?: string
 }
 
@@ -21,7 +21,21 @@ const URL_FOLLOWED_BY_CJK = new RegExp(
   'g',
 )
 
-function normalizeAutolinks(text: string): string {
+function normalizeAutolinks(value: unknown): string {
+  let text: string
+
+  if (typeof value === 'string') {
+    text = value
+  } else if (value == null) {
+    text = ''
+  } else {
+    try {
+      text = JSON.stringify(value, null, 2)
+    } catch {
+      text = String(value)
+    }
+  }
+
   return text.replace(URL_FOLLOWED_BY_CJK, '$1 $2')
 }
 

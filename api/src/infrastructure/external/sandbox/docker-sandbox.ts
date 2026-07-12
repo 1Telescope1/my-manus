@@ -122,7 +122,7 @@ export class DockerSandbox extends Sandbox {
         name: containerName,
         Env: [
           // 沙箱服务通过环境变量接收生命周期、浏览器参数和代理配置。
-          `SERVICE_TIMEOUT_MINUTES=${settings.sandboxTtlMinutes}`,
+          `SERVER_TIMEOUT_MINUTES=${settings.sandboxTtlMinutes}`,
           `CHROME_ARGS=${settings.sandboxChromeArgs}`,
           `HTTPS_PROXY=${settings.sandboxHttpsProxy ?? ''}`,
           `HTTP_PROXY=${settings.sandboxHttpProxy ?? ''}`,

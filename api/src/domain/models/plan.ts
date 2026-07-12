@@ -28,19 +28,29 @@ export type Plan = {
   error?: string | null;
 };
 
-export function createStep(input: Partial<Step> = {}): Step {
+export type StepInput = Partial<Step> | string;
+
+export function createStep(input: StepInput = {}): Step {
+  const normalized = typeof input === 'string'
+    ? { description: input }
+    : input;
+
   return {
-    id: input.id ?? randomUUID(),
-    description: input.description ?? '',
-    status: input.status ?? ExecutionStatus.PENDING,
-    result: input.result ?? null,
-    error: input.error ?? null,
-    success: input.success ?? false,
-    attachments: input.attachments ?? [],
+    id: normalized.id ?? randomUUID(),
+    description: normalized.description?.trim() ?? '',
+    status: normalized.status ?? ExecutionStatus.PENDING,
+    result: normalized.result ?? null,
+    error: normalized.error ?? null,
+    success: normalized.success ?? false,
+    attachments: normalized.attachments ?? [],
   };
 }
 
-export function createPlan(input: Partial<Plan> = {}): Plan {
+export type PlanInput = Omit<Partial<Plan>, 'steps'> & {
+  steps?: StepInput[];
+};
+
+export function createPlan(input: PlanInput = {}): Plan {
   return {
     id: input.id ?? randomUUID(),
     title: input.title ?? '',

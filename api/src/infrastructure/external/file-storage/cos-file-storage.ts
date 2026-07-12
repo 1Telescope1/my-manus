@@ -43,6 +43,7 @@ export class CosFileStorage extends FileStorage {
     // 2. 上传原始文件内容到对象存储。
     await this.putObject({
       Bucket: this.settings.cosBucket,
+      Region: this.settings.cosRegion,
       Body: uploadFile.buffer,
       Key: key,
     });
@@ -75,6 +76,7 @@ export class CosFileStorage extends FileStorage {
     // 2. 通过对象存储 key 下载文件内容。
     const response = await this.getObject({
       Bucket: this.settings.cosBucket,
+      Region: this.settings.cosRegion,
       Key: file.key,
     });
 

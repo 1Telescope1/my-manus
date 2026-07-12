@@ -36,6 +36,9 @@ export class AgentTaskRunner extends TaskRunner {
   private readonly mcpTool = new MCPTool();
   private readonly a2aTool = new A2ATool();
   private readonly flow: PlannerReActFlow;
+  private readonly generatedFilePaths = new Set<string>();
+  private readonly syncedGeneratedFiles = new Map<string, FileModel>();
+  private readonly attachedGeneratedFilePaths = new Set<string>();
 
   constructor(
     private readonly uowFactory: () => UnitOfWork,
@@ -201,9 +204,11 @@ export class AgentTaskRunner extends TaskRunner {
         // 3. 循环遍历所有附件。
         for (const attachment of event.attachments) {
           // 4. 根据文件路径将数据同步到文件存储。
-          const file = await this.syncFileToStorage(attachment.filepath);
+          const file = this.syncedGeneratedFiles.get(attachment.filepath)
+            ?? await this.syncFileToStorage(attachment.filepath);
           if (file) {
             attachments.push(file);
+            this.attachedGeneratedFilePaths.add(attachment.filepath);
           }
         }
       }
@@ -213,6 +218,38 @@ export class AgentTaskRunner extends TaskRunner {
     } catch (error) {
       this.logger.error(`AgentTaskRunner同步消息附件到存储失败: ${errorMessage(error)}`);
     }
+  }
+
+  /** 将本轮工具生成但尚未返回给用户的文件补充到消息附件中。 */
+  private async attachGeneratedFiles(event: MessageEvent): Promise<void> {
+    const attachments = [...event.attachments];
+    const attachmentPaths = new Set(attachments.map((file) => file.filepath));
+
+    for (const filepath of this.generatedFilePaths) {
+      if (this.attachedGeneratedFilePaths.has(filepath)) {
+        continue;
+      }
+
+      let file = this.syncedGeneratedFiles.get(filepath);
+      if (!file) {
+        file = await this.syncFileToStorage(filepath);
+        if (file) {
+          this.syncedGeneratedFiles.set(filepath, file);
+        }
+      }
+
+      if (!file) {
+        continue;
+      }
+
+      if (!attachmentPaths.has(filepath)) {
+        attachments.push(file);
+        attachmentPaths.add(filepath);
+      }
+      this.attachedGeneratedFilePaths.add(filepath);
+    }
+
+    event.attachments = attachments;
   }
 
   /** 获取浏览器截图并返回截图文件对应的在线 URL。 */
@@ -271,7 +308,20 @@ export class AgentTaskRunner extends TaskRunner {
             event.tool_content = {
               content: String(this.recordData(fileReadResult).content ?? ''),
             };
-            await this.syncFileToStorage(filepath);
+            const result = event.function_result as ToolResult | undefined;
+            const generatedFile =
+              result?.success === true &&
+              ['write_file', 'replace_in_file'].includes(event.function_name);
+
+            if (generatedFile) {
+              this.generatedFilePaths.add(filepath);
+              this.attachedGeneratedFilePaths.delete(filepath);
+            }
+
+            const file = await this.syncFileToStorage(filepath);
+            if (generatedFile && file) {
+              this.syncedGeneratedFiles.set(filepath, file);
+            }
           } else {
             event.tool_content = { content: '(No Content)' };
           }
@@ -305,6 +355,7 @@ export class AgentTaskRunner extends TaskRunner {
       } else if (event.type === 'message') {
         // 4. 如果是消息事件，则将 AI 消息事件中的附件同步到存储中。
         await this.syncMessageAttachmentsToStorage(event);
+        await this.attachGeneratedFiles(event);
       }
 
       // 5. 将事件直接返回。
