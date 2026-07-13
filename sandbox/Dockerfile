@@ -13,7 +13,7 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.aliyun.com/ubuntu
     sed -i 's|http://ports.ubuntu.com/ubuntu-ports/|http://mirrors.aliyun.com/ubuntu-ports/|g' /etc/apt/sources.list
 
 # 4. 安装基础工具、进程管理器、虚拟显示和 VNC/CDP 相关组件。
-RUN apt-get update && apt-get install -y \
+RUN apt-get -o Acquire::Retries=5 update && apt-get -o Acquire::Retries=5 install -y \
     sudo bc curl wget gnupg ca-certificates software-properties-common supervisor \
     xterm socat xvfb x11vnc websockify \
     && apt-get clean \

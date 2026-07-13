@@ -13,6 +13,15 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+type AgentInvokeOptions = {
+  /** 是否要求执行阶段至少产生一次工具调用，防止模型直接返回未经验证的答案。 */
+  requireToolCall?: boolean;
+  /** 单个步骤允许的工具调用总数；达到上限后必须使用已有结果生成最终答复。 */
+  maxToolCalls?: number;
+  /** 每种工具函数的调用上限，用于阻止模型反复使用同一无效工具。 */
+  maxCallsPerTool?: Record<string, number>;
+};
+
 export abstract class BaseAgent {
   abstract readonly name: string;
   protected systemPrompt = '';
@@ -67,10 +76,47 @@ export abstract class BaseAgent {
     });
   }
 
-  async *invoke(query: string, format?: string): AsyncGenerator<Event> {
+  async *invoke(
+    query: string,
+    format?: string,
+    options: AgentInvokeOptions = {},
+  ): AsyncGenerator<Event> {
     const responseFormat = format ?? this.format;
     let message = await this.invokeLlm([{ role: 'user', content: query }], responseFormat);
 
+    // 部分思考模型不支持 tool_choice="required"。保持 tool_choice=auto，并在模型
+    // 跳过工具时通过对话纠正重试，以兼容这些模型同时保证执行步骤不会空跑。
+    if (options.requireToolCall) {
+      for (
+        let retry = 0;
+        retry < this.agentConfig.max_retries && !message?.tool_calls?.length;
+        retry += 1
+      ) {
+        message = await this.invokeLlm(
+          [{
+            role: 'user',
+            content:
+              '你尚未调用任何任务工具，因此不能提交步骤结果。' +
+              '现在必须选择并调用一个与当前任务直接相关的工具；' +
+              'message_notify_user 等进度通知工具不算任务执行。',
+          }],
+          responseFormat,
+        );
+      }
+
+      if (!message?.tool_calls?.length) {
+        yield events.error(
+          `模型连续${this.agentConfig.max_retries + 1}次未调用任务工具，步骤执行失败`,
+        );
+        return;
+      }
+    }
+
+    // 同时记录总调用次数和各函数调用次数：前者控制单步骤成本，后者用于
+    // 熔断持续返回无效结果的工具，并促使模型切换到 browser/shell 等替代方案。
+    let toolCallCount = 0;
+    const toolCallCounts = new Map<string, number>();
+    const excludedToolNames = new Set<string>();
     for (let i = 0; i < this.agentConfig.max_iterations; i += 1) {
       if (!message || !message.tool_calls?.length) {
         break;
@@ -84,6 +130,9 @@ export abstract class BaseAgent {
 
         const toolCallId = toolCall.id || randomUUID();
         const functionName = toolCall.function.name;
+        toolCallCount += 1;
+        const functionCallCount = (toolCallCounts.get(functionName) ?? 0) + 1;
+        toolCallCounts.set(functionName, functionCallCount);
         const functionArgs = await this.jsonParser.invoke<Record<string, any>>(
           toolCall.function.arguments,
           {},
@@ -131,6 +180,13 @@ export abstract class BaseAgent {
 
         const result = await this.invokeTool(tool, functionName, functionArgs);
 
+        // 当前调用仍正常执行并把结果回传给模型；从下一轮开始才从工具列表移除，
+        // 确保 OpenAI/DeepSeek 的 tool_call 与 tool result 消息始终成对出现。
+        const perToolLimit = options.maxCallsPerTool?.[functionName];
+        if (perToolLimit && functionCallCount >= perToolLimit) {
+          excludedToolNames.add(functionName);
+        }
+
         yield events.tool({
           tool_call_id: toolCallId,
           tool_name: tool.name,
@@ -148,7 +204,27 @@ export abstract class BaseAgent {
         });
       }
 
-      message = await this.invokeLlm(toolMessages);
+      // 达到步骤级上限时，将本轮工具结果和“停止调用”的指令放进同一次请求。
+      // tool_choice=none 可避免思考模型继续搜索，同时保留最后一次工具结果供总结。
+      if (options.maxToolCalls && toolCallCount >= options.maxToolCalls) {
+        message = await this.invokeLlm(
+          [
+            ...toolMessages,
+            {
+              role: 'user',
+              content:
+                `本步骤已调用${toolCallCount}次工具，必须停止继续调用工具。` +
+                '请立即根据现有工具结果提交最终 JSON；如果证据仍不足，返回 success: false 并说明原因。',
+            },
+          ],
+          responseFormat,
+          'none',
+          excludedToolNames,
+        );
+        break;
+      }
+
+      message = await this.invokeLlm(toolMessages, undefined, undefined, excludedToolNames);
     }
 
     if (message?.tool_calls?.length) {
@@ -188,7 +264,12 @@ export abstract class BaseAgent {
     return this.tools.find((tool) => tool.hasTool(toolName));
   }
 
-  protected async invokeLlm(messages: LLMMessage[], format?: string): Promise<LLMMessage> {
+  protected async invokeLlm(
+    messages: LLMMessage[],
+    format?: string,
+    toolChoice?: string | null,
+    excludedToolNames: ReadonlySet<string> = new Set(),
+  ): Promise<LLMMessage> {
     await this.addToMemory(messages);
 
     const responseFormat = format ? { type: format } : null;
@@ -198,9 +279,12 @@ export abstract class BaseAgent {
       try {
         const message = await this.llm.invoke({
           messages: this.memory?.getMessages() ?? [],
-          tools: this.getAvailableTools(),
+          // 被熔断的函数只对本次 invoke 的后续轮次隐藏，不影响其他步骤或 Agent。
+          tools: this.getAvailableTools().filter(
+            (schema) => !excludedToolNames.has(schema.function.name),
+          ),
           responseFormat,
-          toolChoice: this.toolChoice,
+          toolChoice: toolChoice === undefined ? this.toolChoice : toolChoice,
         });
 
         let filteredMessage: LLMMessage;

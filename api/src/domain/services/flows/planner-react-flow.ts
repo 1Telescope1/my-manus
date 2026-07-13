@@ -187,7 +187,7 @@ export class PlannerReActFlow extends BaseFlow {
       } else if (this.status === FlowStatus.SUMMARIZING) {
         // 25. 流状态为总结中，则意味着所有子步骤都执行完成。
         this.logger.log('Planner&ReAct流开始总结');
-        for await (const event of this.react.summarize()) {
+        for await (const event of this.react.summarize(this.plan!)) {
           yield event;
         }
 

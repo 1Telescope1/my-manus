@@ -2,7 +2,7 @@
 
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
-import { Check, ChevronDown, ChevronUp, Clock } from 'lucide-react'
+import { Check, ChevronDown, ChevronUp, CircleX, Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { PlanStep } from '@/lib/api/types'
 
@@ -19,7 +19,9 @@ export function PlanPanel({ className, steps: stepsProp = [] }: PlanPanelProps) 
 
   if (steps.length === 0) return null
 
+  // failed 与 completed 分开统计，避免失败步骤被展示成已完成进度。
   const completedCount = steps.filter((s) => s.status === 'completed').length
+  const failedCount = steps.filter((s) => s.status === 'failed').length
   const totalCount = steps.length
   const stepDescription = (step: PlanStep, index: number) =>
     step.description?.trim() || `步骤 ${index + 1}`
@@ -49,6 +51,9 @@ export function PlanPanel({ className, steps: stepsProp = [] }: PlanPanelProps) 
           <span className="text-xs text-gray-500">
             {completedCount} / {totalCount}
           </span>
+          {failedCount > 0 && (
+            <span className="text-xs text-red-600">{failedCount} 失败</span>
+          )}
           <ChevronUp className="text-gray-700" size={16} />
         </div>
       </div>}
@@ -77,6 +82,9 @@ export function PlanPanel({ className, steps: stepsProp = [] }: PlanPanelProps) 
                   <span className="text-xs text-gray-500">
                     {completedCount} / {totalCount}
                   </span>
+                  {failedCount > 0 && (
+                    <span className="text-xs text-red-600">{failedCount} 失败</span>
+                  )}
                 </div>
               </div>
               <div className="max-h-[min(calc(100vh-360px),400px)] overflow-y-auto">
@@ -87,6 +95,8 @@ export function PlanPanel({ className, steps: stepsProp = [] }: PlanPanelProps) 
                 >
                   {step.status === 'completed' ? (
                     <Check size={16} className="relative top-0.5 flex-shrink-0" />
+                  ) : step.status === 'failed' ? (
+                    <CircleX size={16} className="relative top-0.5 flex-shrink-0 text-red-600" />
                   ) : (
                     <Clock size={16} className="relative top-0.5 flex-shrink-0" />
                   )}
