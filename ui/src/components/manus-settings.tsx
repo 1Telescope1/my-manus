@@ -41,7 +41,7 @@ function CommonSetting({config, onChange}: CommonSettingProps) {
     <form className="w-full px-1" onSubmit={(e) => e.preventDefault()}>
       <FieldGroup>
         <FieldSet>
-          <FieldLegend className="text-lg font-bold text-gray-700">通用配置</FieldLegend>
+          <FieldLegend className="font-editorial text-lg text-foreground">通用配置</FieldLegend>
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="max_iterations">最大计划迭代次数</FieldLabel>
@@ -116,7 +116,7 @@ function LLMSetting({config, onChange}: LLMSettingProps) {
     <form className="w-full px-1" onSubmit={(e) => e.preventDefault()}>
       <FieldGroup>
         <FieldSet>
-          <FieldLegend className="text-lg font-bold text-gray-700">模型提供商</FieldLegend>
+          <FieldLegend className="font-editorial text-lg text-foreground">模型提供商</FieldLegend>
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="base_url">提供商基础地址(base_url)</FieldLabel>
@@ -231,7 +231,7 @@ function A2ASetting({servers, loading, onToggleEnabled, onDelete, onAdd}: A2ASet
     <div className="w-full px-1">
       <FieldGroup>
         <FieldSet>
-          <FieldLegend className="w-full flex justify-between items-center text-lg font-bold text-gray-700">
+          <FieldLegend className="flex w-full items-center justify-between text-lg font-bold text-foreground">
             A2A Agent 配置
             <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
               <DialogTrigger asChild>
@@ -239,11 +239,11 @@ function A2ASetting({servers, loading, onToggleEnabled, onDelete, onAdd}: A2ASet
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle className="text-gray-700">添加远程Agent</DialogTitle>
-                  <DialogDescription className="text-gray-500">
+                  <DialogTitle className="text-foreground">添加远程Agent</DialogTitle>
+                  <DialogDescription className="text-muted-foreground">
                     MoocManus 使用标准的 A2A 协议来连接远程 Agent。
                     <br/>
-                    请将您的配置粘贴到下方，然后点击"添加"即可添加 Agent。
+                    请将您的配置粘贴到下方，然后点击“添加”即可添加 Agent。
                   </DialogDescription>
                 </DialogHeader>
                 <form
@@ -304,7 +304,7 @@ function A2ASetting({servers, loading, onToggleEnabled, onDelete, onAdd}: A2ASet
               {servers.map((server) => (
                 <Item key={server.id} variant="outline">
                   <ItemContent>
-                    <ItemTitle className="w-full flex justify-between items-center text-md font-bold text-gray-700">
+                    <ItemTitle className="text-md flex w-full items-center justify-between font-bold text-foreground">
                       <div className="flex gap-2 items-center">
                         {server.name}
                         {!server.enabled && <Badge>禁用</Badge>}
@@ -411,7 +411,7 @@ function MCPSetting({servers, loading, onToggleEnabled, onDelete, onAdd}: MCPSet
     <div className="w-full px-1">
       <FieldGroup>
         <FieldSet>
-          <FieldLegend className="w-full flex justify-between items-center text-lg font-bold text-gray-700">
+          <FieldLegend className="flex w-full items-center justify-between text-lg font-bold text-foreground">
             MCP 服务器
             <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
               <DialogTrigger asChild>
@@ -419,10 +419,10 @@ function MCPSetting({servers, loading, onToggleEnabled, onDelete, onAdd}: MCPSet
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle className="text-gray-700">添加新的 MCP 服务器</DialogTitle>
-                  <DialogDescription className="text-gray-500">
+                  <DialogTitle className="text-foreground">添加新的 MCP 服务器</DialogTitle>
+                  <DialogDescription className="text-muted-foreground">
                     MoocManus 使用标准的 JSON MCP 配置来创建新服务器。
-                    请将您的配置粘贴到下方，然后点击"添加"即可添加新服务器。
+                    请将您的配置粘贴到下方，然后点击“添加”即可添加新服务器。
                   </DialogDescription>
                 </DialogHeader>
                 <form
@@ -483,7 +483,7 @@ function MCPSetting({servers, loading, onToggleEnabled, onDelete, onAdd}: MCPSet
               {servers.map((server) => (
                 <Item key={server.server_name} variant="outline">
                   <ItemContent>
-                    <ItemTitle className="w-full flex justify-between items-center text-md font-bold text-gray-700">
+                    <ItemTitle className="text-md flex w-full items-center justify-between font-bold text-foreground">
                       <div className="flex gap-2 items-center">
                         {server.server_name}
                         <Badge>{server.transport}</Badge>
@@ -746,7 +746,7 @@ export function ManusSettings() {
   // 客户端挂载前，仅渲染普通按钮占位，避免 Radix Dialog SSR hydration 不匹配
   if (!mounted) {
     return (
-      <Button variant="outline" size="icon-sm" className="cursor-pointer">
+      <Button variant="ghost" size="icon-sm" className="cursor-pointer text-muted-foreground hover:text-foreground" aria-label="打开设置">
         <Settings/>
       </Button>
     )
@@ -756,29 +756,29 @@ export function ManusSettings() {
     <Dialog open={open} onOpenChange={setOpen}>
       {/* 触发按钮 */}
       <DialogTrigger asChild>
-        <Button variant="outline" size="icon-sm" className="cursor-pointer">
+        <Button variant="ghost" size="icon-sm" className="cursor-pointer text-muted-foreground hover:text-foreground" aria-label="打开设置">
           <Settings/>
         </Button>
       </DialogTrigger>
 
       {/* 弹窗内容 */}
-      <DialogContent className="!max-w-[850px]">
+      <DialogContent className="max-h-[calc(100vh-2rem)] min-w-0 w-[calc(100%-2rem)] overflow-hidden border-border bg-card sm:!max-w-[850px]">
         {/* 头部 */}
-        <DialogHeader className="border-b pb-4">
-          <DialogTitle className="text-gray-700">MoocManus 设置</DialogTitle>
-          <DialogDescription className="text-gray-500">在此管理您的 MoocManus 设置。</DialogDescription>
+        <DialogHeader className="border-b border-border pb-4 pr-8 text-left">
+          <DialogTitle className="font-editorial text-xl text-foreground">MoocManus 设置</DialogTitle>
+          <DialogDescription className="text-muted-foreground">在此管理您的 MoocManus 设置。</DialogDescription>
         </DialogHeader>
 
         {/* 中间主体 */}
-        <div className="flex flex-row gap-4">
+        <div className="flex min-h-0 min-w-0 flex-col gap-3 sm:flex-row sm:gap-4">
           {/* 左侧导航菜单 */}
-          <div className="max-w-[180px]">
-            <div className="flex flex-col gap-0">
+          <div className="w-full min-w-0 max-w-full overflow-hidden sm:w-auto sm:max-w-[180px]">
+            <div className="scrollbar-hide flex w-full max-w-full gap-1 overflow-x-auto sm:flex-col sm:overflow-visible">
               {SETTING_MENUS.map((menu) => (
                 <Button
                   key={menu.key}
                   variant={activeSetting === menu.key ? 'default' : 'ghost'}
-                  className="cursor-pointer justify-start"
+                  className="cursor-pointer justify-start whitespace-nowrap"
                   onClick={() => setActiveSetting(menu.key)}
                 >
                   <menu.icon/>
@@ -789,10 +789,10 @@ export function ManusSettings() {
           </div>
 
           {/* 分隔符 */}
-          <Separator orientation="vertical"/>
+          <Separator orientation="vertical" className="hidden sm:block"/>
 
           {/* 右侧内容 */}
-          <div className="flex-1 h-[500px] scrollbar-hide overflow-y-auto">
+          <div className="scrollbar-hide h-[min(500px,58vh)] min-h-0 min-w-0 flex-1 overflow-y-auto sm:h-[500px]">
             {loadingConfig && (activeSetting === 'common-setting' || activeSetting === 'llm-setting') ? (
               <div className="flex justify-center items-center h-full">
                 <Loader2 className="size-6 animate-spin text-muted-foreground"/>
@@ -829,7 +829,7 @@ export function ManusSettings() {
         </div>
 
         {/* 底部按钮 */}
-        <DialogFooter className="border-t pt-4">
+        <DialogFooter className="border-t border-border pt-4">
           <DialogClose asChild>
             <Button variant="outline" className="cursor-pointer">取消</Button>
           </DialogClose>

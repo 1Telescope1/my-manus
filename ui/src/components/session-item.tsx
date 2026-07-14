@@ -1,7 +1,7 @@
 'use client'
 
-import {useCallback, useEffect, useState} from 'react'
-import {CircuitBoard, Loader2, MoreHorizontal, Trash} from 'lucide-react'
+import {useCallback, useSyncExternalStore} from 'react'
+import {CheckCircle2, Circle, Loader2, MoreHorizontal, Trash} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -10,7 +10,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {Item, ItemActions, ItemContent, ItemDescription, ItemMedia} from '@/components/ui/item'
-import {Avatar, AvatarGroupCount} from '@/components/ui/avatar'
 import {formatRelativeDate} from '@/lib/utils'
 import type {Session} from '@/lib/api'
 
@@ -26,11 +25,11 @@ type SessionItemProps = {
  * 展示会话标题、描述、时间及操作菜单
  */
 export function SessionItem({session, isActive, onClick, onDelete}: SessionItemProps) {
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
+  const mounted = useSyncExternalStore(
+    () => () => undefined,
+    () => true,
+    () => false,
+  )
 
   const handleClick = useCallback(() => {
     onClick(session.session_id)
@@ -41,38 +40,44 @@ export function SessionItem({session, isActive, onClick, onDelete}: SessionItemP
     onDelete(session)
   }, [onDelete, session])
 
-  const description = session.latest_message || '暂无消息'
   const dateLabel = formatRelativeDate(session.latest_message_at)
   const isRunning = session.status === 'running' || session.status === 'waiting'
+  const statusLabel = session.status === 'completed'
+    ? '任务完成'
+    : session.status === 'running'
+      ? '执行中'
+      : session.status === 'waiting'
+        ? '等待回复'
+        : (session.latest_message || '草稿')
 
   return (
     <Item
-      className={`p-2 hover:bg-white cursor-pointer gap-2 items-start ${isActive ? 'bg-white' : ''}`}
+      className={`group rounded-lg border border-transparent px-3 py-2.5 hover:bg-sidebar-accent/70 cursor-pointer gap-2.5 items-start transition-colors ${isActive ? 'bg-sidebar-accent border-primary/10' : ''}`}
       onClick={handleClick}
     >
       {/* 左侧图标 */}
       <ItemMedia>
-        <Avatar className="size-8">
-          <AvatarGroupCount>
-            {isRunning
-              ? <Loader2 className="animate-spin"/>
-              : <CircuitBoard/>
-            }
-          </AvatarGroupCount>
-        </Avatar>
+        <span className={`mt-0.5 flex size-5 items-center justify-center ${session.status === 'completed' ? 'text-success' : 'text-muted-foreground'}`}>
+          {isRunning
+            ? <Loader2 className="size-4 animate-spin"/>
+            : session.status === 'completed'
+              ? <CheckCircle2 className="size-4"/>
+              : <Circle className="size-4"/>
+          }
+        </span>
       </ItemMedia>
       {/* 中间内容 */}
       <ItemContent className="gap-0 min-w-0">
-        <p className="text-sm font-medium truncate">
+        <p className="text-sm font-medium leading-5 text-foreground truncate">
           {session.title || '新任务'}
         </p>
-        <p className="text-xs text-muted-foreground truncate">
-          {description}
+        <p className={`text-xs leading-5 truncate ${session.status === 'completed' ? 'text-success' : 'text-muted-foreground'}`}>
+          {statusLabel}
         </p>
       </ItemContent>
       {/* 右侧操作区 */}
       <ItemActions className="flex flex-col pt-0.5 gap-0 self-start">
-        <ItemDescription className="text-xs whitespace-nowrap">{dateLabel}</ItemDescription>
+        <ItemDescription className="text-[11px] whitespace-nowrap text-muted-foreground">{dateLabel}</ItemDescription>
         {mounted && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -81,6 +86,7 @@ export function SessionItem({session, isActive, onClick, onDelete}: SessionItemP
                 variant="ghost"
                 className="cursor-pointer"
                 onClick={(e) => e.stopPropagation()}
+                aria-label={`管理任务：${session.title || '新任务'}`}
               >
                 <MoreHorizontal/>
               </Button>
@@ -101,5 +107,3 @@ export function SessionItem({session, isActive, onClick, onDelete}: SessionItemP
     </Item>
   )
 }
-
-

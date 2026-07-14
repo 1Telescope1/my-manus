@@ -16,11 +16,11 @@ export function SuggestedQuestions({className, onQuestionClick}: SuggestedQuesti
 
   return (
     <div className={cn('flex flex-wrap gap-2 sm:gap-3', className)}>
-      {suggestedQuestions.map((question, index) => (
+      {suggestedQuestions.map((question) => (
         <Button
-          key={index}
+          key={question}
           variant="outline"
-          className="cursor-pointer text-xs sm:text-sm whitespace-normal break-words"
+          className="h-auto cursor-pointer whitespace-normal break-words rounded-full border-border bg-card/70 px-4 py-2 text-left text-xs text-muted-foreground shadow-none hover:border-primary/25 hover:bg-accent hover:text-foreground sm:text-sm"
           onClick={() => handleClick(question)}
         >
           {question}

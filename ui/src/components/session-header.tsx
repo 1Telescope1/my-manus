@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
-import { Download, FileSearchCorner, FileText } from 'lucide-react'
+import { CheckCircle2, Download, FileSearchCorner, FileText, LoaderCircle } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -24,7 +24,7 @@ import { Avatar, AvatarGroupCount } from '@/components/ui/avatar'
 import { formatFileSize } from '@/lib/utils'
 import { fileApi } from '@/lib/api'
 import { toast } from 'sonner'
-import type { SessionFile } from '@/lib/api/types'
+import type { SessionFile, SessionStatus } from '@/lib/api/types'
 import { sessionFileToAttachment } from '@/lib/session-events'
 import type { AttachmentFile } from '@/lib/session-events'
 import { ManusSettings } from '@/components/manus-settings'
@@ -32,6 +32,8 @@ import { ManusSettings } from '@/components/manus-settings'
 export interface SessionHeaderProps {
   /** 任务/会话标题 */
   title?: string
+  status?: SessionStatus
+  latestMessageAt?: string
   /** 此任务下的文件列表（用于「此任务中所有文件」弹窗） */
   files?: SessionFile[]
   /** 受控：文件列表弹窗是否打开（用于从页面其他处打开，如「查看此任务中所有的文件」） */
@@ -46,6 +48,8 @@ export interface SessionHeaderProps {
 
 export function SessionHeader({
   title = '',
+  status,
+  latestMessageAt,
   files,
   fileListOpen,
   onFileListOpenChange,
@@ -125,15 +129,30 @@ export function SessionHeader({
   }, [])
 
   return (
-    <header className="bg-[#f8f8f7] flex flex-row items-center justify-between pt-3 pb-2 gap-2 sticky top-0 z-10 flex-shrink-0">
+    <header className="bg-background/95 sticky top-0 z-10 flex flex-shrink-0 items-start justify-between gap-3 border-b border-border py-4 backdrop-blur-sm sm:py-5">
       {(!open || isMobile) && <SidebarTrigger className="cursor-pointer flex-shrink-0" />}
-      <div className="text-gray-700 text-lg whitespace-nowrap text-ellipsis overflow-hidden flex-1 min-w-0">
-        {title || '未命名任务'}
+      <div className="min-w-0 flex-1">
+        <h1 className="font-editorial truncate text-[24px] leading-tight text-foreground sm:text-[32px]">
+          {title || '未命名任务'}
+        </h1>
+        {status && (
+          <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground sm:text-sm">
+            <span className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 ${status === 'completed' ? 'bg-success/10 text-success' : 'bg-primary/10 text-primary'}`}>
+              {status === 'completed'
+                ? <CheckCircle2 className="size-3.5"/>
+                : <LoaderCircle className={`size-3.5 ${status === 'running' ? 'animate-spin' : ''}`}/>
+              }
+              {status === 'completed' ? '任务完成' : status === 'running' ? '执行中' : status === 'waiting' ? '等待回复' : '准备中'}
+            </span>
+            {latestMessageAt && <span className="hidden sm:inline">更新于 {new Date(latestMessageAt).toLocaleString('zh-CN', {month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit'})}</span>}
+          </div>
+        )}
       </div>
+      <div className="flex flex-shrink-0 items-center gap-1">
       {mounted ? (
         <Dialog open={openState} onOpenChange={setOpenState}>
           <DialogTrigger asChild>
-            <Button variant="ghost" size="icon-sm" className="cursor-pointer flex-shrink-0">
+            <Button variant="ghost" size="icon-sm" className="cursor-pointer flex-shrink-0 text-muted-foreground hover:text-foreground" aria-label="查看任务文件">
               <FileSearchCorner />
             </Button>
           </DialogTrigger>
@@ -144,13 +163,13 @@ export function SessionHeader({
               <ScrollArea className="h-[500px]">
                 <div className="flex flex-col gap-1">
                   {uniqueFileList.length === 0 ? (
-                    <p className="text-sm text-gray-500 py-4">暂无文件</p>
+                    <p className="py-4 text-sm text-muted-foreground">暂无文件</p>
                   ) : (
                     uniqueFileList.map((file) => (
                       <Item
                         key={file.id}
                         variant="default"
-                        className="p-2 flex-shrink-0 gap-2 cursor-pointer hover:bg-gray-100"
+                        className="p-2 flex-shrink-0 gap-2 cursor-pointer hover:bg-accent/60"
                         onClick={() => handleFileItemClick(file)}
                       >
                         <ItemMedia>
@@ -161,7 +180,7 @@ export function SessionHeader({
                           </Avatar>
                         </ItemMedia>
                         <ItemContent className="gap-0">
-                          <ItemTitle className="text-sm text-gray-700">
+                          <ItemTitle className="text-sm text-foreground">
                             {file.filename}
                           </ItemTitle>
                           <ItemDescription className="text-xs">
@@ -188,11 +207,12 @@ export function SessionHeader({
           </DialogContent>
         </Dialog>
       ) : (
-        <Button variant="ghost" size="icon-sm" className="cursor-pointer flex-shrink-0">
+        <Button variant="ghost" size="icon-sm" className="cursor-pointer flex-shrink-0" aria-label="查看任务文件">
           <FileSearchCorner />
         </Button>
       )}
       <ManusSettings />
+      </div>
     </header>
   )
 }

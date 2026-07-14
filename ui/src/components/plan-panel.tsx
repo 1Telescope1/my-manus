@@ -27,17 +27,19 @@ export function PlanPanel({ className, steps: stepsProp = [] }: PlanPanelProps) 
     step.description?.trim() || `步骤 ${index + 1}`
 
   return (
-    <div className={cn('bg-white rounded-xl border', className)}>
+    <div className={cn('rounded-xl border border-border bg-card shadow-[0_6px_20px_rgb(83_59_39/5%)]', className)}>
       {/* 折叠状态 */}
-      {!isExpanded && <div
-        className="flex flex-row items-start justify-between pr-3 relative clickable cursor-pointer rounded-xl"
+      {!isExpanded && <button
+        type="button"
+        className="relative flex w-full cursor-pointer flex-row items-start justify-between rounded-xl pr-3 text-left"
         onClick={togglePanel}
+        aria-expanded={false}
       >
         {/* 左侧的最新计划 */}
         <div className="flex-1 min-w-0 relative overflow-hidden">
           <div className="w-full h-9">
-            <div className="flex items-center justify-center gap-2.5 w-full px-4 py-2 truncate text-gray-500">
-              <Clock size={16} />
+            <div className="flex w-full items-center justify-center gap-2.5 truncate px-4 py-2 text-muted-foreground">
+              <Clock size={16} className="text-primary" />
               <div className="flex flex-col w-full gap-0.5 truncate">
                 <div className="text-sm truncate">
                   {steps[0] ? stepDescription(steps[0], 0) : '暂无步骤'}
@@ -48,15 +50,15 @@ export function PlanPanel({ className, steps: stepsProp = [] }: PlanPanelProps) 
         </div>
         {/* 右侧操作按钮&步骤信息 */}
         <div className="flex h-full justify-center gap-2 flex-shrink-0 items-center py-2.5">
-          <span className="text-xs text-gray-500">
+          <span className="text-xs text-muted-foreground">
             {completedCount} / {totalCount}
           </span>
           {failedCount > 0 && (
             <span className="text-xs text-red-600">{failedCount} 失败</span>
           )}
-          <ChevronUp className="text-gray-700" size={16} />
+          <ChevronUp className="text-muted-foreground" size={16} />
         </div>
-      </div>}
+      </button>}
       {/* 展开状态 */}
       {isExpanded && (
         <div className="flex flex-col py-4 rounded-xl">
@@ -69,17 +71,17 @@ export function PlanPanel({ className, steps: stepsProp = [] }: PlanPanelProps) 
                   size="icon-xs"
                   className="cursor-pointer"
                 >
-                  <ChevronDown className="text-gray-500" size={16} />
+                  <ChevronDown className="text-muted-foreground" size={16} />
                 </Button>
               </div>
             </div>
           </div>
           <div className="px-4">
-            <div className="bg-gray-50 rounded-lg px-2 py-3">
+            <div className="rounded-lg bg-secondary/55 px-2 py-3">
               <div className="flex justify-between w-full px-4">
-                <span className="text-gray-700 font-bold">任务进度</span>
+                <span className="font-editorial text-base text-foreground">任务进度</span>
                 <div className="flex items-center gap-3">
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-muted-foreground">
                     {completedCount} / {totalCount}
                   </span>
                   {failedCount > 0 && (
@@ -91,10 +93,10 @@ export function PlanPanel({ className, steps: stepsProp = [] }: PlanPanelProps) 
                 {steps.map((step, index) => (
                 <div
                   key={step.id}
-                  className="flex items-center text-gray-500 text-sm gap-2.5 w-full px-4 py-2 truncate"
+                  className="flex w-full items-center gap-2.5 truncate px-4 py-2 text-sm text-muted-foreground"
                 >
                   {step.status === 'completed' ? (
-                    <Check size={16} className="relative top-0.5 flex-shrink-0" />
+                    <Check size={16} className="relative top-0.5 flex-shrink-0 text-success" />
                   ) : step.status === 'failed' ? (
                     <CircleX size={16} className="relative top-0.5 flex-shrink-0 text-red-600" />
                   ) : (

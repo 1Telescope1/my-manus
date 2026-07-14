@@ -121,6 +121,8 @@ export function SessionDetailView({ sessionId, initialMessage, initialAttachment
     }, 0)
 
     if (toolCount > prevToolCountRef.current && latestTool) {
+      // 预览面板需要跟随外部 SSE 工具事件同步更新。
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPreviewTool(latestTool)
       setPreviewFile(null)
       scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight, behavior: 'smooth' })
@@ -264,10 +266,12 @@ export function SessionDetailView({ sessionId, initialMessage, initialAttachment
       <div className="flex flex-row h-screen w-full overflow-hidden">
         {/* 主内容区 */}
         <div className="flex flex-col flex-1 min-w-0 h-full overflow-hidden">
-          <div className={`flex flex-col h-full mx-auto w-full min-w-0 px-4 ${hasPreview ? '' : 'max-w-[768px]'}`}>
+          <div className={`mx-auto flex h-full w-full min-w-0 flex-col px-4 sm:px-6 lg:px-10 ${hasPreview ? '' : 'max-w-[1080px]'}`}>
             <div className="flex-shrink-0">
               <SessionHeader
                 title={session.title}
+                status={session.status}
+                latestMessageAt={session.latest_message_at}
                 files={files}
                 fileListOpen={fileListOpen}
                 onFileListOpenChange={setFileListOpen}
@@ -277,7 +281,7 @@ export function SessionDetailView({ sessionId, initialMessage, initialAttachment
             </div>
 
             <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
-              <div className="flex flex-col w-full gap-3 pt-3">
+              <div className="flex w-full flex-col gap-4 pt-5 sm:pt-7">
                 {timeline.length === 0 && !streaming && !hasInitialMessage && (
                   <div className="flex items-center justify-center py-8 text-sm text-gray-500">
                     暂无对话记录，在下方输入任务或提问
@@ -308,13 +312,14 @@ export function SessionDetailView({ sessionId, initialMessage, initialAttachment
                   </div>
                 )}
 
-                <div className="h-[140px]" />
+                <div className="h-[120px]" />
               </div>
             </div>
 
-            <div className="flex-shrink-0 bg-[#f8f8f7] py-4">
+            <div className="flex-shrink-0 bg-background py-4">
               <PlanPanel className="mb-2" steps={planSteps} />
               <ChatInput
+                compact
                 onSend={handleSend}
                 sessionId={sessionId}
                 isRunning={session?.status === 'running'}
@@ -326,14 +331,14 @@ export function SessionDetailView({ sessionId, initialMessage, initialAttachment
 
         {/* 文件预览面板 */}
         {previewFile && (
-          <div className="flex-shrink-0 w-[600px] h-full animate-in slide-in-from-right duration-300">
+          <div className="fixed inset-0 z-50 h-full w-full animate-in slide-in-from-right duration-300 md:relative md:inset-auto md:z-auto md:w-[min(600px,48vw)] md:flex-shrink-0">
             <FilePreviewPanel file={previewFile} onClose={handleClosePreview} />
           </div>
         )}
 
         {/* 工具预览面板 */}
         {resolvedPreviewTool && (
-          <div className="flex-shrink-0 w-[600px] h-full py-2 pr-2 animate-in slide-in-from-right duration-300">
+          <div className="fixed inset-0 z-50 h-full w-full animate-in slide-in-from-right duration-300 md:relative md:inset-auto md:z-auto md:w-[min(600px,48vw)] md:flex-shrink-0 md:py-2 md:pr-2">
             <ToolPreviewPanel
               tool={resolvedPreviewTool}
               onClose={handleClosePreview}

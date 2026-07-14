@@ -22,6 +22,8 @@ interface ChatInputProps {
   isRunning?: boolean
   /** 点击暂停按钮的回调 */
   onStop?: () => void
+  /** 会话详情页使用更紧凑的输入器 */
+  compact?: boolean
 }
 
 export interface ChatInputRef {
@@ -31,7 +33,7 @@ export interface ChatInputRef {
 }
 
 export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
-  ({ className, onInputValueChange, onSend, disabled = false, sessionId, isRunning = false, onStop }, ref) => {
+  ({ className, onInputValueChange, onSend, disabled = false, sessionId, isRunning = false, onStop, compact = false }, ref) => {
     const [files, setFiles] = useState<FileInfo[]>([])
     const [uploading, setUploading] = useState(false)
     const [sending, setSending] = useState(false)
@@ -87,7 +89,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
           setFiles((prev) => [...prev, ...uploadedFiles])
           toast.success(`成功上传 ${uploadedFiles.length} 个文件`)
         }
-      } catch (error) {
+      } catch {
         toast.error('文件上传过程中发生错误')
       } finally {
         setUploading(false)
@@ -143,7 +145,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     }
 
     return (
-    <div className={cn('flex flex-col bg-white w-full rounded-2xl py-3 border', className)}>
+    <div className={cn('paper-surface flex w-full flex-col rounded-xl border transition-shadow focus-within:border-primary/45 focus-within:shadow-[0_12px_34px_rgb(83_59_39/10%)]', compact ? 'py-2' : 'py-3', className)}>
       {/* 顶部的文件列表 */}
       {files.length > 0 && (
         <div className="w-full px-4 mb-1">
@@ -165,7 +167,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
                   </ItemMedia>
                   {/* 文件信息 */}
                   <ItemContent className="gap-0">
-                    <ItemTitle className="text-sm text-gray-700">{file.filename}</ItemTitle>
+                    <ItemTitle className="text-sm text-foreground">{file.filename}</ItemTitle>
                     <ItemDescription className="text-xs">
                       {file.extension} · {formatFileSize(file.size)}
                     </ItemDescription>
@@ -177,6 +179,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
                       className="cursor-pointer"
                       onClick={() => handleRemoveFile(file.id)}
                       disabled={uploading}
+                      aria-label={`移除文件 ${file.filename}`}
                     >
                       <XCircle/>
                     </Button>
@@ -189,20 +192,23 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
         </div>
       )}
       {/* 中间输入框 */}
-      <div className="px-4 mb-3">
+      <div className={cn('px-4', compact ? 'mb-1' : 'mb-2')}>
         <textarea
           ref={textareaRef}
-          rows={2}
+          rows={compact ? 1 : 2}
           value={inputValue}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           placeholder="分配一个任务或提问任何问题..."
-          className="scrollbar-hide outline-none w-full text-sm resize-none h-[46px] min-h-[40px]"
+          className={cn(
+            'scrollbar-hide w-full resize-none bg-transparent text-[15px] leading-6 text-foreground outline-none placeholder:text-muted-foreground/75',
+            compact ? 'h-9 min-h-9' : 'h-[52px] min-h-[44px]'
+          )}
           disabled={sending || disabled}
         />
       </div>
       {/* 底部上传&发送按钮 */}
-      <footer className="flex flex-row justify-between w-full px-3">
+      <footer className="flex w-full flex-row items-center justify-between px-3">
         {/* 上传按钮 */}
         <div className="flex gap-2">
           <input
@@ -214,10 +220,12 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
             disabled={uploading}
           />
           <Button
-            variant="outline"
-            className="rounded-full w-8 h-8 cursor-pointer"
+            type="button"
+            variant="ghost"
+            className="size-9 cursor-pointer rounded-full text-muted-foreground hover:text-foreground"
             onClick={handleUploadClick}
             disabled={uploading}
+            aria-label="上传附件"
           >
             {uploading ? (
               <Loader2 className="size-4 animate-spin"/>
@@ -231,25 +239,32 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
           {isRunning ? (
             // 任务运行中时显示暂停按钮
             <Button
+              type="button"
               variant="outline"
-              className="rounded-full w-8 h-8 cursor-pointer"
+              className="h-9 cursor-pointer rounded-lg border-destructive/30 px-4 text-destructive"
               onClick={onStop}
               disabled={!onStop}
+              aria-label="停止任务"
             >
               <Pause className="size-4" />
+              <span className="hidden sm:inline">停止</span>
             </Button>
           ) : (
             // 任务未运行时显示发送按钮
             <Button
-              variant="outline"
-              className="rounded-full w-8 h-8 cursor-pointer"
+              type="button"
+              className="h-9 min-w-10 cursor-pointer rounded-lg px-3 shadow-[0_7px_16px_rgb(160_77_43/18%)] sm:min-w-[92px]"
               onClick={handleSend}
               disabled={sending || disabled || !inputValue.trim()}
+              aria-label="发送消息"
             >
               {sending ? (
                 <Loader2 className="size-4 animate-spin"/>
               ) : (
-                <ArrowUp/>
+                <>
+                  <span className="hidden sm:inline">发送</span>
+                  <ArrowUp/>
+                </>
               )}
             </Button>
           )}

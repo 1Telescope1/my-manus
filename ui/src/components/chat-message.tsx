@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { CheckIcon, ChevronDown, Languages } from 'lucide-react'
-import { ManusIcon } from '@/components/manus-icon'
 import { ToolUse } from '@/components/tool-use'
 import { AttachmentsMessage } from '@/components/attachments-message'
 import { MarkdownContent } from '@/components/markdown-content'
@@ -37,10 +36,10 @@ function ToolRow({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <div className="min-w-0 flex-shrink-0">{children}</div>
+      <div className="min-w-0 flex-1 overflow-hidden">{children}</div>
       <span
         className={cn(
-          'flex-shrink-0 text-xs text-gray-500 min-w-[2.5rem] text-right transition-opacity duration-150',
+          'flex-shrink-0 text-xs text-muted-foreground min-w-[2.5rem] text-right transition-opacity duration-150',
           hovered ? 'opacity-100' : 'opacity-0'
         )}
       >
@@ -65,8 +64,8 @@ export function ChatMessage({
           className
         )}
       >
-        <div className="flex max-w-[90%] relative flex-col gap-2 items-end">
-          <div className="text-gray-700 relative flex items-center rounded-lg overflow-hidden bg-white p-3 border">
+        <div className="relative flex max-w-[90%] flex-col items-end gap-2 sm:max-w-[78%]">
+          <div className="paper-surface relative flex items-center overflow-hidden rounded-xl border px-4 py-3 text-[15px] leading-6 text-foreground">
             {item.data.message ?? ''}
           </div>
         </div>
@@ -79,13 +78,13 @@ export function ChatMessage({
       <div
         className={cn('flex flex-col gap-2 w-full group mt-3', className)}
       >
-        <div className="flex items-center justify-between h-7 group">
-          <div className="flex items-center justify-center gap-1 text-gray-700">
-            <Languages size={18} />
-            <ManusIcon />
+        <div className="flex h-7 items-center justify-between group">
+          <div className="flex items-center justify-center gap-2 text-foreground">
+            <Languages size={17} className="text-primary" />
+            <span className="font-editorial text-base">manus</span>
           </div>
         </div>
-        <div className="max-w-none p-0 m-0 text-gray-700">
+        <div className="m-0 max-w-none p-0 text-foreground">
           <MarkdownContent content={item.data.message ?? ''} />
         </div>
       </div>
@@ -130,7 +129,7 @@ export function ChatMessage({
         <div className="flex items-center justify-between h-7 group">
           <div className="flex items-center justify-center gap-1 text-red-600">
             <Languages size={18} />
-            <ManusIcon />
+            <span className="font-editorial text-base">manus</span>
           </div>
         </div>
         <div className="max-w-none p-0 m-0 text-red-600">
@@ -157,39 +156,34 @@ function StepBlock({
   const isCompleted = data.status === 'completed'
 
   return (
-    <div className={cn('flex flex-col mt-3', className)}>
-      <div
-        role="button"
-        tabIndex={0}
+    <div className={cn('mt-3 flex flex-col', className)}>
+      <button
+        type="button"
+        aria-expanded={expanded}
         onClick={() => setExpanded(!expanded)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault()
-            setExpanded((prev) => !prev)
-          }
-        }}
-        className="text-sm w-full cursor-pointer flex gap-2 justify-between group/header truncate text-gray-700 rounded-md hover:bg-gray-50/80 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
+        className="group/header flex w-full cursor-pointer justify-between gap-2 rounded-lg px-1 py-1.5 text-sm text-foreground outline-none transition-colors hover:bg-accent/45 focus-visible:ring-2 focus-visible:ring-ring/35"
       >
         <div className="flex flex-row gap-2 justify-start items-center truncate min-w-0 flex-1">
           <div
             className={cn(
-              'w-4 h-4 flex-shrink-0 flex items-center justify-center border rounded-[15px] bg-gray-300'
+              'flex size-[18px] flex-shrink-0 items-center justify-center rounded-full border',
+              isCompleted ? 'border-success bg-success' : 'border-primary/30 bg-primary/10'
             )}
           >
-            <CheckIcon className="text-white" size={10} />
+            <CheckIcon className={isCompleted ? 'text-success-foreground' : 'text-primary'} size={11} />
           </div>
           <div className="truncate font-medium markdown-content min-w-0">
             {data.description}
           </div>
           <ChevronDown
-            className={cn('flex-shrink-0 transition-transform text-gray-500', expanded && 'rotate-180')}
+            className={cn('flex-shrink-0 transition-transform text-muted-foreground', expanded && 'rotate-180')}
           />
         </div>
-      </div>
+      </button>
       {expanded && tools.length > 0 && (
         <div className="flex">
           <div className="w-6 relative flex-shrink-0">
-            <div className="absolute left-[7px] top-2 bottom-0 w-[1px] border-l border-dashed border-gray-300" />
+            <div className="absolute bottom-0 left-[8px] top-2 w-px border-l border-dashed border-success/35" />
           </div>
           <div className="flex flex-col gap-3 flex-1 min-w-0 overflow-hidden pt-2 transition-[max-height,opacity] duration-150 ease-in-out">
             {tools.map((tool, idx) => (

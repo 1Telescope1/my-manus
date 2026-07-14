@@ -15,12 +15,12 @@ export function ToolBadge({ icon: Icon, label, onClick }: ToolBadgeProps) {
       tabIndex={onClick ? 0 : undefined}
       onClick={onClick}
       onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } } : undefined}
-      className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 border border-gray-200 bg-gray-100 text-gray-700 text-sm w-fit max-w-full min-w-0 cursor-pointer hover:bg-gray-200/60 transition-colors"
+      className="inline-flex w-fit max-w-full min-w-0 items-center gap-2 rounded-lg border border-border bg-secondary/65 px-3 py-1.5 text-sm text-foreground/80 transition-colors hover:border-primary/20 hover:bg-accent/70"
     >
-      <span className="shrink-0 flex items-center justify-center text-gray-600">
+      <span className="flex shrink-0 items-center justify-center text-primary/80">
         <Icon size={16} className="shrink-0" />
       </span>
-      <span className="truncate max-w-[480px]">{label}</span>
+      <span className="min-w-0 flex-1 truncate sm:max-w-[480px]">{label}</span>
     </div>
   )
 }
