@@ -50,6 +50,76 @@ Nginx :8088
 4. 消息、计划、工具调用、文件和完成状态作为事件写入 Redis，并持久化到 PostgreSQL。
 5. API 将事件实时推送给 UI；UI 更新对话、计划、工具预览、文件预览和 VNC 画面。
 
+## 一次对话的完整调用链
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant UI
+    participant Controller as SessionController
+    participant Agent as AgentService
+    participant Redis as Redis Stream
+    participant Runner as AgentTaskRunner
+    participant Flow as PlannerReActFlow
+    participant LLM
+    participant Tool as ShellTool/FileTool/BrowserTool
+    participant Client as DockerSandbox
+    participant Sandbox as Sandbox HTTP API
+    participant Runtime as Bash/File/Chromium
+
+    UI->>Controller: POST /api/sessions/:sessionId/chat
+    Controller->>Agent: chat(sessionId, options)
+    Agent->>Agent: 加载 Session，根据 task_id 查找 Task
+    opt Task 或 Sandbox 不存在
+        Agent->>Client: 获取或创建 Sandbox
+        Agent->>Runner: 创建 Task 和 AgentTaskRunner
+    end
+    Agent->>Redis: 写入用户 MessageEvent 到 inputStream
+    Agent->>Runner: task.invoke() 启动后台执行
+    Note over Agent,Runner: Runner 生产事件，AgentService 同时从 Redis 读取事件
+    Runner->>Redis: pop() 读取输入消息
+    Runner->>Flow: invoke(message)
+
+    Flow->>LLM: Planner 创建 Plan（JSON）
+    LLM-->>Flow: Plan JSON 文本
+    Flow-->>Runner: yield Title/Message/Plan 事件
+    Runner->>Redis: 写入 outputStream 并持久化 Session
+
+    loop 逐个执行未完成的 Step
+        Flow->>LLM: ReAct 提交步骤目标和工具定义
+        LLM-->>Flow: tool_call(name, arguments)
+        Flow->>Tool: 调用对应 Tool
+        Tool->>Client: 调用 Sandbox 抽象能力
+        Client->>Sandbox: HTTP /api/shell、/api/file 或 CDP
+        Sandbox->>Runtime: 执行命令、操作文件或控制浏览器
+        Runtime-->>Sandbox: stdout、文件或浏览器结果
+        Sandbox-->>Client: code、msg、data
+        Client-->>Tool: ToolResult
+        Tool-->>Flow: ToolResult
+        Flow->>LLM: 回传工具执行结果
+        LLM-->>Flow: Step 结果 JSON
+        Flow-->>Runner: yield Step/Tool/Message 事件
+        Runner->>Redis: 写入 outputStream 并持久化 Session
+        Flow->>LLM: Planner 根据结果更新后续 Plan
+        LLM-->>Flow: 更新后的 Plan JSON
+        Flow-->>Runner: yield PlanEvent(UPDATED)
+        Runner->>Redis: 写入 outputStream 并持久化 Session
+    end
+
+    Flow->>LLM: ReAct 汇总所有步骤
+    LLM-->>Flow: 最终 MessageEvent
+    Flow-->>Runner: yield Message/Plan(COMPLETED)/Done
+    Runner->>Redis: 写入最终事件
+
+    loop 实时读取直到 done/error/wait
+        Agent->>Redis: 读取 outputStream
+        Redis-->>Agent: Plan/Step/Tool/Message 事件
+        Agent-->>Controller: AsyncGenerator yield Event
+        Controller-->>UI: SSE 实时推送
+    end
+    Controller-->>UI: 结束 SSE 响应
+```
+
 ## 快速部署
 
 ### 前置要求

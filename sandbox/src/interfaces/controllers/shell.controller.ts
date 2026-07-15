@@ -30,12 +30,12 @@ export class ShellController {
     @Body() request: ShellExecuteRequest,
   ): Promise<ApiResponse<ShellExecuteResult>> {
     // 未传 session_id 时由服务端生成，调用方可在响应中拿到会话 ID 继续操作。
-    if (!request.session_id || request.session_id === '') {
+    if (!request.session_id) {
       request.session_id = this.shellService.createSessionId();
     }
 
     // 未传执行目录时默认进入用户主目录。
-    if (!request.exec_dir || request.exec_dir === '') {
+    if (!request.exec_dir) {
       request.exec_dir = homedir();
     }
 

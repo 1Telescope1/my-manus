@@ -285,32 +285,27 @@ export class ShellService {
   }
 
   /** 在指定 Shell 会话中执行命令。 */
-  async execCommand(sessionId: string, execDir: string | undefined | null, command: string): Promise<ShellExecuteResult> {
+  async execCommand(sessionId: string, execDir: string, command: string): Promise<ShellExecuteResult> {
     this.logger.log(`正在会话 ${sessionId} 中执行命令: ${command}`);
 
-    // 未传执行目录时使用用户主目录，保持命令有稳定的 cwd。
-    let normalizedExecDir = execDir;
-    if (!normalizedExecDir || normalizedExecDir === '') {
-      normalizedExecDir = homedir();
-    }
     // 创建子进程前先检查目录，避免 spawn 返回低层 ENOENT。
-    if (!existsSync(normalizedExecDir)) {
-      this.logger.error(`当前目录不存在: ${normalizedExecDir}`);
-      throw new BadRequestException(`当前目录不存在: ${normalizedExecDir}`);
+    if (!existsSync(execDir)) {
+      this.logger.error(`当前目录不存在: ${execDir}`);
+      throw new BadRequestException(`当前目录不存在: ${execDir}`);
     }
 
     try {
       // 每次命令都会生成一个提示符记录，方便前端还原控制台历史。
-      const ps1 = this.formatPs1(normalizedExecDir);
+      const ps1 = this.formatPs1(execDir);
       let shell = this.activeShells.get(sessionId);
 
       // 第一次使用该 sessionId 时创建新进程和会话缓存。
       if (!shell) {
         this.logger.debug(`创建新的 Shell 会话: ${sessionId}`);
-        const child = this.createProcess(normalizedExecDir, command);
+        const child = this.createProcess(execDir, command);
         shell = new Shell({
           process: child,
-          exec_dir: normalizedExecDir,
+          exec_dir: execDir,
           output: '',
           console_records: [new ConsoleRecord({ ps1, command })],
         });
@@ -333,9 +328,9 @@ export class ShellService {
         }
 
         // 重置当前输出缓存，但保留 console_records 中的历史命令记录。
-        const child = this.createProcess(normalizedExecDir, command);
+        const child = this.createProcess(execDir, command);
         shell.process = child;
-        shell.exec_dir = normalizedExecDir;
+        shell.exec_dir = execDir;
         shell.output = '';
         shell.console_records.push(new ConsoleRecord({ ps1, command }));
         this.startOutputReader(sessionId, child);
