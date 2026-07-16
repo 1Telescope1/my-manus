@@ -18,9 +18,10 @@
 1. 所有 Workstream 同级，表格顺序不表示优先级或实施阶段。
 2. 只有 `Dependencies` 中列出的任务构成前置关系。
 3. 开始任务时复制 [任务目录模板](./tasks/_template/README.md) 的结构，创建 `tasks/<TASK-ID>/`，将清单中的 ID 链接到该目录的 `README.md`，并把状态改为 `in_progress`。
-4. Acceptance 全部满足后，在任务目录填写实施日志和验证证据，再将状态改为 `done`。
+4. Acceptance 全部满足后，在任务目录填写实施日志、验证证据和“改造前后对比”，再将状态改为 `done`。
 5. Evidence 列应链接任务文件、测试报告或其他可复核材料，不能只写“已完成”。
 6. 每次状态变化更新该任务的 `Last Updated`；不要在其他文件重复维护状态统计。
+7. 每个完成任务必须在任务首页说明改造前是什么状态、完成后变成什么状态，以及对用户或后续开发产生的实际影响；不得只罗列修改文件。
 
 ## Runtime
 
@@ -81,7 +82,7 @@
 
 | ID | Status | Dependencies | Intent | Design | Acceptance | Evidence | Last Updated |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| COMPAT-101 | `ready` | — | 让新 Runtime 继续服务现有 UI | 定义 Runtime Event 到旧 Event 的 Adapter，新增字段均可选 | 现有 UI 不修改即可消费 v2 模拟事件；sequence 可去重 | — | 2026-07-16：初始化 |
+| [COMPAT-101](./tasks/COMPAT-101/README.md) | `done` | — | 让新 Runtime 继续服务现有 UI | 定义 Runtime Event 到旧 Event 的 Adapter，新增字段均可选 | 现有 UI 不修改即可消费 v2 模拟事件；sequence 可去重 | [验收证据](./tasks/COMPAT-101/evidence.md) | 2026-07-17：完成并补充前后对比 |
 | COMPAT-102 | `proposed` | RUNTIME-105, COMPAT-101 | 可控选择新旧内核 | 实现 legacy/v2/shadow 运行模式和安全限制 | 三种模式配置测试通过；shadow 不重复副作用 | — | 2026-07-16：初始化 |
 | COMPAT-103 | `proposed` | COMPAT-102, EVAL-101 | 比较新旧结果而不影响用户 | 无副作用数据集支持 shadow 对比和差异报告 | 报告包含结果、调用数、Token、延迟和事件差异 | — | 2026-07-16：初始化 |
 | COMPAT-104 | `proposed` | COMPAT-103, EVAL-106 | 定义安全移除 legacy 的条件 | 按 SDD 门槛生成移除检查表和回滚说明 | 所有门槛有证据；历史 Session 和迁移恢复验证通过 | — | 2026-07-16：初始化 |
@@ -91,7 +92,7 @@
 | ID | Status | Dependencies | Intent | Design | Acceptance | Evidence | Last Updated |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | EVAL-101 | `ready` | — | 建立可重复的 Agent 质量基线 | 建立版本化任务集、期望结果和统一运行器 | 数据集覆盖 SDD 约定场景；结果可机器读取和重复运行 | — | 2026-07-16：初始化 |
-| EVAL-102 | `ready` | — | 固化现有 API/Event 行为 | 为 Session、SSE、Plan、Step、Tool、Wait、Done 建合同测试 | 当前 legacy 行为有基线；事件顺序和必填字段被验证 | — | 2026-07-16：初始化 |
+| [EVAL-102](./tasks/EVAL-102/README.md) | `done` | — | 固化现有 API/Event 行为 | 为 Session、SSE、Plan、Step、Tool、Wait、Done 建合同测试 | 当前 legacy 行为有基线；事件顺序和必填字段被验证 | [验收证据](./tasks/EVAL-102/evidence.md) | 2026-07-17：完成并补充前后对比 |
 | EVAL-103 | `proposed` | RUNTIME-103, RUNTIME-106, RUNTIME-107 | 验证耐久执行而非只测正常路径 | 注入进程崩溃、超时、取消和不确定副作用 | 所有恢复门槛满足；重复副作用为 0 | — | 2026-07-16：初始化 |
 | EVAL-104 | `proposed` | SKILL-103, TOOL-102 | 量化 Skill 和工具选择 | 构建正例、负例和近似场景，记录 Precision/Recall | 无关 Skill/Tool 不过度披露；指标写入报告 | — | 2026-07-16：初始化 |
 | EVAL-105 | `proposed` | AGENT-103, AGENT-105 | 验证多 Agent 边界 | 覆盖 Agent-as-Tool、Handoff、A2A 流、输入恢复和取消 | 所有权、上下文过滤、Artifact 和终态符合设计 | — | 2026-07-16：初始化 |

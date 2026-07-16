@@ -12,20 +12,41 @@ import { FileModel } from '../../domain/models/file';
 import { ExecutionStatus } from '../../domain/models/plan';
 
 /** 基础事件数据。 */
+type BaseEventDataInput = {
+  event_id?: string;
+  created_at?: number;
+  run_id?: string;
+  sequence?: number;
+  checkpoint_id?: string;
+  metadata?: Record<string, unknown>;
+};
+
 export class BaseEventData {
   event_id?: string;
   created_at: number;
+  run_id?: string;
+  sequence?: number;
+  checkpoint_id?: string;
+  metadata?: Record<string, unknown>;
 
-  constructor(input: { event_id?: string; created_at?: number }) {
+  constructor(input: BaseEventDataInput) {
     this.event_id = input.event_id;
     this.created_at = input.created_at ?? currentTimestamp();
+    this.run_id = input.run_id;
+    this.sequence = input.sequence;
+    this.checkpoint_id = input.checkpoint_id;
+    this.metadata = input.metadata;
   }
 
   /** 将领域事件转换成基础事件数据。 */
-  static baseEventData(event: BaseEvent): { event_id?: string; created_at: number } {
+  static baseEventData(event: BaseEvent): BaseEventDataInput & { created_at: number } {
     return {
       event_id: event.id,
       created_at: toTimestamp(event.created_at),
+      run_id: event.run_id,
+      sequence: event.sequence,
+      checkpoint_id: event.checkpoint_id,
+      metadata: event.metadata,
     };
   }
 

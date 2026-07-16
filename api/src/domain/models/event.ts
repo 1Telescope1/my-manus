@@ -26,6 +26,10 @@ export type BaseEvent = {
   id: string;
   type: string;
   created_at: Date;
+  run_id?: string;
+  sequence?: number;
+  checkpoint_id?: string;
+  metadata?: Record<string, unknown>;
 };
 
 export function baseEvent(type: string): BaseEvent {

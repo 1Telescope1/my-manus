@@ -9,6 +9,8 @@
     "start:dev": "nest start --watch",
     "start:local": "nest start",
     "start:dist": "node dist/main.js",
+    "test:contract": "npm run test:contract:typecheck && node --import tsx --test test/contracts/*.contract.test.ts",
+    "test:contract:typecheck": "tsc --noEmit -p tsconfig.test.json",
     "typecheck": "tsc --noEmit",
     "prisma:generate": "prisma generate"
   },
