@@ -24,6 +24,11 @@ project/
 - [沙箱服务](./sandbox/README.md)
 - [Nginx 网关](./nginx/README.md)
 
+## 设计与路线
+
+- [Agent 核心现代化工作区](./docs/agent-core-modernization/README.md) — 总任务清单和单任务工作记录入口。
+- [Agent 核心现代化 SDD](./docs/agent-core-modernization-sdd.md) — Agent Runtime、Skills、Tool/MCP、Memory、Multi-Agent/A2A、兼容迁移与评测的目标设计和 ADR。
+
 ## 系统架构
 
 ```text
