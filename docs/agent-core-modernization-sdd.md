@@ -7,8 +7,8 @@
 | 字段 | 值 |
 | --- | --- |
 | 文档状态 | Active |
-| 文档版本 | 1.3 |
-| 最后更新 | 2026-07-16 |
+| 文档版本 | 1.4 |
+| 最后更新 | 2026-07-17 |
 | 适用范围 | Agent Runtime、Skills、Tool/MCP、Memory/Context、Multi-Agent/A2A、Compatibility、Evaluation |
 | 设计来源 | `docs/agent-core-modernization-sdd.md` |
 | 进度来源 | `docs/agent-core-modernization/` |
@@ -250,6 +250,7 @@ type ToolCallRecord = {
   status: ToolCallStatus;
   risk: ToolRisk;
   idempotencyKey: string;
+  requestFingerprint: string;
   startedAt: Date | null;
   completedAt: Date | null;
 };
@@ -258,7 +259,8 @@ type Checkpoint = {
   id: string;
   runId: string;
   sequence: number;
-  node: string;
+  resumeNode: string;
+  nextEventSequence: number;
   state: Record<string, unknown>;
   createdAt: Date;
 };
@@ -272,6 +274,36 @@ type Interruption = {
   resolution: Record<string, unknown> | null;
 };
 ```
+
+状态枚举使用稳定的小写持久化值：
+
+- `RunStatus`：`created`、`running`、`waiting`、`paused`、`completed`、`failed`、`cancelled`。
+- `RunStepStatus`：`pending`、`running`、`completed`、`failed`、`cancelled`。
+- `ToolCallStatus`：`pending`、`running`、`completed`、`failed`、`cancelled`、`unknown`；`unknown` 表示副作用是否完成暂时无法确认。
+- `ToolRisk`：`read`、`write`、`destructive`、`external_communication`。
+- `InterruptionStatus`：`pending`、`resolved`、`rejected`、`expired`。
+- `CancellationOutcome`：`confirmed`、`timed_out`；超时确认必须同时记录无法确认的活动操作。
+
+创建工厂只产生初始状态：Run=`created`、Step/ToolCall/Interruption=`pending`。从持久化数据恢复实体时必须走独立的校验映射，不能借创建工厂跳过生命周期约束。
+
+Checkpoint 字段语义固定为：
+
+- `sequence` 是单个 Run 内从 0 开始、逐次加 1 的 Checkpoint 序号；`(runId, sequence)` 唯一。
+- `resumeNode` 是恢复后要执行的精确下一节点，不是最后完成的节点。
+- `nextEventSequence` 是恢复后要分配给下一个 Runtime Event 的非负序号，避免“尚无事件”与事件 0 混淆。
+
+领域仓储以 `AgentRun` 为聚合根，并遵守以下契约：
+
+- 创建、按 ID 查询、按 Session 查询和更新 Run；更新必须携带 `expectedVersion`。
+- Run 更新原子匹配当前版本并将版本递增一次；不存在、版本冲突和非法状态变化必须返回可区分结果，禁止静默覆盖。
+- Step、ToolCall 和 Interruption 可创建、更新及按 Run 查询；Checkpoint 只追加，不原地覆盖。
+- 恢复查询必须能取得最新 Checkpoint、未完成 ToolCall 和待处理 Interruption。
+- ToolCall 的 `(runId, idempotencyKey)` 必须唯一；仓储提供原子的 reserve-or-get，而不是先查后建。
+- ToolCall 使用稳定的 `requestFingerprint` 标识规范化后的工具名和参数；同一幂等键只有在指纹一致时才可复用，否则返回键冲突。
+- Step、ToolCall 和 Interruption 的状态更新必须携带预期状态并显式返回冲突，避免迟到写入覆盖新状态。
+- Checkpoint 追加必须原子校验下一个序号；`already_exists` 只表示所有字段完全相同的幂等重试，同序号内容不同或 `nextEventSequence` 回退必须返回冲突。
+- 同一次聚合变更中的 Run 条件更新和子记录写入必须在一个 UnitOfWork 事务内提交；Run 冲突时整体回滚。
+- RUNTIME-101 只定义领域端口；Prisma 模型、迁移、实现和 UnitOfWork 接线由 RUNTIME-102 完成。
 
 ### 5.3 运行状态机
 
@@ -295,8 +327,11 @@ stateDiagram-v2
 
 - `COMPLETED`、`FAILED`、`CANCELLED` 是终态。
 - 状态更新使用版本号进行乐观并发控制。
+- 领域状态转换是纯函数：转换时间和失败原因等输入必须由调用方显式提供；转换不自行递增持久化版本，仓储成功执行带 `expectedVersion` 的条件更新时原子递增版本并返回新快照。
+- `FAILED` 必须有非空错误；其他状态的 `error` 必须为 `null`。
 - `cancelRequestedAt` 只是取消请求，不等于已经终止；执行器确认所有活动操作停止后才能进入 `CANCELLED`。
-- 恢复时从最后一个已提交 Checkpoint 的下一节点继续。
+- 进入 `CANCELLED` 前必须已有取消请求，并提供 `confirmed` 或 `timed_out` 确认；超时确认需把无法确认的活动操作写入 metadata。
+- 恢复时从最后一个已提交 Checkpoint 的 `resumeNode` 继续。
 - 不承诺外部系统绝对 exactly-once；通过幂等键、调用记录和结果复用实现可验证的 at-least-once 安全。
 
 ### 5.4 Checkpoint 与恢复
@@ -316,7 +351,7 @@ stateDiagram-v2
 2. 对已成功并持久化结果的工具调用直接复用结果。
 3. 对状态未知的副作用调用先查询外部结果；无法确认时进入 `PAUSED`，不得盲目重放。
 4. 重建已激活 Skills、Working Context 摘要、Agent 所有权和待处理中断。
-5. 从 Checkpoint 指定节点继续，并保持事件 `sequence` 单调递增。
+5. 从 Checkpoint 的 `resumeNode` 继续，并用 `nextEventSequence` 分配下一事件序号，保持事件 `sequence` 单调递增。
 
 ### 5.5 取消传播
 
@@ -677,6 +712,7 @@ AGENT_RUNTIME_MODE=legacy|v2|shadow
 
 | 日期 | 版本 | 变更 | 相关任务/ADR |
 | --- | --- | --- | --- |
+| 2026-07-17 | 1.4 | 明确运行实体状态枚举、纯状态转换与带版本条件更新的仓储契约 | RUNTIME-101、ADR-001、ADR-007 |
 | 2026-07-16 | 1.3 | 删除重复的 Handoff 文件体系，跨会话过程统一记录在任务目录 | ADR-011 |
 | 2026-07-16 | 1.2 | 将进度体系调整为单一 `TASKS.md` 总清单，并为每个已启动任务创建独立工作目录 | ADR-010 |
 | 2026-07-16 | 1.1 | 将任务索引、单任务日志和 Session Handoff 迁移到独立工作目录，SDD 只保留目标设计和 ADR | ADR-009 |
