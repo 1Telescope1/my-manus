@@ -8,19 +8,20 @@ datasource db {
 }
 
 model Session {
-  id                 String    @id @default(uuid()) @db.VarChar(255)
-  sandboxId          String?   @map("sandbox_id") @db.VarChar(255)
-  taskId             String?   @map("task_id") @db.VarChar(255)
-  title              String    @default("") @db.VarChar(255)
-  unreadMessageCount Int       @default(0) @map("unread_message_count")
-  latestMessage      String    @default("") @map("latest_message") @db.Text
-  latestMessageAt    DateTime? @map("latest_message_at")
-  events             Json      @default("[]")
-  files              Json      @default("[]")
-  memories           Json      @default("{}")
-  status             String    @default("") @db.VarChar(255)
-  updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at")
-  createdAt          DateTime  @default(now()) @map("created_at")
+  id                 String     @id @default(uuid()) @db.VarChar(255)
+  sandboxId          String?    @map("sandbox_id") @db.VarChar(255)
+  taskId             String?    @map("task_id") @db.VarChar(255)
+  title              String     @default("") @db.VarChar(255)
+  unreadMessageCount Int        @default(0) @map("unread_message_count")
+  latestMessage      String     @default("") @map("latest_message") @db.Text
+  latestMessageAt    DateTime?  @map("latest_message_at")
+  events             Json       @default("[]")
+  files              Json       @default("[]")
+  memories           Json       @default("{}")
+  status             String     @default("") @db.VarChar(255)
+  updatedAt          DateTime   @default(now()) @updatedAt @map("updated_at")
+  createdAt          DateTime   @default(now()) @map("created_at")
+  agentRuns          AgentRun[]
 
   @@map("sessions")
 }
@@ -37,4 +38,107 @@ model File {
   createdAt DateTime @default(now()) @map("created_at")
 
   @@map("files")
+}
+
+/// 一次 Agent 任务执行的持久化聚合根。
+model AgentRun {
+  id                String           @id @default(uuid()) @db.VarChar(255)
+  sessionId         String           @map("session_id") @db.VarChar(255)
+  route             String           @db.VarChar(64)
+  status            String           @default("created") @db.VarChar(64)
+  currentNode       String?          @map("current_node") @db.VarChar(512)
+  version           Int              @default(0)
+  cancelRequestedAt DateTime?        @map("cancel_requested_at")
+  startedAt         DateTime?        @map("started_at")
+  completedAt       DateTime?        @map("completed_at")
+  error             String?          @db.Text
+  metadata          Json             @default("{}")
+  updatedAt         DateTime         @default(now()) @updatedAt @map("updated_at")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  session           Session          @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  steps             RunStep[]
+  toolCalls         ToolCallRecord[]
+  checkpoints       Checkpoint[]
+  interruptions     Interruption[]
+
+  @@index([sessionId, createdAt])
+  @@map("agent_runs")
+}
+
+/// Run 内一次可重试步骤尝试。
+model RunStep {
+  id        String           @id @default(uuid()) @db.VarChar(255)
+  runId     String           @map("run_id") @db.VarChar(255)
+  key       String           @db.VarChar(255)
+  kind      String           @db.VarChar(64)
+  status    String           @default("pending") @db.VarChar(64)
+  attempt   Int              @default(1)
+  input     Json?
+  output    Json?
+  error     String?          @db.Text
+  updatedAt DateTime         @default(now()) @updatedAt @map("updated_at")
+  createdAt DateTime         @default(now()) @map("created_at")
+  run       AgentRun         @relation(fields: [runId], references: [id], onDelete: Cascade)
+  toolCalls ToolCallRecord[]
+
+  @@unique([runId, key, attempt])
+  @@index([runId, status])
+  @@map("run_steps")
+}
+
+/// 带幂等身份和风险信息的一次工具调用。
+model ToolCallRecord {
+  id                 String    @id @default(uuid()) @db.VarChar(255)
+  runId              String    @map("run_id") @db.VarChar(255)
+  stepId             String    @map("step_id") @db.VarChar(255)
+  toolName           String    @map("tool_name") @db.VarChar(255)
+  arguments          Json?
+  result             Json?
+  status             String    @default("pending") @db.VarChar(64)
+  risk               String    @db.VarChar(64)
+  idempotencyKey     String    @map("idempotency_key") @db.VarChar(512)
+  requestFingerprint String    @map("request_fingerprint") @db.VarChar(255)
+  startedAt          DateTime? @map("started_at")
+  completedAt        DateTime? @map("completed_at")
+  updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  run                AgentRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
+  step               RunStep   @relation(fields: [stepId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, idempotencyKey])
+  @@index([runId, status])
+  @@index([stepId])
+  @@map("tool_call_records")
+}
+
+/// 进程重启后用于恢复执行的只追加快照。
+model Checkpoint {
+  id                String   @id @default(uuid()) @db.VarChar(255)
+  runId             String   @map("run_id") @db.VarChar(255)
+  sequence          Int
+  resumeNode        String   @map("resume_node") @db.VarChar(512)
+  nextEventSequence Int      @map("next_event_sequence")
+  state             Json     @default("{}")
+  createdAt         DateTime @default(now()) @map("created_at")
+  run               AgentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, sequence])
+  @@index([runId, createdAt])
+  @@map("checkpoints")
+}
+
+/// 等待用户输入或审批的持久化中断。
+model Interruption {
+  id         String   @id @default(uuid()) @db.VarChar(255)
+  runId      String   @map("run_id") @db.VarChar(255)
+  kind       String   @db.VarChar(64)
+  status     String   @default("pending") @db.VarChar(64)
+  payload    Json     @default("{}")
+  resolution Json?
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  run        AgentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId, status])
+  @@map("interruptions")
 }

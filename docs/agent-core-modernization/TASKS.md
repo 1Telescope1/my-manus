@@ -28,8 +28,8 @@
 | ID | Status | Dependencies | Intent | Design | Acceptance | Evidence | Last Updated |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | [RUNTIME-101](./tasks/RUNTIME-101/README.md) | `done` | — | 建立可持久化的运行语义 | 定义 AgentRun、RunStep、ToolCallRecord、Checkpoint、Interruption 和状态转换 | 类型、状态转换测试和仓储接口评审通过；非法转换被拒绝 | [验收证据](./tasks/RUNTIME-101/evidence.md) | 2026-07-17：完成 |
-| RUNTIME-102 | `ready` | RUNTIME-101 | 将运行状态从 Session JSON 中分离 | 增加 Prisma 模型、迁移和仓储实现，使用乐观版本控制 | 可创建、查询、更新 Run；并发更新不会静默覆盖；迁移可回滚 | — | 2026-07-17：依赖已完成 |
-| RUNTIME-103 | `proposed` | RUNTIME-102 | 支持进程重启后继续执行 | 在约定节点写 Checkpoint，并实现恢复解析器 | 在模型调用前后和工具结果持久化后注入崩溃，均从预期节点恢复 | — | 2026-07-16：初始化 |
+| [RUNTIME-102](./tasks/RUNTIME-102/README.md) | `done` | RUNTIME-101 | 将运行状态从 Session JSON 中分离 | 增加 Prisma 模型、迁移和仓储实现，使用乐观版本控制 | 可创建、查询、更新 Run；并发更新不会静默覆盖；迁移可回滚 | [验收证据](./tasks/RUNTIME-102/evidence.md) | 2026-07-17：完成 |
+| RUNTIME-103 | `ready` | RUNTIME-102 | 支持进程重启后继续执行 | 在约定节点写 Checkpoint，并实现恢复解析器 | 在模型调用前后和工具结果持久化后注入崩溃，均从预期节点恢复 | — | 2026-07-17：依赖已完成 |
 | RUNTIME-104 | `ready` | — | 避免所有请求强制 Planner | 实现 RouteDecision Schema、确定性规则和模型路由回退 | 四种路径均有单测；无效路由回退 planned_agent；路由不执行副作用 | — | 2026-07-16：初始化 |
 | RUNTIME-105 | `proposed` | RUNTIME-101, RUNTIME-104 | 提供多种执行路径 | 实现 Direct、Single Tool、Workflow、Planned Agent 执行器接口 | 每种路径可独立运行并产生统一 Runtime Event | — | 2026-07-16：初始化 |
 | RUNTIME-106 | `proposed` | RUNTIME-101, TOOL-103 | 实现真实取消 | 根 AbortController 贯穿模型与工具适配器，停止新任务调度 | LLM、Shell、Browser、MCP、A2A 取消测试通过；终态为 CANCELLED | — | 2026-07-16：初始化 |
