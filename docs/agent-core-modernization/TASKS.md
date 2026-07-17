@@ -22,6 +22,9 @@
 5. Evidence 列应链接任务文件、测试报告或其他可复核材料，不能只写“已完成”。
 6. 每次状态变化更新该任务的 `Last Updated`；不要在其他文件重复维护状态统计。
 7. 每个完成任务必须在任务首页说明改造前是什么状态、完成后变成什么状态，以及对用户或后续开发产生的实际影响；不得只罗列修改文件。
+8. 新增或修改自动化测试时，`test`、`it`、`describe` 的标题必须使用中文；Run、Checkpoint、CAS、SSE 等必要技术术语可以保留，确保测试报告可以直接阅读。
+9. 新增或修改枚举时，枚举类型和每一个枚举项都必须有中文注释，说明业务含义或触发场景；不能只依赖英文名称和值推断含义。
+10. 新增或修改函数时（包括方法、构造函数和辅助函数），函数声明上方至少要有一行中文注释说明职责；函数内部的重要或复杂步骤也必须有中文注释，重点解释执行顺序、设计原因、事务或安全约束，避免逐行复述代码。
 
 ## Runtime
 
@@ -29,7 +32,7 @@
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | [RUNTIME-101](./tasks/RUNTIME-101/README.md) | `done` | — | 建立可持久化的运行语义 | 定义 AgentRun、RunStep、ToolCallRecord、Checkpoint、Interruption 和状态转换 | 类型、状态转换测试和仓储接口评审通过；非法转换被拒绝 | [验收证据](./tasks/RUNTIME-101/evidence.md) | 2026-07-17：完成 |
 | [RUNTIME-102](./tasks/RUNTIME-102/README.md) | `done` | RUNTIME-101 | 将运行状态从 Session JSON 中分离 | 增加 Prisma 模型、迁移和仓储实现，使用乐观版本控制 | 可创建、查询、更新 Run；并发更新不会静默覆盖；迁移可回滚 | [验收证据](./tasks/RUNTIME-102/evidence.md) | 2026-07-17：完成 |
-| RUNTIME-103 | `ready` | RUNTIME-102 | 支持进程重启后继续执行 | 在约定节点写 Checkpoint，并实现恢复解析器 | 在模型调用前后和工具结果持久化后注入崩溃，均从预期节点恢复 | — | 2026-07-17：依赖已完成 |
+| [RUNTIME-103](./tasks/RUNTIME-103/README.md) | `done` | RUNTIME-102 | 支持进程重启后继续执行 | 在约定节点写 Checkpoint，并实现恢复解析器 | 在模型调用前后和工具结果持久化后注入崩溃，均从预期节点恢复 | [验收证据](./tasks/RUNTIME-103/evidence.md) | 2026-07-17：完成 |
 | RUNTIME-104 | `ready` | — | 避免所有请求强制 Planner | 实现 RouteDecision Schema、确定性规则和模型路由回退 | 四种路径均有单测；无效路由回退 planned_agent；路由不执行副作用 | — | 2026-07-16：初始化 |
 | RUNTIME-105 | `proposed` | RUNTIME-101, RUNTIME-104 | 提供多种执行路径 | 实现 Direct、Single Tool、Workflow、Planned Agent 执行器接口 | 每种路径可独立运行并产生统一 Runtime Event | — | 2026-07-16：初始化 |
 | RUNTIME-106 | `proposed` | RUNTIME-101, TOOL-103 | 实现真实取消 | 根 AbortController 贯穿模型与工具适配器，停止新任务调度 | LLM、Shell、Browser、MCP、A2A 取消测试通过；终态为 CANCELLED | — | 2026-07-16：初始化 |

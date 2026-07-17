@@ -259,7 +259,7 @@ function repositoryWithDelegate(
 }
 
 // 验证五类领域快照经过 Prisma 数据形状往返后语义不变。
-test('runtime persistence mapper round-trips all five aggregate records', () => {
+test('运行持久化 Mapper 应保持五类聚合记录往返转换语义不变', () => {
   const run = createAgentRun({
     id: 'run-1',
     sessionId: 'session-1',
@@ -374,7 +374,7 @@ test('runtime persistence mapper round-trips all five aggregate records', () => 
 });
 
 // 验证数据库脏枚举不会逃逸到领域层。
-test('runtime persistence mapper rejects unknown database enum values', () => {
+test('运行持久化 Mapper 应拒绝数据库中的未知枚举值', () => {
   assert.throws(
     () =>
       persistenceToAgentRun({
@@ -397,7 +397,7 @@ test('runtime persistence mapper rejects unknown database enum values', () => {
 });
 
 // 验证两个相同版本写者竞争时只有一个 CAS 更新成功。
-test('agent run repository uses compare-and-swap so only one concurrent update wins', async () => {
+test('AgentRun 仓储使用 CAS 时并发更新应只有一个成功', async () => {
   const delegate = new FakeAgentRunDelegate();
   const repository = repositoryWithDelegate('agentRun', delegate);
   const run = createAgentRun({
@@ -428,7 +428,7 @@ test('agent run repository uses compare-and-swap so only one concurrent update w
 });
 
 // 验证工具幂等键能区分相同请求重试与不同请求冲突。
-test('tool call reservation is idempotent and detects key reuse with another request', async () => {
+test('工具调用占用应支持幂等重试并识别不同请求复用同一键', async () => {
   const delegate = new FakeToolCallDelegate();
   const repository = repositoryWithDelegate('toolCallRecord', delegate);
   const toolCall = createToolCallRecord({
@@ -473,7 +473,7 @@ test('tool call reservation is idempotent and detects key reuse with another req
 });
 
 // 验证 Checkpoint 的连续序号、事件水位和完全相同重试语义。
-test('checkpoint append enforces contiguous sequence, monotonic events, and exact retry identity', async () => {
+test('Checkpoint 追加应保证连续序号、事件水位单调和完全相同重试', async () => {
   const delegate = new FakeCheckpointDelegate();
   const repository = repositoryWithDelegate('checkpoint', delegate);
   const first = createCheckpoint({
@@ -535,7 +535,7 @@ test('checkpoint append enforces contiguous sequence, monotonic events, and exac
 });
 
 // 验证事务回调拿到的 UnitOfWork 已暴露运行仓储。
-test('DbUnitOfWork exposes the runtime repository inside a transaction', async () => {
+test('DbUnitOfWork 应在事务中暴露运行仓储', async () => {
   const transactionClient = {};
   const prisma = {
     $transaction: async <T>(callback: (tx: object) => Promise<T>): Promise<T> =>
@@ -549,7 +549,7 @@ test('DbUnitOfWork exposes the runtime repository inside a transaction', async (
 });
 
 // 验证前向迁移覆盖五张表，回滚顺序遵守外键依赖。
-test('runtime migration creates all tables and rollback drops children before parents', async () => {
+test('运行迁移应创建全部表，并按子表优先顺序回滚', async () => {
   const migrationDirectory = resolve(
     process.cwd(),
     'prisma/migrations/20260717000000_runtime_persistence',
