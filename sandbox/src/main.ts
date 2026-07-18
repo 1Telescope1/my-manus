@@ -54,7 +54,7 @@ async function listenOnAvailablePort(app: INestApplication, startPort: number): 
 function setupOpenApi(app: INestApplication): void {
   // OpenAPI 文档只描述当前沙箱暴露的 HTTP 接口，不参与业务逻辑。
   const config = new DocumentBuilder()
-    .setTitle('MoocManus 沙箱系统')
+    .setTitle('Manus 沙箱系统')
     .setDescription('该沙箱系统预装了常用运行环境，支持运行 Shell 命令、文件管理等功能')
     .setVersion('1.0.0')
     .addTag('文件模块', '包含文件增删改查等 API 接口，用于实现对沙箱文件的操作。')
@@ -73,7 +73,7 @@ async function bootstrap(): Promise<void> {
     logger: getNestLoggerLevels(settings.logLevel),
   });
 
-  Logger.log('MoocManus 沙箱正在初始化');
+  Logger.log('Manus 沙箱正在初始化');
 
   // 沙箱服务通常会被外部 API 或调试工具直接访问，因此默认放开 CORS。
   app.enableCors({
@@ -92,12 +92,12 @@ async function bootstrap(): Promise<void> {
 
   // 监听配置端口；如果端口已被占用，则自动使用后续可用端口。
   const port = await listenOnAvailablePort(app, settings.port);
-  Logger.log(`MoocManus TS Sandbox listening on http://localhost:${port}/api`);
-  Logger.log(`MoocManus TS Sandbox docs available at http://localhost:${port}/docs`);
+  Logger.log(`Manus TS Sandbox listening on http://localhost:${port}/api`);
+  Logger.log(`Manus TS Sandbox docs available at http://localhost:${port}/docs`);
 }
 
 void bootstrap().finally(() => {
   process.once('beforeExit', () => {
-    Logger.log('MoocManus 沙箱关闭成功');
+    Logger.log('Manus 沙箱关闭成功');
   });
 });

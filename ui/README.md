@@ -1,6 +1,6 @@
-# MoocManus UI
+# Manus UI
 
-`ui` 是 MoocManus 的 Web 前端，基于 Next.js 16 App Router、React 19、TypeScript、Tailwind CSS 4 和 Radix UI 构建。它提供会话列表、流式对话、计划/工具过程、文件预览、设置管理和 noVNC 桌面查看。
+`ui` 是 Manus 的 Web 前端，基于 Next.js 16 App Router、React 19、TypeScript、Tailwind CSS 4 和 Radix UI 构建。它提供会话列表、流式对话、计划/工具过程、文件预览、设置管理和 noVNC 桌面查看。
 
 ## 目录结构
 

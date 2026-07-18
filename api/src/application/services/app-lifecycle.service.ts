@@ -33,7 +33,7 @@ export class AppLifecycleService implements OnApplicationBootstrap, OnApplicatio
   async onApplicationShutdown(): Promise<void> {
     try {
       // 1. 等待 Agent 服务关闭，最多等待 30 秒。
-      this.logger.log('MoocManus正在关闭');
+      this.logger.log('Manus 正在关闭');
       await withTimeout(this.agentService.shutdown(), AGENT_SHUTDOWN_TIMEOUT_MS);
       this.logger.log('Agent服务成功关闭');
     } catch (error) {

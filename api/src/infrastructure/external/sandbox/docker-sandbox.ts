@@ -50,7 +50,7 @@ export class DockerSandbox extends Sandbox {
 
   /** 获取沙箱的唯一 id，使用容器名字作为唯一 id。 */
   get id(): string {
-    return this.containerName || 'mooc-manus-sandbox';
+    return this.containerName || 'manus-sandbox';
   }
 
   get vncUrl(): string {

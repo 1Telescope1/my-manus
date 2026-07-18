@@ -48,7 +48,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       SANDBOX_ADDRESS: ""
-      SANDBOX_IMAGE: ${SANDBOX_IMAGE:-devops-mooc_manus_sandbox_dev:latest}
+      SANDBOX_IMAGE: ${SANDBOX_IMAGE:-devops-manus_sandbox_dev:latest}
       SANDBOX_NETWORK: manus-network-dev
       APP_CONFIG_FILEPATH: /app/config.yaml
     ports:

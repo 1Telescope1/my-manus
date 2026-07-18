@@ -29,7 +29,7 @@ async function listenOnAvailablePort(app: INestApplication, startPort: number): 
 
 async function bootstrap(): Promise<void> {
   // 1. 日志打印代码已经开始执行。
-  Logger.log('MoocManus正在初始化');
+  Logger.log('Manus 正在初始化');
 
   // 2. 创建应用后，各基础设施 provider 会依次完成数据库迁移和客户端初始化。
   const app = await NestFactory.create(AppModule);
@@ -57,7 +57,7 @@ async function bootstrap(): Promise<void> {
 
   // 5. 从配置端口开始寻找可用端口并启动应用。
   const port = await listenOnAvailablePort(app, settings.port);
-  Logger.log(`MoocManus TS API listening on http://localhost:${port}/api`);
+  Logger.log(`Manus TS API listening on http://localhost:${port}/api`);
 }
 
 void bootstrap();

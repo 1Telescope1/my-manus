@@ -56,7 +56,7 @@ export default function Page() {
           <div className="mb-7 text-center sm:mb-8 sm:text-left">
             <div className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-primary">AI 行动助手</div>
             <div className="font-editorial text-[30px] leading-tight text-foreground sm:text-[42px]">
-              您好，慕学员
+              您好
             </div>
             <div className="mt-2 text-[17px] text-muted-foreground sm:text-xl">今天想完成什么任务？</div>
           </div>

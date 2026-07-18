@@ -349,7 +349,7 @@ export function ToolPreviewPanel({
       {/* Header */}
       <div className="flex flex-col gap-2 px-4 py-3 border-b border-gray-200 bg-gray-50 flex-shrink-0">
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold text-gray-900">MoocManus 的电脑</h2>
+          <h2 className="text-base font-semibold text-gray-900">Manus 的电脑</h2>
           <Button
             variant="ghost"
             size="icon-sm"
@@ -362,7 +362,7 @@ export function ToolPreviewPanel({
         </div>
         <div className="flex items-center gap-2 text-sm text-gray-600">
           <Monitor size={14} className="text-gray-500 flex-shrink-0" />
-          <span>MoocManus 正在使用</span>
+          <span>Manus 正在使用</span>
           <span className="font-medium text-gray-800">{toolDesc}</span>
         </div>
         <div className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 border border-gray-200 bg-gray-100 text-gray-700 text-xs w-fit max-w-full">

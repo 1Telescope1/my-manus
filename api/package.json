@@ -1,5 +1,5 @@
 {
-  "name": "moocmanus-api-ts",
+  "name": "manus-api-ts",
   "version": "0.1.0",
   "private": true,
   "description": "NestJS TypeScript parity implementation of the Python API.",

@@ -99,7 +99,7 @@ export class SupervisorService {
     const request = [
       'POST /RPC2 HTTP/1.1',
       'Host: localhost',
-      'User-Agent: moocmanus-sandbox-ts',
+      'User-Agent: manus-sandbox-ts',
       'Content-Type: text/xml',
       `Content-Length: ${Buffer.byteLength(body, 'utf8')}`,
       'Connection: close',

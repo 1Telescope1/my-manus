@@ -1,4 +1,4 @@
-# MoocManus Nginx 网关
+# Manus Nginx 网关
 
 `nginx` 是全栈部署的唯一公网入口，将页面请求转发到 Next.js，将 `/api/` 请求转发到 NestJS API，并为聊天 SSE、会话列表长连接和 VNC WebSocket 提供长超时与关闭缓冲的代理配置。
 

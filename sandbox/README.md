@@ -1,4 +1,4 @@
-# MoocManus Sandbox
+# Manus Sandbox
 
 `sandbox` 是 Agent 的隔离执行环境。它在 Ubuntu 容器中组合 NestJS 工具 API、Shell 子进程、Chromium、虚拟显示器、CDP、VNC 和 WebSocket VNC，使 API 能执行命令、操作文件、自动化浏览器，并将桌面实时展示给前端。
 

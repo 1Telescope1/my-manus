@@ -157,7 +157,7 @@ export class MCPClientManager {
       args: serverConfig.args ?? [],
       env: { ...process.env, ...(serverConfig.env ?? {}) } as Record<string, string>,
     });
-    const client = new Client({ name: 'moocmanus-ts', version: '0.1.0' });
+    const client = new Client({ name: 'manus-ts', version: '0.1.0' });
     await client.connect(transport);
     this.clients[serverName] = { client, transport };
     await this.cacheMcpServerTools(serverName, client);
@@ -176,7 +176,7 @@ export class MCPClientManager {
     const transport = new SSEClientTransport(new URL(serverConfig.url), {
       requestInit: { headers: serverConfig.headers as HeadersInit },
     } as any);
-    const client = new Client({ name: 'moocmanus-ts', version: '0.1.0' });
+    const client = new Client({ name: 'manus-ts', version: '0.1.0' });
     await client.connect(transport);
     this.clients[serverName] = { client, transport };
     await this.cacheMcpServerTools(serverName, client);
@@ -198,7 +198,7 @@ export class MCPClientManager {
     const transport = new StreamableHTTPClientTransport(new URL(serverConfig.url), {
       requestInit: { headers: serverConfig.headers as HeadersInit },
     } as any);
-    const client = new Client({ name: 'moocmanus-ts', version: '0.1.0' });
+    const client = new Client({ name: 'manus-ts', version: '0.1.0' });
     await client.connect(transport);
     this.clients[serverName] = { client, transport };
     await this.cacheMcpServerTools(serverName, client);

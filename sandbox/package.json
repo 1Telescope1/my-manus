@@ -1,5 +1,5 @@
 ﻿{
-  "name": "moocmanus-sandbox-ts",
+  "name": "manus-sandbox-ts",
   "version": "0.1.0",
   "private": true,
   "description": "NestJS TypeScript parity implementation of the Python sandbox service.",

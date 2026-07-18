@@ -1,4 +1,4 @@
-# MoocManus Agent 核心现代化工作区
+# Manus Agent 核心现代化工作区
 
 本目录用于记录 Agent 核心现代化工作的总任务状态和单任务实施过程。架构设计继续由 [Agent 核心现代化 SDD](../agent-core-modernization-sdd.md) 维护；不要在任务日志中复制整套设计。
 

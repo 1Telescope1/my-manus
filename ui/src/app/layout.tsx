@@ -7,8 +7,8 @@ import './globals.css'
 import {LeftPanel} from '@/components/left-panel'
 
 export const metadata: Metadata = {
-  title: 'MoocManus',
-  description: 'MoocManus 是一个行动引擎，它超越了答案的范畴，可以执行任务、自动化工作流程，并扩展您的能力。',
+  title: 'Manus',
+  description: 'Manus 是一个行动引擎，它超越了答案的范畴，可以执行任务、自动化工作流程，并扩展您的能力。',
   icons: {
     icon: '/icon.png',
   },

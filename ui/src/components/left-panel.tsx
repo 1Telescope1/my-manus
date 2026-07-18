@@ -36,7 +36,7 @@ export function LeftPanel() {
             <span className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-primary">
               <Feather className="size-[18px]" strokeWidth={1.8}/>
             </span>
-            <span className="font-editorial truncate text-[22px] leading-none text-foreground">MoocManus</span>
+            <span className="font-editorial truncate text-[22px] leading-none text-foreground">Manus</span>
           </button>
           <SidebarTrigger className="cursor-pointer text-muted-foreground hover:text-foreground"/>
         </div>

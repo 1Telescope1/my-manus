@@ -1,5 +1,5 @@
 ﻿services:
-  mooc_manus_sandbox_dev:
+  manus_sandbox_dev:
     # 1. 定义沙箱开发容器服务，服务名用于 docker compose 内部引用。
     build:
       # 2. 使用 sandbox 项目根目录作为构建上下文。
@@ -22,6 +22,6 @@
       PORT: "8080"
       NODE_ENV: development
     # 8. 固定容器名称，便于本地排查和重启。
-    container_name: mooc_manus_sandbox_dev
+    container_name: manus_sandbox_dev
     # 9. 容器异常退出时自动重启，保持开发环境可用。
     restart: always

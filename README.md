@@ -1,6 +1,6 @@
-# MoocManus - 通用 AI Agent 系统
+# Manus - 通用 AI Agent 系统
 
-MoocManus 是一个可私有化部署的通用 AI Agent 系统。系统使用 Planner + ReAct 完成任务规划和工具调用，支持内置浏览器、Shell、文件、搜索与消息工具，也可以通过 MCP 和 A2A 接入外部工具或 Agent。任务在独立沙箱中执行，前端可实时查看执行计划、工具事件、生成文件和 VNC 桌面。
+Manus 是一个可私有化部署的通用 AI Agent 系统。系统使用 Planner + ReAct 完成任务规划和工具调用，支持内置浏览器、Shell、文件、搜索与消息工具，也可以通过 MCP 和 A2A 接入外部工具或 Agent。任务在独立沙箱中执行，前端可实时查看执行计划、工具事件、生成文件和 VNC 桌面。
 
 ## 项目结构
 

@@ -17,7 +17,7 @@ export function ChatHeader() {
         {(!open || isMobile) && (
           <Link href="/" className="flex items-center gap-2 text-foreground">
             <Feather className="size-5 text-primary" strokeWidth={1.8}/>
-            <span className="font-editorial text-lg">MoocManus</span>
+            <span className="font-editorial text-lg">Manus</span>
           </Link>
         )}
       </div>
