@@ -11,6 +11,7 @@ export class FileTool extends BaseTool {
 
   @tool({
     name: 'read_file',
+    capabilities: ['file.read'],
     description: '读取文件内容。用于检查文件内容、分析日志或读取配置文件。',
     parameters: {
       filepath: {
@@ -48,6 +49,8 @@ export class FileTool extends BaseTool {
 
   @tool({
     name: 'write_file',
+    capabilities: ['file.write'],
+    risk: 'write',
     description: '对文件进行覆盖或追加写入。用于创建新文件、追加内容或修改现有文件。',
     parameters: {
       filepath: {
@@ -97,6 +100,8 @@ export class FileTool extends BaseTool {
 
   @tool({
     name: 'replace_in_file',
+    capabilities: ['file.write'],
+    risk: 'write',
     description: '在文件中替换指定的字符串。用于更新文件中的特定内容或修复代码中的错误。',
     parameters: {
       filepath: {
@@ -129,6 +134,7 @@ export class FileTool extends BaseTool {
 
   @tool({
     name: 'search_in_file',
+    capabilities: ['file.read'],
     description: '在文件内容中搜索匹配的文本。用于查找文件中的特定内容或模式。',
     parameters: {
       filepath: {
@@ -152,6 +158,7 @@ export class FileTool extends BaseTool {
 
   @tool({
     name: 'find_files',
+    capabilities: ['file.read'],
     description: '在指定目录中根据名称模式查找文件。用于定位具有特定命名模式的文件。',
     parameters: {
       dir_path: {

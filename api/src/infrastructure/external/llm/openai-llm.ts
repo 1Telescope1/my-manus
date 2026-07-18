@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import { LLM, LLMMessage } from '../../../domain/external/llm';
 import { LLMConfig } from '../../../domain/models/app-config';
+import { ToolDescriptor } from '../../../domain/models/tool';
 import { ServerRequestsError } from '../../../core/errors/app-exception';
 
 export class OpenAILLM extends LLM {
@@ -30,7 +31,7 @@ export class OpenAILLM extends LLM {
 
   async invoke(input: {
     messages: LLMMessage[];
-    tools?: Record<string, any>[];
+    tools?: ToolDescriptor[];
     responseFormat?: Record<string, any> | null;
     toolChoice?: string | null;
   }): Promise<LLMMessage> {
@@ -47,7 +48,7 @@ export class OpenAILLM extends LLM {
       const response = input.tools?.length
         ? await this.client.chat.completions.create({
             ...common,
-            tools: input.tools as any,
+            tools: input.tools.map(toOpenAIToolSchema) as any,
             tool_choice: input.toolChoice as any,
             parallel_tool_calls: false,
           } as any)
@@ -59,4 +60,16 @@ export class OpenAILLM extends LLM {
       throw new ServerRequestsError(`调用OpenAI客户端向LLM发起请求出错: ${err.message}`);
     }
   }
+}
+
+/** 在基础设施边界把领域 ToolDescriptor 转换为 OpenAI function tool。 */
+export function toOpenAIToolSchema(descriptor: ToolDescriptor): Record<string, unknown> {
+  return {
+    type: 'function',
+    function: {
+      name: descriptor.name,
+      description: descriptor.description,
+      parameters: descriptor.inputSchema,
+    },
+  };
 }

@@ -6,8 +6,13 @@ import { Event, events, ToolEventStatus } from '../../models/event';
 import { Memory } from '../../models/memory';
 import { Message } from '../../models/message';
 import { ToolResult } from '../../models/tool-result';
+import { ToolRegistration, ToolRegistry } from '../../models/tool';
 import { UnitOfWork } from '../../repositories/unit-of-work';
 import { BaseTool } from '../tools/base-tool';
+import {
+  createAgentToolRegistry,
+  synchronizeAgentToolRegistry,
+} from '../tools/agent-toolset';
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -29,6 +34,7 @@ export abstract class BaseAgent {
   protected retryIntervalMs = 1000;
   protected toolChoice?: string | null;
   protected memory?: Memory;
+  protected readonly toolRegistry: ToolRegistry;
 
   constructor(
     protected readonly uowFactory: () => UnitOfWork,
@@ -37,7 +43,9 @@ export abstract class BaseAgent {
     protected readonly llm: LLM,
     protected readonly jsonParser: JSONParser,
     protected readonly tools: BaseTool[],
-  ) {}
+  ) {
+    this.toolRegistry = createAgentToolRegistry(tools);
+  }
 
   async compactMemory(): Promise<void> {
     await this.ensureMemory();
@@ -141,7 +149,7 @@ export abstract class BaseAgent {
 
         if (!tool) {
           const availableToolNames = this.getAvailableTools().map(
-            (schema) => schema.function.name,
+            (descriptor) => descriptor.name,
           );
           const result: ToolResult = {
             success: false,
@@ -172,13 +180,13 @@ export abstract class BaseAgent {
 
         yield events.tool({
           tool_call_id: toolCallId,
-          tool_name: tool.name,
+          tool_name: tool.groupName,
           function_name: functionName,
           function_args: functionArgs,
           status: ToolEventStatus.CALLING,
         });
 
-        const result = await this.invokeTool(tool, functionName, functionArgs);
+        const result = await this.invokeTool(tool, functionArgs);
 
         // 当前调用仍正常执行并把结果回传给模型；从下一轮开始才从工具列表移除，
         // 确保 OpenAI/DeepSeek 的 tool_call 与 tool result 消息始终成对出现。
@@ -189,7 +197,7 @@ export abstract class BaseAgent {
 
         yield events.tool({
           tool_call_id: toolCallId,
-          tool_name: tool.name,
+          tool_name: tool.groupName,
           function_name: functionName,
           function_args: functionArgs,
           function_result: result,
@@ -248,11 +256,14 @@ export abstract class BaseAgent {
     }
   }
 
+  /** 返回当前动态工具快照中的供应商中立描述。 */
   protected getAvailableTools() {
-    return this.tools.flatMap((tool) => tool.getTools());
+    synchronizeAgentToolRegistry(this.toolRegistry, this.tools);
+    return this.toolRegistry.list();
   }
 
-  protected getTool(toolName: string): BaseTool {
+  /** 按模型可见函数名返回注册项，不存在时抛出稳定错误。 */
+  protected getTool(toolName: string): ToolRegistration {
     const found = this.findTool(toolName);
     if (!found) {
       throw new Error(`未知工具: ${toolName}`);
@@ -260,8 +271,10 @@ export abstract class BaseAgent {
     return found;
   }
 
-  protected findTool(toolName: string): BaseTool | undefined {
-    return this.tools.find((tool) => tool.hasTool(toolName));
+  /** 按模型可见函数名解析注册项，并同步初始化后出现的 MCP 工具。 */
+  protected findTool(toolName: string): ToolRegistration | undefined {
+    synchronizeAgentToolRegistry(this.toolRegistry, this.tools);
+    return this.toolRegistry.resolve(toolName);
   }
 
   protected async invokeLlm(
@@ -281,7 +294,7 @@ export abstract class BaseAgent {
           messages: this.memory?.getMessages() ?? [],
           // 被熔断的函数只对本次 invoke 的后续轮次隐藏，不影响其他步骤或 Agent。
           tools: this.getAvailableTools().filter(
-            (schema) => !excludedToolNames.has(schema.function.name),
+            (descriptor) => !excludedToolNames.has(descriptor.name),
           ),
           responseFormat,
           toolChoice: toolChoice === undefined ? this.toolChoice : toolChoice,
@@ -322,14 +335,13 @@ export abstract class BaseAgent {
   }
 
   protected async invokeTool(
-    tool: BaseTool,
-    toolName: string,
+    tool: ToolRegistration,
     args: Record<string, any>,
   ): Promise<ToolResult> {
     let error = '';
     for (let i = 0; i < this.agentConfig.max_retries; i += 1) {
       try {
-        return await tool.invoke(toolName, args);
+        return await tool.invoke(args);
       } catch (err) {
         error = err instanceof Error ? err.message : String(err);
         await sleep(this.retryIntervalMs);

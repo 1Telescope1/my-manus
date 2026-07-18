@@ -24,6 +24,11 @@ import {
   SingleToolSelector,
 } from './executor.service';
 import { BaseTool } from '../tools/base-tool';
+import { ToolRegistry } from '../../models/tool';
+import {
+  createAgentToolRegistry,
+  synchronizeAgentToolRegistry,
+} from '../tools/agent-toolset';
 
 const DIRECT_SYSTEM_PROMPT =
   '你负责直接回答用户请求。不得声称调用了工具或访问了未提供的外部信息；请给出简洁、完整的最终回答。';
@@ -59,12 +64,16 @@ export class LLMDirectResponseProvider implements DirectResponseProvider {
 
 /** 使用一次受限 LLM 选择和一次无工具总结实现 Single Tool 两个模型阶段。 */
 export class LLMSingleToolProvider implements SingleToolSelector, SingleToolResponseProvider {
+  private readonly toolRegistry: ToolRegistry;
+
   /** 注入模型、JSON 参数解析器和当前可用 Agent 工具集合。 */
   constructor(
     private readonly llm: LLM,
     private readonly jsonParser: JSONParser,
     private readonly tools: readonly BaseTool[],
-  ) {}
+  ) {
+    this.toolRegistry = createAgentToolRegistry(tools);
+  }
 
   /** 要求模型从现有 Tool Schema 中选择且只选择一次调用。 */
   async select(context: RuntimeExecutionContext): Promise<RuntimeToolInvocation> {
@@ -80,7 +89,7 @@ export class LLMSingleToolProvider implements SingleToolSelector, SingleToolResp
           }),
         },
       ],
-      tools: this.tools.flatMap((tool) => tool.getTools()),
+      tools: this.availableTools(),
       // 当前兼容的部分思考模型不支持 required；由提示词要求一次调用，无调用则明确失败。
       toolChoice: 'auto',
     });
@@ -98,7 +107,7 @@ export class LLMSingleToolProvider implements SingleToolSelector, SingleToolResp
       {},
     );
     return {
-      toolName: tool.name,
+      toolName: tool.groupName,
       functionName,
       arguments: arguments_,
     };
@@ -125,23 +134,35 @@ export class LLMSingleToolProvider implements SingleToolSelector, SingleToolResp
   }
 
   /** 按函数名定位实际拥有该能力的 Agent 工具。 */
-  private findTool(functionName: string): BaseTool | undefined {
-    return this.tools.find((tool) => tool.hasTool(functionName));
+  private findTool(functionName: string) {
+    synchronizeAgentToolRegistry(this.toolRegistry, this.tools);
+    return this.toolRegistry.resolve(functionName);
+  }
+
+  /** 同步动态工具并返回本轮可暴露的领域描述。 */
+  private availableTools() {
+    synchronizeAgentToolRegistry(this.toolRegistry, this.tools);
+    return this.toolRegistry.list();
   }
 }
 
 /** 把 Single Tool 调用桥接到现有 BaseTool 实现。 */
 export class AgentToolRuntimeInvoker implements RuntimeToolInvoker {
+  private readonly toolRegistry: ToolRegistry;
+
   /** 固定本轮可调用工具集合。 */
-  constructor(private readonly tools: readonly BaseTool[]) {}
+  constructor(private readonly tools: readonly BaseTool[]) {
+    this.toolRegistry = createAgentToolRegistry(tools);
+  }
 
   /** 按函数名找到工具并执行一次结构化调用。 */
   async invoke(input: RuntimeToolCallInput): Promise<ToolResult> {
-    const tool = this.tools.find((candidate) => candidate.hasTool(input.functionName));
+    synchronizeAgentToolRegistry(this.toolRegistry, this.tools);
+    const tool = this.toolRegistry.resolve(input.functionName);
     if (!tool) {
       throw new Error(`Runtime 工具不存在：${input.functionName}`);
     }
-    return tool.invoke(input.functionName, input.arguments);
+    return tool.invoke(input.arguments);
   }
 }
 

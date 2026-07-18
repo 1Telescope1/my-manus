@@ -11,6 +11,7 @@ export class BrowserTool extends BaseTool {
 
   @tool({
     name: 'browser_view',
+    capabilities: ['browser.read'],
     description: '查看当前浏览器页面内容，用于确认已打开页面的最新状态。',
     parameters: {},
     required: [],
@@ -21,6 +22,8 @@ export class BrowserTool extends BaseTool {
 
   @tool({
     name: 'browser_navigate',
+    capabilities: ['browser.navigate'],
+    risk: 'external_communication',
     description: '将浏览器导航到指定网址，当需要访问新页面时使用。',
     parameters: {
       url: {
@@ -36,6 +39,8 @@ export class BrowserTool extends BaseTool {
 
   @tool({
     name: 'browser_restart',
+    capabilities: ['browser.navigate'],
+    risk: 'external_communication',
     description: '重新启动浏览器并导航到指定 URL，当需要重置浏览器状态时使用。',
     parameters: {
       url: {
@@ -51,6 +56,8 @@ export class BrowserTool extends BaseTool {
 
   @tool({
     name: 'browser_click',
+    capabilities: ['browser.interact'],
+    risk: 'write',
     description: '点击当前页面中的元素。可通过元素索引或页面坐标定位。',
     parameters: {
       index: {
@@ -78,6 +85,8 @@ export class BrowserTool extends BaseTool {
 
   @tool({
     name: 'browser_input',
+    capabilities: ['browser.interact'],
+    risk: 'write',
     description: '覆盖当前页面可编辑区域的文本，例如 input 或 textarea。',
     parameters: {
       text: {
@@ -115,6 +124,7 @@ export class BrowserTool extends BaseTool {
 
   @tool({
     name: 'browser_move_mouse',
+    capabilities: ['browser.interact'],
     description: '将鼠标光标移动到当前浏览器页面的指定位置。',
     parameters: {
       coordinate_x: {
@@ -134,6 +144,8 @@ export class BrowserTool extends BaseTool {
 
   @tool({
     name: 'browser_press_key',
+    capabilities: ['browser.interact'],
+    risk: 'write',
     description: '在当前浏览器页面模拟按键，当需要执行键盘操作时使用。',
     parameters: {
       key: {
@@ -149,6 +161,8 @@ export class BrowserTool extends BaseTool {
 
   @tool({
     name: 'browser_select_option',
+    capabilities: ['browser.interact'],
+    risk: 'write',
     description: '从当前页面的下拉列表元素中选择指定选项。',
     parameters: {
       index: {
@@ -168,6 +182,7 @@ export class BrowserTool extends BaseTool {
 
   @tool({
     name: 'browser_scroll_up',
+    capabilities: ['browser.read'],
     description: '向上滚动浏览器页面，用于查看上方内容或回到页面顶部。',
     parameters: {
       to_top: {
@@ -183,6 +198,7 @@ export class BrowserTool extends BaseTool {
 
   @tool({
     name: 'browser_scroll_down',
+    capabilities: ['browser.read'],
     description: '向下滚动浏览器页面，用于查看下方内容或跳转到页面底部。',
     parameters: {
       to_bottom: {
@@ -198,6 +214,9 @@ export class BrowserTool extends BaseTool {
 
   @tool({
     name: 'browser_console_exec',
+    capabilities: ['browser.execute'],
+    risk: 'destructive',
+    requiresApproval: true,
     description: '在浏览器控制台中执行 JavaScript 代码。',
     parameters: {
       javascript: {
@@ -213,6 +232,7 @@ export class BrowserTool extends BaseTool {
 
   @tool({
     name: 'browser_console_view',
+    capabilities: ['browser.read'],
     description: '查看浏览器控制台输出，用于检查 JavaScript 日志或调试页面错误。',
     parameters: {
       max_lines: {

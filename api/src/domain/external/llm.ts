@@ -1,3 +1,5 @@
+import { ToolDescriptor } from '../models/tool';
+
 export type LLMMessage = Record<string, any>;
 
 export abstract class LLM {
@@ -7,7 +9,7 @@ export abstract class LLM {
 
   abstract invoke(input: {
     messages: LLMMessage[];
-    tools?: Record<string, any>[];
+    tools?: ToolDescriptor[];
     responseFormat?: Record<string, any> | null;
     toolChoice?: string | null;
   }): Promise<LLMMessage>;

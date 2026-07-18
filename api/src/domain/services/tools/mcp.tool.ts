@@ -4,8 +4,9 @@ import {
   MCPServerConfig,
   MCPTransport,
 } from '../../models/app-config';
+import { ToolDescriptor, ToolRegistration } from '../../models/tool';
 import { ToolResult } from '../../models/tool-result';
-import { BaseTool, ToolSchema } from './base-tool';
+import { BaseTool } from './base-tool';
 
 export type MCPToolSchema = {
   name: string;
@@ -40,19 +41,25 @@ export class MCPClientManager {
     this.initialized = true;
   }
 
-  async getAllTools(): Promise<ToolSchema[]> {
-    const allTools: ToolSchema[] = [];
+  /** 把所有已发现 MCP 工具转换为带服务器命名空间的领域描述。 */
+  async getAllTools(): Promise<ToolDescriptor[]> {
+    const allTools: ToolDescriptor[] = [];
 
     for (const [serverName, tools] of Object.entries(this.cachedTools)) {
       for (const mcpTool of tools) {
         const expectedPrefix = serverName.startsWith('mcp_') ? serverName : `mcp_${serverName}`;
+        const name = `${expectedPrefix}_${mcpTool.name}`;
         allTools.push({
-          type: 'function',
-          function: {
-            name: `${expectedPrefix}_${mcpTool.name}`,
-            description: `[${serverName}] ${mcpTool.description || mcpTool.name}`,
-            parameters: (mcpTool.inputSchema ?? { type: 'object', properties: {} }) as any,
-          },
+          id: `mcp:${serverName}:${mcpTool.name}`,
+          name,
+          source: 'mcp',
+          description: `[${serverName}] ${mcpTool.description || mcpTool.name}`,
+          inputSchema: mcpTool.inputSchema ?? { type: 'object', properties: {} },
+          capabilities: [`mcp:${serverName}`, `mcp:${serverName}:${mcpTool.name}`],
+          // MCP Schema 不提供本系统的副作用语义，先按外部通信保守分类。
+          risk: 'external_communication',
+          requiresApproval: true,
+          timeoutMs: 60_000,
         });
       }
     }
@@ -220,7 +227,7 @@ export class MCPClientManager {
 export class MCPTool extends BaseTool {
   readonly name = 'mcp';
   private initialized = false;
-  private toolSchemas: ToolSchema[] = [];
+  private toolDescriptors: ToolDescriptor[] = [];
   private manager?: MCPClientManager;
 
   async initialize(mcpConfig: MCPConfig): Promise<void> {
@@ -229,16 +236,26 @@ export class MCPTool extends BaseTool {
     }
     this.manager = new MCPClientManager(mcpConfig);
     await this.manager.initialize();
-    this.toolSchemas = await this.manager.getAllTools();
+    this.toolDescriptors = await this.manager.getAllTools();
     this.initialized = true;
   }
 
-  override getTools(): ToolSchema[] {
-    return this.toolSchemas;
+  /** 将当前已发现 MCP 工具导出为可执行注册项。 */
+  override getRegistrations(): ToolRegistration[] {
+    return this.toolDescriptors.map((descriptor) => ({
+      descriptor: {
+        ...descriptor,
+        inputSchema: structuredClone(descriptor.inputSchema),
+        capabilities: [...descriptor.capabilities],
+      },
+      groupName: this.name,
+      invoke: (arguments_) => this.invoke(descriptor.name, arguments_),
+    }));
   }
 
+  /** 判断当前 MCP 快照是否包含指定的命名空间工具名。 */
   override hasTool(toolName: string): boolean {
-    return this.toolSchemas.some((schema) => schema.function.name === toolName);
+    return this.toolDescriptors.some((descriptor) => descriptor.name === toolName);
   }
 
   override async invoke(toolName: string, kwargs: Record<string, any> = {}): Promise<ToolResult> {
@@ -250,7 +267,7 @@ export class MCPTool extends BaseTool {
 
   async cleanup(): Promise<void> {
     await this.manager?.cleanup();
-    this.toolSchemas = [];
+    this.toolDescriptors = [];
     this.initialized = false;
   }
 }

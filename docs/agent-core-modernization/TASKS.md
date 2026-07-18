@@ -55,7 +55,7 @@
 
 | ID | Status | Dependencies | Intent | Design | Acceptance | Evidence | Last Updated |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| TOOL-101 | `ready` | — | 统一描述内置、MCP 和 Agent 工具 | 建立 ToolDescriptor、capability、risk 和 registry 接口 | 三类工具可注册、查询和检测名称冲突；领域层无厂商类型 | — | 2026-07-16：初始化 |
+| [TOOL-101](./tasks/TOOL-101/README.md) | `done` | — | 统一描述内置、MCP 和 Agent 工具 | 建立 ToolDescriptor、capability、risk 和 registry 接口 | 三类工具可注册、查询和检测名称冲突；领域层无厂商类型 | [验收证据](./tasks/TOOL-101/evidence.md) | 2026-07-18：完成统一 Tool Registry 与现有路径接入 |
 | TOOL-102 | `proposed` | TOOL-101 | 减少模型可见工具 | 根据 Router、Workflow、Agent、Skill 和 Policy 计算最终工具集合 | 工具选择测试证明未授权/无关工具不进入模型请求 | — | 2026-07-16：初始化 |
 | TOOL-103 | `proposed` | TOOL-101 | 统一调用可靠性和错误语义 | Tool 调用支持 Signal、Timeout、Risk、Approval、Idempotency 和统一结果 | 超时、取消、校验错误、重试和副作用策略测试通过 | — | 2026-07-16：初始化 |
 | TOOL-104 | `proposed` | TOOL-101 | 修复 MCP 动态管理 | 只连接 enabled 服务，保留命名空间，隔离连接故障并刷新工具列表 | disabled 服务不连接/不暴露；单服务故障不影响其他工具 | — | 2026-07-16：初始化 |

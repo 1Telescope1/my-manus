@@ -9,6 +9,8 @@ export class MessageTool extends BaseTool {
   /** 发送通知消息给用户，不需要用户响应。 */
   @tool({
     name: 'message_notify_user',
+    capabilities: ['user.communication'],
+    risk: 'external_communication',
     description:
       '向用户发送消息，且无需用户回复。用于确认收到消息、提供进度更新、报告任务完成情况，或解释处理方式的变更。',
     parameters: {
@@ -26,6 +28,8 @@ export class MessageTool extends BaseTool {
   /** 提问用户并等待响应。 */
   @tool({
     name: 'message_ask_user',
+    capabilities: ['user.communication', 'user.input'],
+    risk: 'external_communication',
     description: '向用户提问并等待回复。用于：请求澄清、寻求确认、或收集额外信息。',
     parameters: {
       text: {

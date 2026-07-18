@@ -161,6 +161,7 @@ export class A2ATool extends BaseTool {
 
   @tool({
     name: 'get_remote_agent_cards',
+    capabilities: ['agent.discover'],
     description: '获取可远程调用的Agent卡片信息, 包含Agent id、名称、描述、技能、请求端点等。',
     parameters: {},
     required: [],
@@ -186,6 +187,10 @@ export class A2ATool extends BaseTool {
 
   @tool({
     name: 'call_remote_agent',
+    capabilities: ['agent.delegate'],
+    risk: 'external_communication',
+    requiresApproval: true,
+    timeoutMs: REQUEST_TIMEOUT_MS,
     description: '根据传递的id+query(分配给远程Agent完成的任务query)调用远程Agent完成对应需求',
     parameters: {
       id: {

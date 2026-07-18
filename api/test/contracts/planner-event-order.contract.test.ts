@@ -8,6 +8,8 @@ import { createSession, SessionStatus } from '../../src/domain/models/session';
 import { UnitOfWork } from '../../src/domain/repositories/unit-of-work';
 import { ReActAgent } from '../../src/domain/services/agents/react-agent';
 import { PlannerReActFlow } from '../../src/domain/services/flows/planner-react-flow';
+import { A2ATool } from '../../src/domain/services/tools/a2a.tool';
+import { MCPTool } from '../../src/domain/services/tools/mcp.tool';
 
 /** 为 Planner 事件顺序测试提供容错 JSON 解析。 */
 class ParseJson extends JSONParser {
@@ -193,8 +195,8 @@ test('计划正常完成时应依次发送已完成的 Plan 事件和 Done 事�
     {} as never,
     {} as never,
     {} as never,
-    {} as never,
-    {} as never,
+    new MCPTool(),
+    new A2ATool(),
   );
   Object.assign(flow, { planner, react });
 

@@ -12,6 +12,7 @@ export class SearchTool extends BaseTool {
 
   @tool({
     name: 'search_web',
+    capabilities: ['search', 'web.search'],
     description:
       '全网搜索引擎工具。当需要获取实时信息、补充内部知识库未覆盖的内容或进行事实核查时使用。该工具会返回相关的网页摘要和链接。',
     parameters: {
