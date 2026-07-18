@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ToolDescriptor, ToolRegistration, ToolSource } from '../../src/domain/models/tool';
+import { MCPTransport } from '../../src/domain/models/app-config';
 import { ToolResult } from '../../src/domain/models/tool-result';
 import { createAgentToolRegistry } from '../../src/domain/services/tools/agent-toolset';
 import { MCPClientManager } from '../../src/domain/services/tools/mcp.tool';
@@ -100,6 +101,18 @@ test('批量注册冲突时不应留下部分结果', () => {
   assert.equal(registry.list().length, 1);
 });
 
+test('完整快照替换冲突时应保留原 Registry', () => {
+  const registry = new InMemoryToolRegistry();
+  registry.register(registration('builtin:existing', 'existing_name', 'builtin'));
+
+  assert.throws(() => registry.replaceAll([
+    registration('mcp:first', 'duplicate_name', 'mcp'),
+    registration('agent:second', 'duplicate_name', 'agent'),
+  ]), ToolConflictError);
+
+  assert.deepEqual(registry.list().map((descriptor) => descriptor.id), ['builtin:existing']);
+});
+
 test('Registry 应拒绝无效超时且不写入描述', () => {
   const registry = new InMemoryToolRegistry();
   const invalid = registration('builtin:invalid', 'invalid_timeout', 'builtin');
@@ -157,14 +170,35 @@ test('内置装饰器应生成 Descriptor 并通过 Registry 调用', async () =
 });
 
 test('MCP 描述应保留服务器命名空间并采用保守风险', async () => {
-  const manager = new MCPClientManager({ mcpServers: {} });
-  manager.tools.crm = [{
-    name: 'lookup',
-    description: '查询 CRM',
-    inputSchema: { type: 'object', properties: {} },
-  }];
+  const manager = new MCPClientManager({
+    mcpServers: {
+      crm: {
+        transport: MCPTransport.STREAMABLE_HTTP,
+        enabled: true,
+        url: 'https://mcp.example.test',
+      },
+    },
+  }, {
+    connector: async () => ({
+      client: {
+        /** 返回固定 MCP Schema，验证领域描述转换。 */
+        async listTools() {
+          return { tools: [{
+            name: 'lookup',
+            description: '查询 CRM',
+            inputSchema: { type: 'object', properties: {} },
+          }] };
+        },
+        /** 本测试不调用远程工具。 */
+        async callTool() {
+          return {};
+        },
+      },
+    }),
+  });
+  await manager.initialize();
 
-  const descriptors = await manager.getAllTools();
+  const descriptors = manager.getAllTools();
 
   assert.deepEqual(descriptors[0], {
     id: 'mcp:crm:lookup',

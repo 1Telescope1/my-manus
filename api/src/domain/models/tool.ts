@@ -55,6 +55,9 @@ export interface ToolRegistry {
   /** 原子注册一批工具；任一冲突或描述无效时不得写入部分结果。 */
   registerAll(registrations: readonly ToolRegistration[]): void;
 
+  /** 原子地用完整新快照替换全部注册项，供动态 Toolset 删除和更新工具。 */
+  replaceAll(registrations: readonly ToolRegistration[]): void;
+
   /** 按稳定 id 查询工具描述。 */
   getById(id: string): ToolDescriptor | undefined;
 

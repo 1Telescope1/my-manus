@@ -433,7 +433,10 @@ export class AgentTaskRunner extends TaskRunner {
       return;
     }
 
-    // 2. 执行 Runtime 并逐条转换输出事件。
+    // 2. 每条用户消息路由前主动刷新一次，覆盖未声明 tools.listChanged 的 MCP 服务。
+    await this.mcpTool.refreshTools();
+
+    // 3. 执行 Runtime 并逐条转换输出事件。
     for await (const runtimeEvent of this.runtime.execute({
       sessionId: this.sessionId,
       message,

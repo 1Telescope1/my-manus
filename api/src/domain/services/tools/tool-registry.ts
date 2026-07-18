@@ -62,6 +62,36 @@ export class InMemoryToolRegistry implements ToolRegistry {
     }
   }
 
+  /** 校验完整快照后一次性替换索引，避免动态刷新留下旧工具或半更新状态。 */
+  replaceAll(registrations: readonly ToolRegistration[]): void {
+    const nextRegistrations = new Map<string, ToolRegistration>();
+    const nextIdsByName = new Map<string, string>();
+
+    // 新快照在触碰现有索引前完成全部校验与复制，保证替换原子性。
+    for (const registration of registrations) {
+      validateRegistration(registration);
+      const snapshot = cloneRegistration(registration);
+      const { id, name } = snapshot.descriptor;
+      if (nextRegistrations.has(id)) {
+        throw new ToolConflictError('id', id);
+      }
+      if (nextIdsByName.has(name)) {
+        throw new ToolConflictError('name', name);
+      }
+      nextRegistrations.set(id, snapshot);
+      nextIdsByName.set(name, id);
+    }
+
+    this.registrationsById.clear();
+    this.idsByName.clear();
+    for (const [id, registration] of nextRegistrations) {
+      this.registrationsById.set(id, registration);
+    }
+    for (const [name, id] of nextIdsByName) {
+      this.idsByName.set(name, id);
+    }
+  }
+
   /** 按稳定 id 返回隔离于 Registry 内部状态的描述快照。 */
   getById(id: string): ToolDescriptor | undefined {
     const descriptor = this.registrationsById.get(id)?.descriptor;

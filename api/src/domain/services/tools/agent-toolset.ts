@@ -38,13 +38,10 @@ export function createAgentToolRegistry(tools: readonly BaseTool[]): InMemoryToo
   return registry;
 }
 
-/** 把动态工具包中新出现的注册项增量同步到 Registry。 */
+/** 用当前完整 Toolset 原子替换 Registry，使动态新增、删除和 Schema 更新同时生效。 */
 export function synchronizeAgentToolRegistry(
   registry: ToolRegistry,
   tools: readonly BaseTool[],
 ): void {
-  const unseen = tools
-    .flatMap((tool) => tool.getRegistrations())
-    .filter((registration) => !registry.getById(registration.descriptor.id));
-  registry.registerAll(unseen);
+  registry.replaceAll(tools.flatMap((tool) => tool.getRegistrations()));
 }
