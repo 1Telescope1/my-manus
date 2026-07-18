@@ -36,7 +36,7 @@ import {
 const NOW = new Date('2026-07-17T02:00:00.000Z');
 const LATER = new Date('2026-07-17T02:01:00.000Z');
 
-/** 为恢复合同测试提供带事务回滚能力的最小内存运行仓储。 */
+/** 为恢复契约测试提供带事务回滚能力的最小内存运行仓储。 */
 class RuntimeMemoryStore {
   readonly runs = new Map<string, AgentRun>();
   readonly checkpoints: Checkpoint[] = [];

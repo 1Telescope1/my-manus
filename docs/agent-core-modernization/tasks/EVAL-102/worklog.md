@@ -1,6 +1,6 @@
 # EVAL-102 Worklog
 
-## 2026-07-16 — 建立 legacy 合同测试基线
+## 2026-07-16 — 建立 legacy 契约测试基线
 
 ### Goal
 
@@ -18,8 +18,8 @@
 | --- | --- |
 | `docs/agent-core-modernization/TASKS.md` | 将任务链接并标为实施中。 |
 | `docs/agent-core-modernization/tasks/EVAL-102/*` | 建立任务范围、日志和证据记录。 |
-| `api/package.json` | 增加可重复运行的合同测试入口。 |
-| `api/tsconfig.test.json` | 对产品代码和合同测试共同执行严格类型检查。 |
+| `api/package.json` | 增加可重复运行的契约测试入口。 |
+| `api/tsconfig.test.json` | 对产品代码和契约测试共同执行严格类型检查。 |
 | `api/test/contracts/event-sse.contract.test.ts` | 固化 Plan、Step、Tool、Wait、Done 的 wire payload。 |
 | `api/test/contracts/session-api.contract.test.ts` | 固化 Session API、404 和 SSE framing。 |
 | `api/test/contracts/legacy-event-order.contract.test.ts` | 固化正常完成、工具调用和等待用户的事件顺序。 |

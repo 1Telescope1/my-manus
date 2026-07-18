@@ -16,7 +16,7 @@
 | 命令或场景 | 结果 | 备注 |
 | --- | --- | --- |
 | `npm run test:contract`（`api/`） | Pass | 27 tests passed，0 failed；包含 11 项 RUNTIME-101 测试和 16 项既有回归。 |
-| `npm run test:contract:typecheck`（`api/`） | Pass | 产品代码与合同测试 TypeScript 检查成功。 |
+| `npm run test:contract:typecheck`（`api/`） | Pass | 产品代码与契约测试 TypeScript 检查成功。 |
 | `npm run typecheck`（`api/`） | Pass | API 产品代码 TypeScript 检查成功。 |
 | `npm run build`（`api/`） | Pass | NestJS 生产构建成功。 |
 | `git diff --check` | Pass | 无空白或补丁格式错误。 |
@@ -33,10 +33,10 @@
 | 未请求取消就进入 CANCELLED | 拒绝 | Pass。 |
 | timed_out 未记录未知活动操作 | 拒绝 | Pass。 |
 | 取消请求 | 只写 `cancelRequestedAt`，不直接进入终态 | Pass。 |
-| 仓储版本或状态冲突 | 返回可区分的判别结果 | Pass，端口合同与类型测试覆盖；数据库行为留给 RUNTIME-102。 |
-| 相同幂等键、不同请求指纹 | 返回 `key_conflict`，不得复用 | Pass，端口合同覆盖；唯一约束留给 RUNTIME-102。 |
-| 同序号不同 Checkpoint 或事件水位回退 | 返回明确冲突 | Pass，端口合同覆盖；原子追加留给 RUNTIME-102/103。 |
-| legacy Session/SSE | 行为不变 | Pass，16 项既有合同回归继续通过；本任务未接入执行器或修改 UI。 |
+| 仓储版本或状态冲突 | 返回可区分的判别结果 | Pass，端口契约与类型测试覆盖；数据库行为留给 RUNTIME-102。 |
+| 相同幂等键、不同请求指纹 | 返回 `key_conflict`，不得复用 | Pass，端口契约覆盖；唯一约束留给 RUNTIME-102。 |
+| 同序号不同 Checkpoint 或事件水位回退 | 返回明确冲突 | Pass，端口契约覆盖；原子追加留给 RUNTIME-102/103。 |
+| legacy Session/SSE | 行为不变 | Pass，16 项既有契约回归继续通过；本任务未接入执行器或修改 UI。 |
 
 ## Repository Interface Review
 

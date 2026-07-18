@@ -12,7 +12,7 @@
 
 | 命令或场景 | 结果 | 备注 |
 | --- | --- | --- |
-| `npm run test:contract` | Pass | 11 tests passed，0 failed；命令包含合同测试类型检查。 |
+| `npm run test:contract` | Pass | 11 tests passed，0 failed；命令包含契约测试类型检查。 |
 | `npm run typecheck` | Pass | 产品代码 TypeScript 检查成功。 |
 | `npm run build` | Pass | Nest 构建成功。 |
 | `git diff --check` | Pass | 无空白或补丁格式错误。 |
@@ -31,5 +31,5 @@
 
 - 相关提交或 PR：未创建。
 - 评测或运行报告：`npm run test:contract` 本地运行 11/11 通过。
-- 未解决限制：本任务使用内存 fake，未覆盖真实 Redis/PostgreSQL/Sandbox/LLM；这些基础设施不影响本任务的确定性 API/Event 合同范围。legacy 尚无 `sequence` 字段，此项属于 COMPAT-101。
+- 未解决限制：本任务使用内存 fake，未覆盖真实 Redis/PostgreSQL/Sandbox/LLM；这些基础设施不影响本任务的确定性 API/Event 契约范围。legacy 尚无 `sequence` 字段，此项属于 COMPAT-101。
 - 最终结论：`pass`，EVAL-102 验收条件全部满足。

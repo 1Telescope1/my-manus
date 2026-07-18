@@ -5,7 +5,7 @@
 | 验收项 | 状态 | 证据 |
 | --- | --- | --- |
 | Runtime Event 映射覆盖现有 UI 事件 | Pass | 适配器覆盖 Title、Message、Plan、Step、Tool、Wait、Error、Done。 |
-| 新增字段可选且 legacy 合同不变 | Pass | `run_id`、`sequence`、`checkpoint_id`、`metadata` 仅在有值时输出；EVAL-102 回归通过。 |
+| 新增字段可选且 legacy 契约不变 | Pass | `run_id`、`sequence`、`checkpoint_id`、`metadata` 仅在有值时输出；EVAL-102 回归通过。 |
 | sequence 可按 Run 去重 | Pass | 测试覆盖重复、过期、跨 Run 隔离和显式 reset。 |
 | UI 无需修改即可消费 v2 模拟事件 | Pass | v2 wire payload 保留旧事件名与必填字段；UI 未改动且生产构建通过。 |
 
@@ -13,7 +13,7 @@
 
 | 命令或场景 | 结果 | 备注 |
 | --- | --- | --- |
-| `npm run test:contract` | Pass | 16 tests passed，0 failed；包含原有合同回归和 5 项兼容测试。 |
+| `npm run test:contract` | Pass | 16 tests passed，0 failed；包含原有契约回归和 5 项兼容测试。 |
 | `npm run typecheck` | Pass | API 产品代码 TypeScript 检查成功。 |
 | `npm run build`（API） | Pass | Nest 构建成功。 |
 | `npm run build`（UI） | Pass | Next.js 生产构建和 TypeScript 检查成功。 |

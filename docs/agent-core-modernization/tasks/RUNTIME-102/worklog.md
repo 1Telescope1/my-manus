@@ -10,7 +10,7 @@
 
 - 当前 Prisma 只有 Session 和 File；Session 的 events、files、memories 仍为 JSON 字段。
 - 现有 DbUnitOfWork 已支持 Prisma 交互式事务，但尚未暴露 AgentRunRepository。
-- RUNTIME-101 已定义 Run CAS、子状态 CAS、工具 reserve-or-get 和 Checkpoint 冲突合同。
+- RUNTIME-101 已定义 Run CAS、子状态 CAS、工具 reserve-or-get 和 Checkpoint 冲突契约。
 
 ### Changes
 
@@ -31,7 +31,7 @@
 ### Verification
 
 - Prisma schema 校验和 Client 生成成功。
-- `npm run test:contract`：34/34 通过，包含 7 项新增持久化合同测试和全部既有回归。
+- `npm run test:contract`：34/34 通过，包含 7 项新增持久化契约测试和全部既有回归。
 - `npm run test:integration:runtime`：1/1 通过；使用一次性 PostgreSQL 16 容器。
 - 真实并发场景中两个相同 `expectedVersion=0` 的更新只有一个 `updated`，另一个返回 `version_conflict`。
 - UnitOfWork 内创建 Run 后故意抛错，事务结束后查询不到该 Run。

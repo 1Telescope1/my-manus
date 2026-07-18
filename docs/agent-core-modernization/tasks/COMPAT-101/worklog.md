@@ -4,7 +4,7 @@
 
 ### Goal
 
-- 让 v2 模拟事件在不修改 UI 的前提下转换成现有 SSE 合同。
+- 让 v2 模拟事件在不修改 UI 的前提下转换成现有 SSE 契约。
 
 ### Investigation
 

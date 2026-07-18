@@ -17,7 +17,7 @@
 | --- | --- | --- |
 | `node --import tsx --test test/contracts/runtime-recovery.contract.test.ts` | Pass | 9 tests passed，0 failed。 |
 | `npm run test:contract`（`api/`） | Pass | 43 tests passed，0 failed；包含全部既有回归。 |
-| `npm run test:contract:typecheck`（`api/`） | Pass | 产品、合同和集成测试 TypeScript 检查成功。 |
+| `npm run test:contract:typecheck`（`api/`） | Pass | 产品、契约和集成测试 TypeScript 检查成功。 |
 | `npm run typecheck`（`api/`） | Pass | 产品代码 TypeScript 检查成功。 |
 | `npm run build`（`api/`） | Pass | NestJS 生产构建成功。 |
 | `npm run test:integration:runtime`（一次性 PostgreSQL 16） | Pass | 真实事务 Checkpoint 提交、恢复分类及 RUNTIME-102 数据库验收通过。 |
@@ -36,11 +36,11 @@
 | Run version 冲突 | 不追加 Checkpoint | Pass，错误阶段为 run 且快照数量为 0。 |
 | 待用户输入或审批 | 分别 WAIT/PAUSE | Pass。 |
 | 终态或无 Checkpoint | 不作为普通可恢复 Run 调度 | Pass，分别返回 TERMINAL/NO_CHECKPOINT。 |
-| legacy Session/SSE | 行为不变 | Pass，既有合同测试全部通过；本任务未修改 legacy 流。 |
+| legacy Session/SSE | 行为不变 | Pass，既有契约测试全部通过；本任务未修改 legacy 流。 |
 
 ## Completion Evidence
 
 - 相关提交或 PR：未创建。
-- 评测或运行报告：RUNTIME-103 专项 9/9、全量合同 43/43、真实 PostgreSQL 集成 1/1 通过。
+- 评测或运行报告：RUNTIME-103 专项 9/9、全量契约 43/43、真实 PostgreSQL 集成 1/1 通过。
 - 未解决限制：外部副作用查询属于 RUNTIME-107，完整上下文重建属于 MEMORY-104，实际执行路径和 legacy/v2 接线分别属于 RUNTIME-105、RUNTIME-108。
 - 最终结论：`pass`，RUNTIME-103 验收条件全部满足。

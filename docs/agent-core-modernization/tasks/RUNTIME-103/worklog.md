@@ -25,7 +25,7 @@
 
 ### Verification
 
-- 9 项 RUNTIME-103 专项合同测试通过。
+- 9 项 RUNTIME-103 专项契约测试通过。
 - `npm run test:contract`：43/43 通过，包含全部 legacy/SSE 回归。
 - 真实 PostgreSQL 16 容器中，Run version 1→2、currentNode 更新和 Checkpoint sequence 1 在同一事务提交。
 - 真实数据库恢复解析确认 running 只读调用可重试，UNKNOWN 写调用返回 PAUSE。

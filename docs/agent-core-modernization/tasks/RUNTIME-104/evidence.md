@@ -16,7 +16,7 @@
 | --- | --- | --- |
 | `node --import tsx --test test/contracts/runtime-router.contract.test.ts` | Pass | 10 tests passed，0 failed。 |
 | `npm run test:contract`（`api/`） | Pass | 53 tests passed，0 failed。 |
-| `npm run test:contract:typecheck`（`api/`） | Pass | 产品代码和全部合同测试 TypeScript 检查成功。 |
+| `npm run test:contract:typecheck`（`api/`） | Pass | 产品代码和全部契约测试 TypeScript 检查成功。 |
 | `npm run build`（`api/`） | Pass | NestJS 生产构建成功。 |
 | `git diff --check` | Pass | 无空白或补丁格式错误。 |
 
@@ -36,6 +36,6 @@
 ## Completion Evidence
 
 - 相关提交或 PR：未创建。
-- 评测或运行报告：RUNTIME-104 专项 10/10、全量合同 53/53 通过。
+- 评测或运行报告：RUNTIME-104 专项 10/10、全量契约 53/53 通过。
 - 未解决限制：具体 Registry 规则属于后续 Tool/Skill/Workflow/Agent 任务，四类执行器属于 RUNTIME-105，实际请求接线属于 RUNTIME-108。
 - 最终结论：`pass`，RUNTIME-104 验收条件全部满足。

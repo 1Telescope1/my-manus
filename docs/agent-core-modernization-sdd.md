@@ -592,7 +592,7 @@ AGENT_RUNTIME_MODE=legacy|v2|shadow
 
 任一条件满足时回滚到 `legacy`：
 
-- Event 合同测试失败。
+- Event 契约测试失败。
 - 出现重复副作用或 Checkpoint 恢复错误。
 - 取消后仍继续调度新工具。
 - 核心评测完成率显著低于基线。
@@ -640,7 +640,7 @@ AGENT_RUNTIME_MODE=legacy|v2|shadow
 
 ### 11.3 新运行时默认启用门槛
 
-- 既有 API/Event 合同测试 100% 通过。
+- 既有 API/Event 契约测试 100% 通过。
 - 固定任务集完成率不低于 legacy 基线。
 - 故障注入中的可恢复案例 100% 从预期节点继续。
 - 重复副作用数量为 0。
@@ -694,7 +694,7 @@ AGENT_RUNTIME_MODE=legacy|v2|shadow
 | A2A 任务长期无响应 | 超时、订阅和本地状态映射 | 保留远程 Task ID，可取消或恢复订阅 | 流中断测试 |
 | Memory 摘要失真 | 结构化字段和来源范围 | 不把未确认内容写入 confirmedFacts | 长会话回归集 |
 | Handoff 泄漏无关上下文 | Context Filter | 阻止转移并记录错误 | 上下文边界测试 |
-| shadow 重复写操作 | 只允许无副作用任务 | 强制退回 legacy 单跑 | 风险分类合同测试 |
+| shadow 重复写操作 | 只允许无副作用任务 | 强制退回 legacy 单跑 | 风险分类契约测试 |
 
 ## 15. 参考资料
 

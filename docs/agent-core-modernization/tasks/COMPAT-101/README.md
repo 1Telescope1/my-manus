@@ -8,12 +8,71 @@
 | Status | `done` |
 | Dependencies | — |
 | Started | `2026-07-16` |
-| Last Updated | `2026-07-17` |
+| Last Updated | `2026-07-18` |
 | Working Session | `Codex：开始执行 COMPAT-101` |
 
 ## Intent
 
 在新 Runtime 与现有 Session/SSE/UI 之间建立明确的事件适配边界，让执行内核可以演进而不迫使现有前端同步改造。
+
+## 本任务做了什么
+
+### 一句话说明
+
+> 把新 Runtime 产生的事件翻译成现有 UI 已经认识的 SSE 事件，让后端替换执行内核时不必同时重写前端。
+
+### 为什么需要这个任务
+
+现有 UI 只认识 legacy 的 `title`、`message`、`plan`、`step`、`tool`、`wait`、`error`、`done` 事件。如果新 Runtime 直接输出自己的事件结构，前端会无法展示，后端和前端就必须在同一时间整体切换，迁移风险很高。
+
+COMPAT-101 在两者之间增加 `RuntimeEventAdapter`，把“内核怎样表达事件”和“UI 怎样消费事件”解耦。
+
+### 主要事件映射
+
+| Runtime Event | legacy Event | UI 看到的结果 |
+| --- | --- | --- |
+| Plan 创建或更新 | `plan` | 展示计划和步骤列表 |
+| Step 开始或结束 | `step` | 更新步骤状态 |
+| Tool 调用或结果 | `tool` | 展示工具名称、调用 ID 和状态 |
+| 普通文本 | `message` | 展示 Agent 消息 |
+| 等待输入 | `wait` | 停止本轮并等待用户 |
+| 运行失败 | `error` | 展示错误并结束当前流程 |
+| 完成或取消 | `done` | 让旧 UI 正常结束流 |
+
+新 Runtime 的 `runId`、`sequence`、`checkpointId`、`metadata` 会转换为可选的 `run_id`、`sequence`、`checkpoint_id`、`metadata`。legacy 事件没有这些字段时，序列化结果保持原样，不强迫旧客户端理解新字段。
+
+### 事件转换流程
+
+```text
+新 Runtime 产生 Runtime Event
+  ↓
+RuntimeEventAdapter 检查 runId 和 sequence
+  ↓
+重复或过期？──────→ 丢弃
+  ↓ 否
+转换成现有领域 Event
+  ↓
+复用 EventMapper 输出原有 SSE 格式
+  ↓
+现有 UI 按原逻辑消费
+```
+
+### sequence 去重例子
+
+假设同一个 Run 已经输出 `sequence = 7`：
+
+```text
+再次收到 sequence 7 → 重复事件，过滤
+收到 sequence 6       → 过期事件，过滤
+收到 sequence 8       → 新事件，正常输出
+另一个 Run 的 sequence 1 → 独立处理，不受影响
+```
+
+取消事件仍然映射为旧 UI 认识的 `done`，同时在 `metadata.terminal_status` 中记录 `cancelled`。这样旧 UI 能正常结束，新客户端和诊断系统又能识别真实终态。
+
+### 当前接入边界
+
+事件类型、适配器、可选字段和进程内 sequence 去重已经完成，并使用模拟 v2 事件验证。sequence 水位尚未持久化，真实请求也仍由 legacy 流程执行；运行模式开关和正式接线属于 COMPAT-102、RUNTIME-105、RUNTIME-108。
 
 ## Scope
 
@@ -37,8 +96,9 @@
 - [x] 新增兼容字段均为可选，legacy SSE 数据结构不变。
 - [x] 同一 Run 的重复或过期 `sequence` 可被过滤，不同 Run 互不影响。
 - [x] 现有 UI 无需修改即可消费 v2 模拟事件。
-- [x] EVAL-102 合同测试继续通过。
+- [x] EVAL-102 契约测试继续通过。
 - [x] 类型检查和构建通过。
+- [x] “本任务做了什么”已详细说明事件映射、转换流程、sequence 去重和接入边界。
 - [x] “改造前后对比”已填写，并说明实际影响。
 - [x] [evidence.md](./evidence.md) 已填写。
 - [x] 总任务清单和本目录工作记录已更新。
@@ -48,7 +108,7 @@
 | 对比项 | 改造前 | 完成后 | 实际影响 |
 | --- | --- | --- | --- |
 | 新旧事件边界 | 系统只有 legacy Event，新 Runtime 即使产出自己的事件，也没有转换到现有 Session/SSE 的统一入口。 | 新增 Runtime Event 联合类型和 `RuntimeEventAdapter`，统一转换为现有领域 Event，再复用 `EventMapper` 输出 SSE。 | 新 Runtime 可以沿用现有 API 和 UI 事件通道，不需要另写一套前端协议。 |
-| UI 兼容性 | 新事件格式如果直接输出，现有 UI 无法识别，后端与前端必须同时改造。 | v2 事件被转换为现有的 `title/message/plan/step/tool/wait/error/done`，旧字段和状态值保持不变。 | 后端可以逐步替换执行内核，现有 UI 无需同步修改；legacy 合同测试继续通过。 |
+| UI 兼容性 | 新事件格式如果直接输出，现有 UI 无法识别，后端与前端必须同时改造。 | v2 事件被转换为现有的 `title/message/plan/step/tool/wait/error/done`，旧字段和状态值保持不变。 | 后端可以逐步替换执行内核，现有 UI 无需同步修改；legacy 契约测试继续通过。 |
 | 运行标识 | 旧事件只有事件 ID 和时间戳，无法区分事件属于哪个 Run，也没有顺序号。 | v2 事件可额外携带 `run_id`、`sequence`、`checkpoint_id` 和 `metadata`；legacy 事件不提供这些值时，JSON 输出不增加字段。 | 后续可以按 Run 追踪、恢复和诊断，同时不破坏旧客户端。 |
 | 重复事件 | 没有基于 Run 顺序号的去重能力，重放同一事件可能造成 UI 重复展示。 | 适配器为每个 Run 保存 sequence 水位，相同或更旧的事件不再输出，不同 Run 相互独立。 | 同一适配器生命周期内，断线重放或重复投递不会产生重复事件。 |
 | 取消终态 | 现有 UI 只认识 `done`，无法判断任务是正常完成还是被取消。 | Runtime 的取消仍映射为 `done`，并附加 `metadata.terminal_status=cancelled`。 | 旧 UI 继续正常结束流程，新客户端或诊断系统可以识别真实终态。 |
@@ -73,7 +133,7 @@
 
 ## Latest Session State
 
-- Current state: `done`，16 项合同测试、API 构建和 UI 构建均通过。
+- Current state: `done`，16 项契约测试、API 构建和 UI 构建均通过。
 - Remaining work: 无。
 - Blockers: 无。
 - Recommended next action: 推进 RUNTIME-101/RUNTIME-105，为 COMPAT-102 提供可接入的新执行器。

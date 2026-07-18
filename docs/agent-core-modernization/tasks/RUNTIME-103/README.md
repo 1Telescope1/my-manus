@@ -8,12 +8,101 @@
 | Status | `done` |
 | Dependencies | `RUNTIME-102` |
 | Started | `2026-07-17` |
-| Last Updated | `2026-07-17` |
+| Last Updated | `2026-07-18` |
 | Working Session | `Codex：执行 RUNTIME-103` |
 
 ## Intent
 
 在 RUNTIME-102 的持久化基础上建立明确的 Checkpoint 提交边界和恢复解析流程，使新 Runtime 在进程中断后能从精确下一节点继续，并延续事件序号。
+
+## 本任务做了什么
+
+### 一句话说明
+
+> 为 Agent 执行增加可持久化的“书签”和恢复判断，让进程重启后从安全、精确的下一节点继续，而不是整段重跑。
+
+### 为什么需要这个任务
+
+RUNTIME-102 已经能保存 Run 和 Checkpoint，但调用方还不知道应该在哪些位置保存，也没有服务把数据库记录转换成恢复动作。如果模型已经完成却仍从模型调用前重跑，会重复产生费用；如果发送邮件后状态不确定却直接重试，可能产生两封邮件。
+
+RUNTIME-103 因此解决两个问题：怎样原子保存一个可信恢复点，以及重启后怎样判断“继续、等待、暂停还是结束”。
+
+### Checkpoint 保存什么
+
+| 字段 | 含义 | 例子 |
+| --- | --- | --- |
+| `sequence` | Run 内从 0 开始递增的书签序号 | 第 2 个 Checkpoint 为 `1` |
+| `resumeNode` | 重启后要执行的精确下一节点 | `planner.apply_result` |
+| `nextEventSequence` | 恢复后下一条 Runtime Event 序号 | 前端已收到 0～6，下一条为 7 |
+| `state` | 继续执行需要的状态快照 | 模型输出、工具调用 ID |
+| `state.checkpointBoundary` | 崩溃前完成到了哪个语义边界 | `model_completed` |
+
+`checkpointBoundary` 回答“刚完成了什么”，`resumeNode` 回答“下一步执行什么”。例如模型完成后，边界是 `MODEL_COMPLETED`，但恢复节点是 `planner.apply_result`，所以不会重新调用模型。
+
+### Checkpoint 提交流程
+
+```text
+执行器到达关键边界
+  ↓
+读取最新 Checkpoint，计算新 sequence
+  ↓
+用 expectedVersion CAS 更新 Run 游标和 version
+  ↓
+追加新的 Checkpoint
+  ↓
+两步都成功：提交事务
+任意一步冲突：整体回滚
+```
+
+这保证不会出现“Run 已经向前推进，但对应书签没有保存”，也不会出现“书签存在，但 Run version 没有变化”。
+
+### 重启后的判断顺序
+
+```text
+读取 AgentRun
+  ↓
+终态？────────────→ TERMINAL
+  ↓ 否
+有不确定副作用？──→ PAUSE
+  ↓ 否
+待审批？──────────→ PAUSE
+  ↓ 否
+待用户输入？──────→ WAIT
+  ↓ 否
+没有 Checkpoint？─→ NO_CHECKPOINT
+  ↓ 否
+从最新 resumeNode → RESUME
+```
+
+| 工具现场 | 恢复处理 | 原因 |
+| --- | --- | --- |
+| `COMPLETED` | 复用已保存结果 | 避免重复调用 |
+| `PENDING` | 可以重试 | 工具尚未提交 |
+| `READ + RUNNING/UNKNOWN` | 可以重试 | 只读操作没有外部副作用 |
+| 写入、删除、外部通信处于 `RUNNING/UNKNOWN` | `PAUSE` | 无法确认副作用是否已经发生 |
+
+### 两个崩溃例子
+
+模型调用前保存：
+
+```text
+boundary = MODEL_CALLING
+resumeNode = planner.invoke_model
+```
+
+此时崩溃，重启后需要调用模型。模型完成并保存输出后：
+
+```text
+boundary = MODEL_COMPLETED
+resumeNode = planner.apply_result
+state.modelOutput = 已保存的模型结果
+```
+
+此时崩溃，重启后直接处理已有输出。对于 `send_email`，如果外部请求已经发出但结果没有确认，恢复服务返回 `PAUSE`，不会冒险再次发送。
+
+### 当前接入边界
+
+Checkpoint 边界、原子提交和恢复解析器已经实现并通过故障注入测试，但当前 legacy `AgentTaskRunner` 还没有调用它们。新执行路径由 RUNTIME-105 使用这些能力，实际请求接线属于 RUNTIME-108；外部副作用确认属于 RUNTIME-107。
 
 ## Scope
 
@@ -42,6 +131,7 @@
 - [x] 待用户输入和待审批中断分别恢复为 WAIT 与 PAUSE。
 - [x] 模型调用前后和工具结果持久化后的故障注入从预期节点恢复。
 - [x] 类型检查、测试和构建成功。
+- [x] “本任务做了什么”已详细说明 Checkpoint 字段、提交与恢复流程、工具分类和崩溃例子。
 - [x] “改造前后对比”已填写，并说明实际影响。
 - [x] [evidence.md](./evidence.md) 已填写。
 - [x] 总任务清单和本目录工作记录已更新。
@@ -78,7 +168,7 @@
 
 ## Latest Session State
 
-- Current state: `done`，9 项专项故障/恢复测试、43 项全量合同测试和真实 PostgreSQL 集成测试通过。
+- Current state: `done`，9 项专项故障/恢复测试、43 项全量契约测试和真实 PostgreSQL 集成测试通过。
 - Remaining work: 无 RUNTIME-103 范围内工作。
 - Blockers: 无。
 - Recommended next action: 执行 RUNTIME-104 和 RUNTIME-105，让新执行路径实际调用 Checkpoint 边界。

@@ -27,7 +27,7 @@
 
 ### Verification
 
-- RUNTIME-104 专项合同测试 10/10 通过。
+- RUNTIME-104 专项契约测试 10/10 通过。
 - `npm run test:contract`：53/53 通过，包含 legacy、SSE、持久化和恢复回归。
 - `npm run build`：NestJS 生产构建成功。
 - `git diff --check`：通过。

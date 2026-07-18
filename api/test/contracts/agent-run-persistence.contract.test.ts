@@ -45,7 +45,7 @@ function persistJson(value: unknown): unknown {
   return value === Prisma.DbNull ? null : value;
 }
 
-/** 只实现 Run 仓储合同测试所需操作的内存 Prisma delegate。 */
+/** 只实现 Run 仓储契约测试所需操作的内存 Prisma delegate。 */
 class FakeAgentRunDelegate {
   readonly records = new Map<string, Record<string, unknown>>();
 
@@ -192,7 +192,7 @@ class FakeToolCallDelegate {
   }
 }
 
-/** 只实现 Checkpoint 追加合同测试所需操作的内存 Prisma delegate。 */
+/** 只实现 Checkpoint 追加契约测试所需操作的内存 Prisma delegate。 */
 class FakeCheckpointDelegate {
   readonly records = new Map<string, Record<string, unknown>>();
 

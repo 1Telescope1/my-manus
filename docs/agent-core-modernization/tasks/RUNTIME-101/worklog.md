@@ -18,10 +18,10 @@
 | --- | --- |
 | `docs/agent-core-modernization/TASKS.md` | 领取任务并标记为实施中。 |
 | `docs/agent-core-modernization/tasks/RUNTIME-101/*` | 建立任务范围、日志和验收记录。 |
-| `docs/agent-core-modernization-sdd.md` | 明确状态枚举、失败/取消不变量、Checkpoint 游标和仓储并发合同。 |
+| `docs/agent-core-modernization-sdd.md` | 明确状态枚举、失败/取消不变量、Checkpoint 游标和仓储并发契约。 |
 | `api/src/domain/models/agent-run.ts` | 定义五类运行实体、固定初始工厂、Run 状态机和取消请求/确认语义。 |
 | `api/src/domain/repositories/agent-run.repository.ts` | 定义 Run CAS、子状态 CAS、工具原子占用、恢复查询和 Checkpoint 冲突端口。 |
-| `api/test/contracts/agent-run.contract.test.ts` | 覆盖实体默认值、完整状态矩阵、生命周期不变量、取消/失败反例和仓储结果合同。 |
+| `api/test/contracts/agent-run.contract.test.ts` | 覆盖实体默认值、完整状态矩阵、生命周期不变量、取消/失败反例和仓储结果契约。 |
 
 ### Verification
 
