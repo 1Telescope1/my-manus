@@ -6,7 +6,7 @@ export type ToolSource = 'builtin' | 'mcp' | 'agent';
 /** 工具风险；按调用可能产生的最高外部影响分类。 */
 export type ToolRisk = 'read' | 'write' | 'destructive' | 'external_communication';
 
-/** 供应商中立的工具描述，供 Registry、Policy 和模型适配器共同使用。 */
+/** 不绑定特定模型厂商的通用工具描述，供 Registry、Policy 和模型适配器共同使用。 */
 export type ToolDescriptor = {
   id: string;
   name: string;

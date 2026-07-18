@@ -403,6 +403,10 @@ test('Single Tool 应执行一次现有工具并输出兼容事件', async () =>
   assert.equal([...store.runs.values()][0].status, RunStatus.COMPLETED);
   assert.equal(llm.calls.length, 3);
   assert.equal(llm.calls[1].toolChoice, 'auto');
+  assert.deepEqual(
+    llm.calls[1].tools?.map((descriptor) => descriptor.name),
+    ['search_web'],
+  );
   assert.equal(llm.calls[2].toolChoice, 'none');
 });
 

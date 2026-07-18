@@ -132,7 +132,7 @@ Checkpoint：批准后从 send_email 节点继续
 
 ## Decisions and Risks
 
-- 领域层保持供应商中立，不依赖 Prisma 或模型厂商类型。
+- 领域层保持基础设施无关，不依赖 Prisma 或模型厂商类型。
 - AgentRun 是乐观版本控制的聚合根；数据库实现与事务接线留给 RUNTIME-102。
 - RunStep 不复用 legacy Plan 的 Step，避免把运行游标与 UI 展示模型重新耦合。
 - 状态转换使用调用方显式时间，保证相同输入得到相同结果；持久化版本只在仓储 CAS 成功后递增。

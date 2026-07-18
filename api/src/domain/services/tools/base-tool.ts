@@ -16,7 +16,7 @@ type ToolMethod = ((...args: any[]) => Promise<ToolResult>) & {
   toolDefinition?: ToolDefinition;
 };
 
-/** 为内置工具方法声明供应商中立描述元数据。 */
+/** 为内置工具方法声明通用描述元数据。 */
 export function tool(input: {
   name: string;
   description: string;

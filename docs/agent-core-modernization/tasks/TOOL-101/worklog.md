@@ -4,7 +4,7 @@
 
 ### Goal
 
-- 完成供应商中立 ToolDescriptor、三来源注册、查询、冲突检测和现有路径接入。
+- 完成通用 ToolDescriptor、三来源注册、查询、冲突检测和现有路径接入。
 
 ### Investigation
 
@@ -18,7 +18,7 @@
 
 | 文件 | 变更原因 |
 | --- | --- |
-| `api/src/domain/models/tool.ts` | 定义供应商中立 Descriptor、source、risk、查询和 Registry 端口。 |
+| `api/src/domain/models/tool.ts` | 定义不绑定特定模型厂商的通用 Descriptor、source、risk、查询和 Registry 端口。 |
 | `api/src/domain/services/tools/tool-registry.ts` | 实现双索引查询、原子批量注册、冲突错误和快照隔离。 |
 | `api/src/domain/services/tools/base-tool.ts` | 让 `@tool` 生成领域描述和可执行注册项，不再生成厂商 schema。 |
 | `api/src/domain/services/tools/*.tool.ts` | 为现有内置工具补充 capability、risk、审批和长任务超时元数据。 |

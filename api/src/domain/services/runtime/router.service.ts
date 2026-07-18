@@ -66,6 +66,13 @@ export class RuntimeRouterService {
           `确定性规则 ${rule.name} 的置信度不足`,
         );
       }
+      const unavailableCapabilities = findUnavailableCapabilities(request, decision.data);
+      if (unavailableCapabilities.length > 0) {
+        return createPlannedAgentFallback(
+          request,
+          `确定性规则 ${rule.name} 请求了不可用 capability：${unavailableCapabilities.join(', ')}`,
+        );
+      }
       return decision.data;
     }
 
@@ -88,8 +95,27 @@ export class RuntimeRouterService {
     if (decision.data.confidence < this.minimumConfidence) {
       return createPlannedAgentFallback(request, '路由模型置信度不足');
     }
+    const unavailableCapabilities = findUnavailableCapabilities(request, decision.data);
+    if (unavailableCapabilities.length > 0) {
+      return createPlannedAgentFallback(
+        request,
+        `路由模型请求了不可用 capability：${unavailableCapabilities.join(', ')}`,
+      );
+    }
     return decision.data;
   }
+}
+
+/** 当调用方提供 capability catalog 时找出模型或规则发明的未知值。 */
+function findUnavailableCapabilities(
+  request: NormalizedRuntimeRouteRequest,
+  decision: RouteDecision,
+): string[] {
+  if (request.availableCapabilities.length === 0) {
+    return [];
+  }
+  const available = new Set(request.availableCapabilities);
+  return decision.requiredCapabilities.filter((capability) => !available.has(capability));
 }
 
 /** 提取首个 Schema 问题写入回退原因，避免诊断时只能看到笼统的无效结果。 */

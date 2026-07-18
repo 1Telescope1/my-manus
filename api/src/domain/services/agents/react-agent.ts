@@ -11,6 +11,7 @@ import { createFileModel } from '../../models/file';
 import { Message, messageToText } from '../../models/message';
 import { createStep, ExecutionStatus, Plan, Step } from '../../models/plan';
 import { UnitOfWork } from '../../repositories/unit-of-work';
+import { ToolSelectionRequest } from '../../models/tool-selection';
 import { BaseTool } from '../tools/base-tool';
 import { BaseAgent } from './base-agent';
 import { SYSTEM_PROMPT } from '../prompts/system';
@@ -52,7 +53,13 @@ export class ReActAgent extends BaseAgent {
     super(uowFactory, sessionId, agentConfig, llm, jsonParser, tools);
   }
 
-  async *executeStep(plan: Plan, step: Step, message: Message): AsyncGenerator<Event> {
+  /** 在 Runtime 选定的工具边界内执行一个计划步骤。 */
+  async *executeStep(
+    plan: Plan,
+    step: Step,
+    message: Message,
+    toolSelection?: ToolSelectionRequest,
+  ): AsyncGenerator<Event> {
     const query = formatTemplate(EXECUTION_PROMPT, {
       message: message.message,
       attachments: message.attachments.join('\n'),
@@ -71,6 +78,7 @@ export class ReActAgent extends BaseAgent {
       maxCallsPerTool: {
         search_web: 3,
       },
+      toolSelection,
     })) {
       if (event.type === 'tool' && event.function_name === 'message_ask_user') {
         if (event.status === ToolEventStatus.CALLING) {

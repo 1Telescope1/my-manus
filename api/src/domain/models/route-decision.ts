@@ -8,6 +8,7 @@ const routeNameSchema = z.string().trim().min(1).max(128);
 export const RuntimeRouteRequestSchema = z.object({
   message: z.string().trim().min(1).max(100_000),
   requestedSkills: z.array(routeNameSchema).max(32).default([]),
+  availableCapabilities: z.array(routeNameSchema).max(512).default([]),
 }).strict();
 
 /** 调用方可传入的原始路由请求。 */

@@ -26,7 +26,7 @@ export class InvalidToolDescriptorError extends Error {
   }
 }
 
-/** 使用进程内索引实现供应商中立 Tool Registry。 */
+/** 使用进程内索引实现不绑定特定模型厂商的 Tool Registry。 */
 export class InMemoryToolRegistry implements ToolRegistry {
   private readonly registrationsById = new Map<string, ToolRegistration>();
   private readonly idsByName = new Map<string, string>();

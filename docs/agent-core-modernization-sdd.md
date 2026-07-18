@@ -15,7 +15,7 @@
 
 ### 1.1 总体目标
 
-在保留 NestJS API、现有 LLM 抽象、UI、SSE、Redis Stream、PostgreSQL 和 Sandbox 的前提下，将当前固定的 Planner + ReAct 执行内核演进为供应商中立、可选择能力、可持久恢复、可渐进迁移的 Agent Runtime。
+在保留 NestJS API、现有 LLM 抽象、UI、SSE、Redis Stream、PostgreSQL 和 Sandbox 的前提下，将当前固定的 Planner + ReAct 执行内核演进为不绑定特定模型厂商、可选择能力、可持久恢复、可渐进迁移的 Agent Runtime。
 
 本设计不采用阶段式路线。Runtime、Skills、Tool/MCP、Memory/Context、Multi-Agent/A2A、Compatibility 和 Evaluation 是同级工作流，可以并行推进。只有任务表中显式声明的 `Dependencies` 才构成前置约束。
 
@@ -86,7 +86,7 @@ flowchart TB
 ### 2.5 当前实现边界
 
 - 根 Compose 默认通过 `SANDBOX_ADDRESS=sandbox` 使用常驻 Sandbox；Sandbox 隔离和多租户安全不属于本 SDD 的实施范围。
-- 当前 Agent 使用 OpenAI-compatible Chat Completions 接口；目标设计保持供应商中立，不要求立即切换特定厂商 API。
+- 当前 Agent 使用 OpenAI-compatible Chat Completions 接口；目标设计不绑定特定模型厂商，不要求立即切换特定厂商 API。
 - 当前 `Session.events` 和 `Session.memories` 使用 JSON 字段。目标 Run/Checkpoint 不继续无限堆入该字段，而使用明确的持久化模型。
 - 当前前端依赖既有 Event 联合类型。新运行时必须先通过 Event Adapter 兼容它。
 
@@ -115,7 +115,7 @@ flowchart TB
 
 ### 3.3 设计原则
 
-- **供应商中立**：领域层不暴露特定厂商的 Agent 类型；厂商能力由适配器实现。
+- **厂商无关**：领域层不暴露特定厂商的 Agent 类型；厂商能力由适配器实现。
 - **确定性优先**：能由代码稳定表达的流程不交给 LLM 自由规划。
 - **最小能力披露**：模型只看到当前路径需要的 Skills、Tools 和 Agent。
 - **状态与上下文分离**：业务执行状态不能只存在于聊天消息中。
@@ -502,7 +502,7 @@ type ToolDescriptor = {
 - 系统指令、Policy、当前用户请求、已激活 Skill 核心指令和未完成任务状态属于受保护内容。
 - 近期消息优先于早期原始消息；早期内容通过结构化摘要保留。
 - 大型 Tool Result、网页正文和文件内容默认保存为 Artifact，仅按需读取相关片段。
-- 预计超出预算时在调用模型前压缩，不能依赖供应商返回超限错误后再补救。
+- 预计超出预算时在调用模型前压缩，不能等模型 API 返回超限错误后再补救。
 
 ### 8.3 结构化摘要
 
@@ -645,7 +645,7 @@ type AgentDescriptor = {
 
 | ID | Status | 决策 | 理由 | 结果与约束 | 日期 |
 | --- | --- | --- | --- | --- | --- |
-| ADR-001 | Accepted | 保留 NestJS，自研供应商中立 Agent Runtime | 当前领域抽象和部署结构可复用，避免绑定单一模型厂商 | 可参考现有框架模式，但领域类型不得依赖厂商 SDK | 2026-07-16 |
+| ADR-001 | Accepted | 保留 NestJS，自研厂商无关的 Agent Runtime | 当前领域抽象和部署结构可复用，避免绑定单一模型厂商 | 可参考现有框架模式，但领域类型不得依赖厂商 SDK | 2026-07-16 |
 | ADR-002 | Accepted | 迁移期保持 Session API 和 SSE Event 兼容 | UI 和数据流已经可用，先替换内核能降低范围和风险 | 新字段先可选加入；通过 Event Adapter 隔离 | 2026-07-16 |
 | ADR-003 | Accepted | Skills 采用 Agent Skills 开放格式 | 便于跨客户端复用并支持渐进式披露 | 首个实现只扫描 `.agents/skills/` 项目目录 | 2026-07-16 |
 | ADR-004 | Superseded | 使用运行模式开关渐进迁移 | Runtime 已正式化为唯一入口 | 由 ADR-012 取代 | 2026-07-16 |

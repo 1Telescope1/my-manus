@@ -11,6 +11,7 @@ import {
   RuntimeTerminalEvent,
 } from '../../models/runtime-event';
 import { ToolResult } from '../../models/tool-result';
+import { ToolSelectionConstraints } from '../../models/tool-selection';
 
 type RuntimeEventEnvelopeKey = 'id' | 'runId' | 'sequence' | 'createdAt';
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
@@ -32,6 +33,7 @@ export type RuntimeExecutionRequest = {
   nextEventSequence?: number;
   metadata?: Readonly<Record<string, unknown>>;
   privateContext?: Readonly<Record<string, unknown>>;
+  toolSelection?: ToolSelectionConstraints;
 };
 
 /** 已完成校验、可安全传给具体能力端口的执行上下文。 */
@@ -41,6 +43,7 @@ export type RuntimeExecutionContext = {
   message: string;
   metadata: Readonly<Record<string, unknown>>;
   privateContext: Readonly<Record<string, unknown>>;
+  toolSelection: ToolSelectionConstraints;
 };
 
 /** 为事件时间和标识提供可测试的注入点。 */
@@ -49,7 +52,7 @@ export type RuntimeExecutorOptions = {
   eventIdFactory?: () => string;
 };
 
-/** 四类执行路径共同遵守的供应商中立接口。 */
+/** 四类执行路径共同遵守的厂商无关接口。 */
 export interface RuntimeExecutor {
   readonly route: RouteKind;
 
@@ -434,6 +437,7 @@ function normalizeExecutionRequest(
       metadata: { ...(request.metadata ?? {}) },
       // 私有上下文仅供路径驱动器使用，不能进入对外 Runtime Event。
       privateContext: { ...(request.privateContext ?? {}) },
+      toolSelection: structuredClone(request.toolSelection ?? {}),
     },
     nextEventSequence,
   };

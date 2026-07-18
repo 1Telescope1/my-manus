@@ -45,7 +45,11 @@ import {
 import { RuntimeRouterService } from './router.service';
 import { RuntimeService } from './runtime.service';
 import { A2ATool } from '../tools/a2a.tool';
-import { createAgentToolset } from '../tools/agent-toolset';
+import {
+  createAgentToolRegistry,
+  createAgentToolset,
+  synchronizeAgentToolRegistry,
+} from '../tools/agent-toolset';
 import { MCPTool } from '../tools/mcp.tool';
 
 /** AgentTaskRunner 依赖的 Runtime Event 转换边界。 */
@@ -109,6 +113,7 @@ export class AgentTaskRunner extends TaskRunner {
       mcpTool: this.mcpTool,
       a2aTool: this.a2aTool,
     });
+    const toolRegistry = createAgentToolRegistry(tools);
     const singleToolProvider = new LLMSingleToolProvider(
       this.llm,
       this.jsonParser,
@@ -128,6 +133,15 @@ export class AgentTaskRunner extends TaskRunner {
       this.uowFactory,
       runtimeOptions.router,
       dispatcher,
+      {
+        availableToolCapabilities: () => {
+          // MCP 在 Runner 构造后才初始化，路由前必须吸收本轮新发现的 Descriptor。
+          synchronizeAgentToolRegistry(toolRegistry, tools);
+          return [...new Set(
+            toolRegistry.list().flatMap((descriptor) => descriptor.capabilities),
+          )];
+        },
+      },
     );
   }
 

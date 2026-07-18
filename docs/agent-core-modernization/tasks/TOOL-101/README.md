@@ -13,7 +13,7 @@
 
 ## Intent
 
-把内置、MCP 和未来 Agent-as-Tool 的描述与定位方式收敛为供应商中立的领域契约，使 Runtime 不再依赖分散的工具数组和模型厂商 Schema 来查找能力。
+把内置、MCP 和未来 Agent-as-Tool 的描述与定位方式收敛为不绑定特定模型厂商的领域契约，使 Runtime 不再依赖分散的工具数组和模型厂商 Schema 来查找能力。
 
 ## 证据表
 
@@ -105,7 +105,7 @@ MCP 在 `AgentTaskRunner` 启动后才完成发现，因此现有执行路径会
 
 ### In scope
 
-- 定义供应商中立的 `ToolDescriptor`、source、risk、capability 和注册项。
+- 定义不绑定特定模型厂商的通用 `ToolDescriptor`、source、risk、capability 和注册项。
 - 实现按 id、name、source、capability 查询的 Tool Registry。
 - 注册内置、MCP 和 Agent 三类来源并检测 id/name 冲突。
 - 让当前 Planner/ReAct 与 Single Tool 路径通过 Registry 获取描述和调用目标。

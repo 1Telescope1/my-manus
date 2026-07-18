@@ -228,6 +228,22 @@ test('路由模型调用异常时应回退 planned_agent', async () => {
   assert.match(result.reason, /调用失败/);
 });
 
+// Router 只能选择当前 Registry 提供的 canonical capability，未知值不得进入执行器。
+test('路由模型请求不可用 capability 时应安全回退', async () => {
+  const router = new RuntimeRouterService(new FakeRouteModel(
+    createDecision(RouteKind.SINGLE_TOOL, { requiredCapabilities: ['weather.lookup'] }),
+  ));
+
+  const result = await router.route({
+    message: '查询天气',
+    availableCapabilities: ['search', 'web.search'],
+  });
+
+  assert.equal(result.route, RouteKind.PLANNED_AGENT);
+  assert.deepEqual(result.requiredCapabilities, []);
+  assert.match(result.reason, /不可用 capability/);
+});
+
 // LLM 适配器只能请求 JSON 决策，不得向模型暴露任何可执行工具。
 test('路由模型适配器不应携带工具或执行任何副作用', async () => {
   const expected = createDecision(RouteKind.DIRECT);
@@ -236,13 +252,18 @@ test('路由模型适配器不应携带工具或执行任何副作用', async ()
   });
   const router = new RuntimeRouterService(new LLMRuntimeRouteModel(llm));
 
-  const result = await router.route({ message: '你好' });
+  const result = await router.route({
+    message: '你好',
+    availableCapabilities: ['search', 'web.search'],
+  });
 
   assert.equal(result.route, RouteKind.DIRECT);
   assert.equal(llm.calls.length, 1);
   assert.equal(Object.hasOwn(llm.calls[0], 'tools'), false);
   assert.equal(Object.hasOwn(llm.calls[0], 'toolChoice'), false);
   assert.deepEqual(llm.calls[0].responseFormat, { type: 'json_object' });
+  const userPayload = JSON.parse(String(llm.calls[0].messages[1].content));
+  assert.deepEqual(userPayload.availableCapabilities, ['search', 'web.search']);
 });
 
 // 错误阈值应在服务创建时立即暴露，不能静默改变全部路由结果。

@@ -24,11 +24,13 @@ import {
   SingleToolSelector,
 } from './executor.service';
 import { BaseTool } from '../tools/base-tool';
-import { ToolRegistry } from '../../models/tool';
+import { ToolDescriptor, ToolRegistry } from '../../models/tool';
+import { ToolSelectionRequest } from '../../models/tool-selection';
 import {
   createAgentToolRegistry,
   synchronizeAgentToolRegistry,
 } from '../tools/agent-toolset';
+import { ToolSelectionService } from '../tools/tool-selection.service';
 
 const DIRECT_SYSTEM_PROMPT =
   '你负责直接回答用户请求。不得声称调用了工具或访问了未提供的外部信息；请给出简洁、完整的最终回答。';
@@ -39,7 +41,7 @@ const SINGLE_TOOL_SYSTEM_PROMPT =
 const SINGLE_TOOL_SUMMARY_PROMPT =
   '你负责根据一次工具调用结果回答用户。不得继续调用工具；结果失败时明确说明失败原因。';
 
-/** 使用现有供应商中立 LLM 端口实现 Direct 回答。 */
+/** 使用现有厂商无关的 LLM 端口实现 Direct 回答。 */
 export class LLMDirectResponseProvider implements DirectResponseProvider {
   /** 注入当前会话使用的 LLM 客户端。 */
   constructor(private readonly llm: LLM) {}
@@ -65,6 +67,7 @@ export class LLMDirectResponseProvider implements DirectResponseProvider {
 /** 使用一次受限 LLM 选择和一次无工具总结实现 Single Tool 两个模型阶段。 */
 export class LLMSingleToolProvider implements SingleToolSelector, SingleToolResponseProvider {
   private readonly toolRegistry: ToolRegistry;
+  private readonly toolSelector: ToolSelectionService;
 
   /** 注入模型、JSON 参数解析器和当前可用 Agent 工具集合。 */
   constructor(
@@ -73,10 +76,12 @@ export class LLMSingleToolProvider implements SingleToolSelector, SingleToolResp
     private readonly tools: readonly BaseTool[],
   ) {
     this.toolRegistry = createAgentToolRegistry(tools);
+    this.toolSelector = new ToolSelectionService(this.toolRegistry);
   }
 
   /** 要求模型从现有 Tool Schema 中选择且只选择一次调用。 */
   async select(context: RuntimeExecutionContext): Promise<RuntimeToolInvocation> {
+    const availableTools = this.selectTools(context);
     const response = await this.llm.invoke({
       messages: [
         { role: 'system', content: SINGLE_TOOL_SYSTEM_PROMPT },
@@ -89,7 +94,7 @@ export class LLMSingleToolProvider implements SingleToolSelector, SingleToolResp
           }),
         },
       ],
-      tools: this.availableTools(),
+      tools: availableTools,
       // 当前兼容的部分思考模型不支持 required；由提示词要求一次调用，无调用则明确失败。
       toolChoice: 'auto',
     });
@@ -98,9 +103,12 @@ export class LLMSingleToolProvider implements SingleToolSelector, SingleToolResp
     if (!functionName) {
       throw new Error('Single Tool 路径未选择工具');
     }
-    const tool = this.findTool(functionName);
+    const tool = this.findTool(
+      functionName,
+      new Set(availableTools.map((descriptor) => descriptor.name)),
+    );
     if (!tool) {
-      throw new Error(`Single Tool 路径选择了未知工具：${functionName}`);
+      throw new Error(`Single Tool 路径选择了未授权或无关工具：${functionName}`);
     }
     const arguments_ = await this.jsonParser.invoke<Record<string, unknown>>(
       String(toolCall.function.arguments ?? '{}'),
@@ -134,15 +142,25 @@ export class LLMSingleToolProvider implements SingleToolSelector, SingleToolResp
   }
 
   /** 按函数名定位实际拥有该能力的 Agent 工具。 */
-  private findTool(functionName: string) {
-    synchronizeAgentToolRegistry(this.toolRegistry, this.tools);
-    return this.toolRegistry.resolve(functionName);
+  private findTool(functionName: string, allowedNames: ReadonlySet<string>) {
+    return allowedNames.has(functionName)
+      ? this.toolRegistry.resolve(functionName)
+      : undefined;
   }
 
-  /** 同步动态工具并返回本轮可暴露的领域描述。 */
-  private availableTools() {
+  /** 同步动态工具，并根据 Runtime 上下文计算本轮唯一可见集合。 */
+  private selectTools(context: RuntimeExecutionContext): ToolDescriptor[] {
     synchronizeAgentToolRegistry(this.toolRegistry, this.tools);
-    return this.toolRegistry.list();
+    const result = this.toolSelector.select(toolSelectionRequest(context));
+    if (result.uncoveredCapabilities.length > 0) {
+      throw new Error(
+        `Single Tool capability 无可用工具：${result.uncoveredCapabilities.join(', ')}`,
+      );
+    }
+    if (result.tools.length === 0) {
+      throw new Error('Single Tool 路径没有已授权且相关的工具');
+    }
+    return result.tools;
   }
 }
 
@@ -185,13 +203,22 @@ export class PlannerFlowRuntimeRunner implements PlannedAgentRunner {
       message: context.message,
       attachments: runtimeAttachments(context),
     });
-    for await (const event of this.flow.invoke(message)) {
+    for await (const event of this.flow.invoke(message, toolSelectionRequest(context))) {
       const payload = flowEventToRuntimePayload(event);
       if (payload) {
         yield payload;
       }
     }
   }
+}
+
+/** 把 Runtime 路由能力和外部约束组合成一次完整工具选择请求。 */
+function toolSelectionRequest(context: RuntimeExecutionContext): ToolSelectionRequest {
+  return {
+    ...structuredClone(context.toolSelection),
+    // Router 决策是权威输入，外部约束不能用同名运行时属性覆盖。
+    routerCapabilities: [...context.decision.requiredCapabilities],
+  };
 }
 
 /** 从私有执行上下文读取附件路径，避免路径进入对外 Runtime Event。 */

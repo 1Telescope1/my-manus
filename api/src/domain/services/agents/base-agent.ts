@@ -7,12 +7,14 @@ import { Memory } from '../../models/memory';
 import { Message } from '../../models/message';
 import { ToolResult } from '../../models/tool-result';
 import { ToolRegistration, ToolRegistry } from '../../models/tool';
+import { ToolSelectionRequest } from '../../models/tool-selection';
 import { UnitOfWork } from '../../repositories/unit-of-work';
 import { BaseTool } from '../tools/base-tool';
 import {
   createAgentToolRegistry,
   synchronizeAgentToolRegistry,
 } from '../tools/agent-toolset';
+import { ToolSelectionService } from '../tools/tool-selection.service';
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -25,6 +27,8 @@ type AgentInvokeOptions = {
   maxToolCalls?: number;
   /** 每种工具函数的调用上限，用于阻止模型反复使用同一无效工具。 */
   maxCallsPerTool?: Record<string, number>;
+  /** 本次模型调用允许使用的 Router、Workflow、Agent、Skill 和 Policy 约束。 */
+  toolSelection?: ToolSelectionRequest;
 };
 
 export abstract class BaseAgent {
@@ -35,6 +39,7 @@ export abstract class BaseAgent {
   protected toolChoice?: string | null;
   protected memory?: Memory;
   protected readonly toolRegistry: ToolRegistry;
+  protected readonly toolSelector: ToolSelectionService;
 
   constructor(
     protected readonly uowFactory: () => UnitOfWork,
@@ -45,6 +50,7 @@ export abstract class BaseAgent {
     protected readonly tools: BaseTool[],
   ) {
     this.toolRegistry = createAgentToolRegistry(tools);
+    this.toolSelector = new ToolSelectionService(this.toolRegistry);
   }
 
   async compactMemory(): Promise<void> {
@@ -84,13 +90,20 @@ export abstract class BaseAgent {
     });
   }
 
+  /** 在固定工具选择边界内运行模型与工具循环。 */
   async *invoke(
     query: string,
     format?: string,
     options: AgentInvokeOptions = {},
   ): AsyncGenerator<Event> {
     const responseFormat = format ?? this.format;
-    let message = await this.invokeLlm([{ role: 'user', content: query }], responseFormat);
+    let message = await this.invokeLlm(
+      [{ role: 'user', content: query }],
+      responseFormat,
+      undefined,
+      new Set(),
+      options.toolSelection,
+    );
 
     // 部分思考模型不支持 tool_choice="required"。保持 tool_choice=auto，并在模型
     // 跳过工具时通过对话纠正重试，以兼容这些模型同时保证执行步骤不会空跑。
@@ -109,6 +122,9 @@ export abstract class BaseAgent {
               'message_notify_user 等进度通知工具不算任务执行。',
           }],
           responseFormat,
+          undefined,
+          new Set(),
+          options.toolSelection,
         );
       }
 
@@ -145,10 +161,16 @@ export abstract class BaseAgent {
           toolCall.function.arguments,
           {},
         );
-        const tool = this.findTool(functionName);
+        const currentlyAllowedTools = this.getAvailableTools(options.toolSelection).filter(
+          (descriptor) => !excludedToolNames.has(descriptor.name),
+        );
+        const tool = this.findTool(
+          functionName,
+          new Set(currentlyAllowedTools.map((descriptor) => descriptor.name)),
+        );
 
         if (!tool) {
-          const availableToolNames = this.getAvailableTools().map(
+          const availableToolNames = currentlyAllowedTools.map(
             (descriptor) => descriptor.name,
           );
           const result: ToolResult = {
@@ -228,11 +250,18 @@ export abstract class BaseAgent {
           responseFormat,
           'none',
           excludedToolNames,
+          options.toolSelection,
         );
         break;
       }
 
-      message = await this.invokeLlm(toolMessages, undefined, undefined, excludedToolNames);
+      message = await this.invokeLlm(
+        toolMessages,
+        undefined,
+        undefined,
+        excludedToolNames,
+        options.toolSelection,
+      );
     }
 
     if (message?.tool_calls?.length) {
@@ -256,48 +285,57 @@ export abstract class BaseAgent {
     }
   }
 
-  /** 返回当前动态工具快照中的供应商中立描述。 */
-  protected getAvailableTools() {
+  /** 返回当前动态工具快照中的通用工具描述。 */
+  protected getAvailableTools(selection?: ToolSelectionRequest) {
     synchronizeAgentToolRegistry(this.toolRegistry, this.tools);
-    return this.toolRegistry.list();
-  }
-
-  /** 按模型可见函数名返回注册项，不存在时抛出稳定错误。 */
-  protected getTool(toolName: string): ToolRegistration {
-    const found = this.findTool(toolName);
-    if (!found) {
-      throw new Error(`未知工具: ${toolName}`);
+    if (!selection) {
+      return [];
     }
-    return found;
+    const result = this.toolSelector.select(selection);
+    if (result.uncoveredCapabilities.length > 0) {
+      throw new Error(
+        `Agent capability 无可用工具：${result.uncoveredCapabilities.join(', ')}`,
+      );
+    }
+    return result.tools;
   }
 
   /** 按模型可见函数名解析注册项，并同步初始化后出现的 MCP 工具。 */
-  protected findTool(toolName: string): ToolRegistration | undefined {
+  protected findTool(
+    toolName: string,
+    allowedNames: ReadonlySet<string>,
+  ): ToolRegistration | undefined {
     synchronizeAgentToolRegistry(this.toolRegistry, this.tools);
-    return this.toolRegistry.resolve(toolName);
+    return allowedNames.has(toolName) ? this.toolRegistry.resolve(toolName) : undefined;
   }
 
+  /** 只把选择后且未熔断的工具描述交给模型，空集合时省略 tools。 */
   protected async invokeLlm(
     messages: LLMMessage[],
     format?: string,
     toolChoice?: string | null,
     excludedToolNames: ReadonlySet<string> = new Set(),
+    selection?: ToolSelectionRequest,
   ): Promise<LLMMessage> {
     await this.addToMemory(messages);
 
     const responseFormat = format ? { type: format } : null;
     let lastError = '调用语言模型发生错误';
+    // 选择错误是确定性的，不应伪装成可重试的模型故障。
+    const availableTools = this.getAvailableTools(selection).filter(
+      (descriptor) => !excludedToolNames.has(descriptor.name),
+    );
 
     for (let i = 0; i < this.agentConfig.max_retries; i += 1) {
       try {
         const message = await this.llm.invoke({
           messages: this.memory?.getMessages() ?? [],
-          // 被熔断的函数只对本次 invoke 的后续轮次隐藏，不影响其他步骤或 Agent。
-          tools: this.getAvailableTools().filter(
-            (descriptor) => !excludedToolNames.has(descriptor.name),
-          ),
+          // 空集合时省略 tools，确保 Planner、总结和无授权场景不会产生全量回退。
+          ...(availableTools.length > 0 ? { tools: availableTools } : {}),
           responseFormat,
-          toolChoice: toolChoice === undefined ? this.toolChoice : toolChoice,
+          ...(availableTools.length > 0
+            ? { toolChoice: toolChoice === undefined ? this.toolChoice : toolChoice }
+            : {}),
         });
 
         let filteredMessage: LLMMessage;

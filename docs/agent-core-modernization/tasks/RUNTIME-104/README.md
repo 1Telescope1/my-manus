@@ -13,7 +13,7 @@
 
 ## Intent
 
-在不改变现有 legacy 执行流程的前提下建立供应商中立的请求路由核心，使确定性请求不必全部进入 Planner，并为 RUNTIME-105 的四类执行器提供稳定 `RouteDecision`。
+在不改变现有 legacy 执行流程的前提下建立不绑定特定模型厂商的请求路由核心，使确定性请求不必全部进入 Planner，并为 RUNTIME-105 的四类执行器提供稳定 `RouteDecision`。
 
 ## 本任务做了什么
 

@@ -10,6 +10,7 @@ import { Message } from '../../models/message';
 import { RouteDecision } from '../../models/route-decision';
 import { RuntimeEvent } from '../../models/runtime-event';
 import { SessionStatus } from '../../models/session';
+import { ToolSelectionConstraints } from '../../models/tool-selection';
 import { UnitOfWork } from '../../repositories/unit-of-work';
 import {
   RuntimeCheckpointBoundary,
@@ -22,25 +23,41 @@ import { RuntimeRouterService } from './router.service';
 export type RuntimeRequest = {
   sessionId: string;
   message: Message;
+  toolSelection?: ToolSelectionConstraints;
+};
+
+/** Runtime 协调器可注入的时钟和当前工具 capability catalog。 */
+export type RuntimeServiceOptions = {
+  clock?: () => Date;
+  availableToolCapabilities?: () => readonly string[];
 };
 
 /** 串联 Router、AgentRun/Checkpoint 和多路径执行器的运行协调器。 */
 export class RuntimeService {
   private readonly checkpointService: RuntimeCheckpointService;
+  private readonly clock: () => Date;
+  private readonly availableToolCapabilities: () => readonly string[];
 
   /** 注入事务边界、路由器、执行器集合和可测试时钟。 */
   constructor(
     private readonly uowFactory: () => UnitOfWork,
     private readonly router: RuntimeRouterService,
     private readonly dispatcher: RuntimeExecutorDispatcher,
-    private readonly clock: () => Date = () => new Date(),
+    options: RuntimeServiceOptions | (() => Date) = {},
   ) {
+    // 兼容 RUNTIME-105 期间公开的第四参数 clock 函数签名。
+    const normalizedOptions = typeof options === 'function' ? { clock: options } : options;
     this.checkpointService = new RuntimeCheckpointService(this.uowFactory);
+    this.clock = normalizedOptions.clock ?? (() => new Date());
+    this.availableToolCapabilities = normalizedOptions.availableToolCapabilities ?? (() => []);
   }
 
   /** 为一条用户消息创建持久化 Run，并流式返回统一 Runtime Event。 */
   async *execute(request: RuntimeRequest): AsyncIterable<RuntimeEvent> {
-    const routed = await this.router.route({ message: request.message.message });
+    const routed = await this.router.route({
+      message: request.message.message,
+      availableCapabilities: [...this.availableToolCapabilities()],
+    });
     const decision = executableDecision(routed);
     let run = createAgentRun({
       sessionId: request.sessionId,
@@ -79,6 +96,7 @@ export class RuntimeService {
         message: request.message.message,
         nextEventSequence: routeCheckpoint.checkpoint.nextEventSequence,
         privateContext: { attachments: [...request.message.attachments] },
+        toolSelection: request.toolSelection,
       })) {
         const stopped = await this.persistStopBoundary(run, runtimeEvent);
         run = stopped.run;

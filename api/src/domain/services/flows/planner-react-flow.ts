@@ -10,6 +10,7 @@ import { Message } from '../../models/message';
 import { ExecutionStatus, getNextStep, Plan, Step } from '../../models/plan';
 import { getLatestPlan, SessionStatus } from '../../models/session';
 import { UnitOfWork } from '../../repositories/unit-of-work';
+import { ToolSelectionRequest } from '../../models/tool-selection';
 import { PlannerAgent } from '../agents/planner-agent';
 import { ReActAgent } from '../agents/react-agent';
 import { A2ATool } from '../tools/a2a.tool';
@@ -72,7 +73,10 @@ export class PlannerReActFlow extends BaseFlow {
   }
 
   /** 传递消息，运行规划与执行流，并持续返回对应事件。 */
-  async *invoke(message: Message): AsyncGenerator<Event> {
+  async *invoke(
+    message: Message,
+    toolSelection?: ToolSelectionRequest,
+  ): AsyncGenerator<Event> {
     // 1. 调用会话仓库查询会话是否存在。
     const session = await this.withUow((uow) => uow.session.getById(this.sessionId));
     if (!session) {
@@ -159,7 +163,12 @@ export class PlannerReActFlow extends BaseFlow {
 
         // 20. 调用执行 Agent 执行对应的步骤。
         this.logger.log(`Planner&ReAct流开始执行步骤 ${step.id}: ${step.description.slice(0, 50)}...`);
-        for await (const event of this.react.executeStep(this.plan!, step, message)) {
+        for await (const event of this.react.executeStep(
+          this.plan!,
+          step,
+          message,
+          toolSelection,
+        )) {
           yield event;
         }
 
