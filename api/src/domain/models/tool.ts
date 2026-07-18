@@ -1,4 +1,4 @@
-import { ToolResult } from './tool-result';
+import type { ToolResult } from './tool-result';
 
 /** 工具来源；分别表示本地内置能力、MCP 服务能力和 Agent-as-Tool。 */
 export type ToolSource = 'builtin' | 'mcp' | 'agent';
@@ -19,11 +19,23 @@ export type ToolDescriptor = {
   timeoutMs: number;
 };
 
+/** 注册工具执行一次尝试时收到的可靠调用上下文。 */
+export type ToolExecutionContext = {
+  signal: AbortSignal;
+  attempt: number;
+  idempotencyKey?: string;
+};
+
 /** 可执行工具注册项；groupName 保留当前事件协议中的工具包名称。 */
 export type ToolRegistration = {
   descriptor: ToolDescriptor;
   groupName: string;
-  invoke: (arguments_: Record<string, unknown>) => Promise<ToolResult>;
+  invoke: (
+    arguments_: Record<string, unknown>,
+    context?: ToolExecutionContext,
+  ) => Promise<ToolResult>;
+  supportsAbortSignal?: boolean;
+  supportsIdempotency?: boolean;
 };
 
 /** Registry 查询条件；同一字段内任一匹配，capabilities 要求全部具备。 */

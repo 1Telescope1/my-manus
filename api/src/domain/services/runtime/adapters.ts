@@ -31,6 +31,7 @@ import {
   synchronizeAgentToolRegistry,
 } from '../tools/agent-toolset';
 import { ToolSelectionService } from '../tools/tool-selection.service';
+import { ToolInvocationService } from '../tools/tool-invocation.service';
 
 const DIRECT_SYSTEM_PROMPT =
   '你负责直接回答用户请求。不得声称调用了工具或访问了未提供的外部信息；请给出简洁、完整的最终回答。';
@@ -167,20 +168,24 @@ export class LLMSingleToolProvider implements SingleToolSelector, SingleToolResp
 /** 把 Single Tool 调用桥接到现有 BaseTool 实现。 */
 export class AgentToolRuntimeInvoker implements RuntimeToolInvoker {
   private readonly toolRegistry: ToolRegistry;
+  private readonly toolInvoker: ToolInvocationService;
 
   /** 固定本轮可调用工具集合。 */
   constructor(private readonly tools: readonly BaseTool[]) {
     this.toolRegistry = createAgentToolRegistry(tools);
+    this.toolInvoker = new ToolInvocationService(this.toolRegistry);
   }
 
   /** 按函数名找到工具并执行一次结构化调用。 */
   async invoke(input: RuntimeToolCallInput): Promise<ToolResult> {
     synchronizeAgentToolRegistry(this.toolRegistry, this.tools);
-    const tool = this.toolRegistry.resolve(input.functionName);
-    if (!tool) {
-      throw new Error(`Runtime 工具不存在：${input.functionName}`);
-    }
-    return tool.invoke(input.arguments);
+    return this.toolInvoker.invoke({
+      functionName: input.functionName,
+      arguments: input.arguments,
+      scopeId: input.runId,
+      idempotencyKey: input.idempotencyKey,
+      signal: input.signal,
+    });
   }
 }
 
@@ -203,7 +208,11 @@ export class PlannerFlowRuntimeRunner implements PlannedAgentRunner {
       message: context.message,
       attachments: runtimeAttachments(context),
     });
-    for await (const event of this.flow.invoke(message, toolSelectionRequest(context))) {
+    for await (const event of this.flow.invoke(
+      message,
+      toolSelectionRequest(context),
+      { scopeId: context.run.id, signal: context.signal },
+    )) {
       const payload = flowEventToRuntimePayload(event);
       if (payload) {
         yield payload;

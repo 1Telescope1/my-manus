@@ -15,6 +15,7 @@ import {
   synchronizeAgentToolRegistry,
 } from '../tools/agent-toolset';
 import { ToolSelectionService } from '../tools/tool-selection.service';
+import { ToolInvocationService } from '../tools/tool-invocation.service';
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -29,6 +30,8 @@ type AgentInvokeOptions = {
   maxCallsPerTool?: Record<string, number>;
   /** 本次模型调用允许使用的 Router、Workflow、Agent、Skill 和 Policy 约束。 */
   toolSelection?: ToolSelectionRequest;
+  /** 当前 Run 的可靠调用作用域与可选取消信号。 */
+  toolInvocation?: { scopeId: string; signal?: AbortSignal };
 };
 
 export abstract class BaseAgent {
@@ -40,6 +43,7 @@ export abstract class BaseAgent {
   protected memory?: Memory;
   protected readonly toolRegistry: ToolRegistry;
   protected readonly toolSelector: ToolSelectionService;
+  protected readonly toolInvoker: ToolInvocationService;
 
   constructor(
     protected readonly uowFactory: () => UnitOfWork,
@@ -51,6 +55,7 @@ export abstract class BaseAgent {
   ) {
     this.toolRegistry = createAgentToolRegistry(tools);
     this.toolSelector = new ToolSelectionService(this.toolRegistry);
+    this.toolInvoker = new ToolInvocationService(this.toolRegistry);
   }
 
   async compactMemory(): Promise<void> {
@@ -208,7 +213,12 @@ export abstract class BaseAgent {
           status: ToolEventStatus.CALLING,
         });
 
-        const result = await this.invokeTool(tool, functionArgs);
+        const result = await this.invokeTool(
+          tool,
+          functionArgs,
+          toolCallId,
+          options.toolInvocation,
+        );
 
         // 当前调用仍正常执行并把结果回传给模型；从下一轮开始才从工具列表移除，
         // 确保 OpenAI/DeepSeek 的 tool_call 与 tool result 消息始终成对出现。
@@ -372,21 +382,20 @@ export abstract class BaseAgent {
     throw new Error(`调用语言模型失败, 已达到最大重试次数(${this.agentConfig.max_retries}): ${lastError}`);
   }
 
+  /** 把模型选定的工具交给统一可靠调用层，不在 Agent 内自行决定重试。 */
   protected async invokeTool(
     tool: ToolRegistration,
     args: Record<string, any>,
+    toolCallId: string,
+    invocation?: { scopeId: string; signal?: AbortSignal },
   ): Promise<ToolResult> {
-    let error = '';
-    for (let i = 0; i < this.agentConfig.max_retries; i += 1) {
-      try {
-        return await tool.invoke(args);
-      } catch (err) {
-        error = err instanceof Error ? err.message : String(err);
-        await sleep(this.retryIntervalMs);
-      }
-    }
-
-    return { success: false, message: error };
+    return this.toolInvoker.invoke({
+      functionName: tool.descriptor.name,
+      arguments: args,
+      scopeId: invocation?.scopeId ?? this.sessionId,
+      idempotencyKey: toolCallId,
+      signal: invocation?.signal,
+    });
   }
 
   protected async addToMemory(messages: LLMMessage[]): Promise<void> {

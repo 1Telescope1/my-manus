@@ -34,6 +34,7 @@ export type RuntimeExecutionRequest = {
   metadata?: Readonly<Record<string, unknown>>;
   privateContext?: Readonly<Record<string, unknown>>;
   toolSelection?: ToolSelectionConstraints;
+  signal?: AbortSignal;
 };
 
 /** 已完成校验、可安全传给具体能力端口的执行上下文。 */
@@ -44,6 +45,7 @@ export type RuntimeExecutionContext = {
   metadata: Readonly<Record<string, unknown>>;
   privateContext: Readonly<Record<string, unknown>>;
   toolSelection: ToolSelectionConstraints;
+  signal?: AbortSignal;
 };
 
 /** 为事件时间和标识提供可测试的注入点。 */
@@ -102,6 +104,8 @@ export type RuntimeToolCallInput = RuntimeToolInvocation & {
   runId: string;
   sessionId: string;
   toolCallId: string;
+  idempotencyKey: string;
+  signal?: AbortSignal;
 };
 
 /** Single Tool 执行器依赖的最小工具调用端口。 */
@@ -286,6 +290,8 @@ export class SingleToolRuntimeExecutor extends BaseRuntimeExecutor {
       runId: context.run.id,
       sessionId: context.run.sessionId,
       toolCallId,
+      idempotencyKey: toolCallId,
+      signal: context.signal,
     };
 
     yield {
@@ -296,7 +302,7 @@ export class SingleToolRuntimeExecutor extends BaseRuntimeExecutor {
       arguments: invocation.arguments,
     };
 
-    // Invoker 只在这一处调用一次；失败直接进入 run.failed，不在本任务内隐式重试。
+    // 路径只提交一次逻辑调用；可靠调用层可按风险和幂等策略执行受控重试。
     const result = await this.invoker.invoke(invocation);
     yield {
       type: 'tool.called',
@@ -438,6 +444,7 @@ function normalizeExecutionRequest(
       // 私有上下文仅供路径驱动器使用，不能进入对外 Runtime Event。
       privateContext: { ...(request.privateContext ?? {}) },
       toolSelection: structuredClone(request.toolSelection ?? {}),
+      signal: request.signal,
     },
     nextEventSequence,
   };

@@ -76,6 +76,7 @@ export class PlannerReActFlow extends BaseFlow {
   async *invoke(
     message: Message,
     toolSelection?: ToolSelectionRequest,
+    toolInvocation?: { scopeId: string; signal?: AbortSignal },
   ): AsyncGenerator<Event> {
     // 1. 调用会话仓库查询会话是否存在。
     const session = await this.withUow((uow) => uow.session.getById(this.sessionId));
@@ -168,6 +169,7 @@ export class PlannerReActFlow extends BaseFlow {
           step,
           message,
           toolSelection,
+          toolInvocation,
         )) {
           yield event;
         }

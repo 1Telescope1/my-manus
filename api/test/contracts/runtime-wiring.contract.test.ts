@@ -399,6 +399,14 @@ test('Single Tool 应执行一次现有工具并输出兼容事件', async () =>
   assert.equal(searchEngine.queries[0], 'runtime 架构');
   assert.equal(output[0].type === 'tool' && output[0].status, 'calling');
   assert.equal(output[1].type === 'tool' && output[1].status, 'called');
+  assert.equal(
+    output[1].type === 'tool' && output[1].function_result?.metadata?.attempts,
+    1,
+  );
+  assert.equal(
+    output[1].type === 'tool' && output[1].function_result?.metadata?.risk,
+    'read',
+  );
   assert.equal(output[2].type === 'message' && output[2].message, '搜索完成');
   assert.equal([...store.runs.values()][0].status, RunStatus.COMPLETED);
   assert.equal(llm.calls.length, 3);

@@ -24,6 +24,7 @@ export type RuntimeRequest = {
   sessionId: string;
   message: Message;
   toolSelection?: ToolSelectionConstraints;
+  signal?: AbortSignal;
 };
 
 /** Runtime 协调器可注入的时钟和当前工具 capability catalog。 */
@@ -97,6 +98,7 @@ export class RuntimeService {
         nextEventSequence: routeCheckpoint.checkpoint.nextEventSequence,
         privateContext: { attachments: [...request.message.attachments] },
         toolSelection: request.toolSelection,
+        signal: request.signal,
       })) {
         const stopped = await this.persistStopBoundary(run, runtimeEvent);
         run = stopped.run;

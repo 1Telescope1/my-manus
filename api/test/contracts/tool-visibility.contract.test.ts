@@ -4,6 +4,7 @@ import { JSONParser } from '../../src/domain/external/json-parser';
 import { LLM, LLMMessage } from '../../src/domain/external/llm';
 import { SearchEngine } from '../../src/domain/external/search-engine';
 import { createAgentRun, RouteKind } from '../../src/domain/models/agent-run';
+import { Event } from '../../src/domain/models/event';
 import { Memory } from '../../src/domain/models/memory';
 import { createPlan } from '../../src/domain/models/plan';
 import { createMessage } from '../../src/domain/models/message';
@@ -210,14 +211,27 @@ test('ReAct 每轮模型请求应保持 Runtime 选定的最小工具集合', as
   );
   const plan = createPlan({ language: 'zh-CN', steps: ['搜索资料'] });
 
-  await consume(react.executeStep(
+  const emitted: Event[] = [];
+  for await (const event of react.executeStep(
     plan,
     plan.steps[0],
     createMessage({ message: '搜索最小披露资料' }),
     { routerCapabilities: ['search'] },
-  ));
+    { scopeId: 'run-tool-visibility' },
+  )) {
+    emitted.push(event);
+  }
 
   assert.equal(search.queries.length, 1);
+  const called = emitted.find((event) => event.type === 'tool' && event.status === 'called');
+  assert.equal(
+    called?.type === 'tool' && called.function_result?.metadata?.attempts,
+    1,
+  );
+  assert.equal(
+    called?.type === 'tool' && called.function_result?.metadata?.idempotencyKey,
+    'call-search',
+  );
   assert.ok(llm.calls.length >= 2);
   assert.ok(llm.calls.every((call) => (
     call.tools?.map((descriptor) => descriptor.name).join(',') === 'search_web'

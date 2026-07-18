@@ -59,6 +59,7 @@ export class ReActAgent extends BaseAgent {
     step: Step,
     message: Message,
     toolSelection?: ToolSelectionRequest,
+    toolInvocation?: { scopeId: string; signal?: AbortSignal },
   ): AsyncGenerator<Event> {
     const query = formatTemplate(EXECUTION_PROMPT, {
       message: message.message,
@@ -79,6 +80,7 @@ export class ReActAgent extends BaseAgent {
         search_web: 3,
       },
       toolSelection,
+      toolInvocation,
     })) {
       if (event.type === 'tool' && event.function_name === 'message_ask_user') {
         if (event.status === ToolEventStatus.CALLING) {
