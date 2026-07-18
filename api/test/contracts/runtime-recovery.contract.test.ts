@@ -26,12 +26,12 @@ import {
   RuntimeCheckpointBoundary,
   RuntimeCheckpointCommitError,
   RuntimeCheckpointService,
-} from '../../src/domain/services/runtime-checkpoint.service';
+} from '../../src/domain/services/runtime/checkpoint.service';
 import {
   RuntimeRecoveryDisposition,
   RuntimeRecoveryReason,
   RuntimeRecoveryService,
-} from '../../src/domain/services/runtime-recovery.service';
+} from '../../src/domain/services/runtime/recovery.service';
 
 const NOW = new Date('2026-07-17T02:00:00.000Z');
 const LATER = new Date('2026-07-17T02:01:00.000Z');

@@ -34,7 +34,7 @@
 
 - API 入口：[api/src/main.ts](../api/src/main.ts)
 - Sandbox 入口：[sandbox/src/main.ts](../sandbox/src/main.ts)
-- Agent 任务运行器：[api/src/domain/services/agent-task-runner.ts](../api/src/domain/services/agent-task-runner.ts)
+- Agent 任务运行器：[api/src/domain/services/runtime/agent-task-runner.ts](../api/src/domain/services/runtime/agent-task-runner.ts)
 - Planner + ReAct 流程：[api/src/domain/services/flows/planner-react-flow.ts](../api/src/domain/services/flows/planner-react-flow.ts)
 - Agent 基类：[api/src/domain/services/agents/base-agent.ts](../api/src/domain/services/agents/base-agent.ts)
 - Session 数据结构：[api/prisma/schema.prisma](../api/prisma/schema.prisma)
@@ -572,39 +572,27 @@ type AgentDescriptor = {
 - 现有 Session 创建、聊天、停止、流式读取、文件和 Shell API 在迁移期保持可用。
 - 现有 `plan`、`step`、`tool`、`message`、`wait`、`error`、`done` 事件保持语义。
 - 新字段只能先以可选字段加入：`run_id`、`sequence`、`checkpoint_id`、`metadata`。
-- Event Adapter 负责把新 Runtime Event 映射为旧事件，领域执行器不直接依赖 UI 类型。
+- Event Adapter 负责把 Runtime Event 映射为 Session Event，领域执行器不直接依赖 UI 类型。
 - `sequence` 在单个 Run 内单调递增，用于断线恢复和去重。
 
-### 10.2 功能开关
+### 10.2 正式运行入口
 
-统一使用一个运行模式配置：
+- `AgentTaskRunner` 只通过 `RuntimeService` 执行消息，不提供内核运行模式开关。
+- Router 为每个请求选择 Direct、Single Tool、Workflow 或 Planned Agent。
+- Planned Agent 内部复用 `PlannerReActFlow`，它是正式执行器实现，不是独立入口。
+- Runtime Event 经 Event Adapter 转换成 Session Event，现有 API、SSE 和 UI 协议保持不变。
 
-```text
-AGENT_RUNTIME_MODE=legacy|v2|shadow
-```
+### 10.3 回滚
 
-- `legacy`：只运行现有 `PlannerReActFlow`，作为初始默认值。
-- `v2`：运行新内核并通过 Event Adapter 输出。
-- `shadow`：只允许在无副作用评测任务中同时运行新旧内核；对用户只返回 legacy 结果。
-- 生产请求不得在 shadow 模式重复执行写入、破坏性或外部通信工具。
-
-### 10.3 回滚与旧实现移除
-
-任一条件满足时回滚到 `legacy`：
+任一条件满足时回滚到上一个可用部署版本：
 
 - Event 契约测试失败。
 - 出现重复副作用或 Checkpoint 恢复错误。
 - 取消后仍继续调度新工具。
 - 核心评测完成率显著低于基线。
-- 新运行时导致无法读取既有 Session。
+- Runtime 导致无法读取既有 Session。
 
-旧 `PlannerReActFlow` 只有在以下条件全部满足后才能进入移除任务：
-
-- 新运行时默认启用并稳定运行至少一个发布周期。
-- 所有 Compatibility 验收通过。
-- 评测和故障注入达到本文档门槛。
-- 已验证历史 Session 读取和新旧事件兼容。
-- 有明确的回滚版本或数据库迁移恢复说明。
+回滚不得依赖已删除的内核分支；使用镜像或提交版本回退，并保留数据库迁移恢复说明。
 
 ## 11. Evaluation 设计
 
@@ -638,15 +626,15 @@ AGENT_RUNTIME_MODE=legacy|v2|shadow
 | Cancellation Latency | 停止请求到不再执行外部操作的时间 |
 | Duplicate Side Effects | 故障恢复后重复外部写操作数量 |
 
-### 11.3 新运行时默认启用门槛
+### 11.3 Runtime 发布门槛
 
 - 既有 API/Event 契约测试 100% 通过。
-- 固定任务集完成率不低于 legacy 基线。
+- 固定任务集完成率不低于既有发布基线。
 - 故障注入中的可恢复案例 100% 从预期节点继续。
 - 重复副作用数量为 0。
 - 取消后不得调度新的 ToolCall。
-- Direct 和 Single Tool 路径的 P95 延迟不得比 legacy 高 15% 以上。
-- Planned Agent 路径的 P95 延迟不得比 legacy 高 20% 以上，除非完成率有记录充分的提升。
+- Direct 和 Single Tool 路径的 P95 延迟不得比既有发布基线高 15% 以上。
+- Planned Agent 路径的 P95 延迟不得比既有发布基线高 20% 以上，除非完成率有记录充分的提升。
 - Skills 触发与 Tool 选择专项评测达到任务中约定的样本门槛。
 
 ## 12. 任务与进度记录
@@ -660,7 +648,7 @@ AGENT_RUNTIME_MODE=legacy|v2|shadow
 | ADR-001 | Accepted | 保留 NestJS，自研供应商中立 Agent Runtime | 当前领域抽象和部署结构可复用，避免绑定单一模型厂商 | 可参考现有框架模式，但领域类型不得依赖厂商 SDK | 2026-07-16 |
 | ADR-002 | Accepted | 迁移期保持 Session API 和 SSE Event 兼容 | UI 和数据流已经可用，先替换内核能降低范围和风险 | 新字段先可选加入；通过 Event Adapter 隔离 | 2026-07-16 |
 | ADR-003 | Accepted | Skills 采用 Agent Skills 开放格式 | 便于跨客户端复用并支持渐进式披露 | 首个实现只扫描 `.agents/skills/` 项目目录 | 2026-07-16 |
-| ADR-004 | Accepted | 使用运行模式开关渐进迁移 | 需要新旧内核比较和快速回滚 | 使用 legacy/v2/shadow；shadow 禁止重复副作用 | 2026-07-16 |
+| ADR-004 | Superseded | 使用运行模式开关渐进迁移 | Runtime 已正式化为唯一入口 | 由 ADR-012 取代 | 2026-07-16 |
 | ADR-005 | Accepted | 所有工作流同级，不设置实施阶段 | 各能力可以独立或并行推进 | 只有任务表 Dependencies 构成前置关系 | 2026-07-16 |
 | ADR-006 | Accepted | Skill 默认不是 Agent | 流程知识不需要独立模型和会话状态 | 只有独立模型、状态、工具或所有权边界才创建 Agent | 2026-07-16 |
 | ADR-007 | Accepted | Run State、Conversation Memory、Working Context 和 Artifact 分离 | 当前消息列表同时承担过多职责 | 每类数据使用独立生命周期和进入模型规则 | 2026-07-16 |
@@ -668,6 +656,7 @@ AGENT_RUNTIME_MODE=legacy|v2|shadow
 | ADR-009 | Accepted | 设计文档与执行记录分离 | 单一 SDD 同时维护设计、任务和会话日志会持续膨胀 | SDD 只维护设计和 ADR；任务执行记录进入独立工作区 | 2026-07-16 |
 | ADR-010 | Accepted | 总清单使用单一 Markdown，已启动任务使用独立目录 | 用户需要先看到完整待办，再按任务持续积累工作过程 | `TASKS.md` 是总清单；`tasks/<TASK-ID>/` 包含任务首页、worklog 和 evidence | 2026-07-16 |
 | ADR-011 | Accepted | 不单独维护 Session Handoff 目录 | 每个任务已有持续 worklog 和 Current State，独立 Handoff 会重复记录 | 跨会话续作直接读取任务目录；没有已启动任务时无需创建交接记录 | 2026-07-16 |
+| ADR-012 | Accepted | Runtime 是唯一消息执行入口 | 双入口增加配置、测试和运行分歧，且正式 Runtime 已通过会话链路验证 | 删除运行模式开关；Planned Agent 保留 `PlannerReActFlow` 作为内部实现；回滚使用部署版本 | 2026-07-18 |
 
 新增 ADR 时使用以下格式：
 
@@ -694,7 +683,7 @@ AGENT_RUNTIME_MODE=legacy|v2|shadow
 | A2A 任务长期无响应 | 超时、订阅和本地状态映射 | 保留远程 Task ID，可取消或恢复订阅 | 流中断测试 |
 | Memory 摘要失真 | 结构化字段和来源范围 | 不把未确认内容写入 confirmedFacts | 长会话回归集 |
 | Handoff 泄漏无关上下文 | Context Filter | 阻止转移并记录错误 | 上下文边界测试 |
-| shadow 重复写操作 | 只允许无副作用任务 | 强制退回 legacy 单跑 | 风险分类契约测试 |
+| 重复写操作 | Checkpoint、幂等键和调用状态 | 检查外部状态；未知时暂停人工确认 | 风险分类与故障注入测试 |
 
 ## 15. 参考资料
 

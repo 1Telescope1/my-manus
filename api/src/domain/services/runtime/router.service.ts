@@ -1,12 +1,13 @@
-import { RuntimeRouteModel } from '../external/runtime-route-model';
-import { RouteKind } from '../models/agent-run';
+import { RuntimeRouteModel } from '../../external/runtime-route-model';
+import { ZodError } from 'zod';
+import { RouteKind } from '../../models/agent-run';
 import {
   NormalizedRuntimeRouteRequest,
   RouteDecision,
   RouteDecisionSchema,
   RuntimeRouteRequest,
   RuntimeRouteRequestSchema,
-} from '../models/route-decision';
+} from '../../models/route-decision';
 
 /** 模型路由的默认最低置信度，低于该值时保持 Planner 兼容路径。 */
 export const DEFAULT_ROUTE_CONFIDENCE_THRESHOLD = 0.6;
@@ -56,7 +57,7 @@ export class RuntimeRouterService {
       if (!decision.success) {
         return createPlannedAgentFallback(
           request,
-          `确定性规则 ${rule.name} 返回无效结果`,
+          routeValidationCause(`确定性规则 ${rule.name} 返回无效结果`, decision.error),
         );
       }
       if (decision.data.confidence < this.minimumConfidence) {
@@ -79,13 +80,26 @@ export class RuntimeRouterService {
     // 模型输出属于不可信边界，必须经过严格 Schema 和置信度双重校验。
     const decision = RouteDecisionSchema.safeParse(candidate);
     if (!decision.success) {
-      return createPlannedAgentFallback(request, '路由模型返回无效结果');
+      return createPlannedAgentFallback(
+        request,
+        routeValidationCause('路由模型返回无效结果', decision.error),
+      );
     }
     if (decision.data.confidence < this.minimumConfidence) {
       return createPlannedAgentFallback(request, '路由模型置信度不足');
     }
     return decision.data;
   }
+}
+
+/** 提取首个 Schema 问题写入回退原因，避免诊断时只能看到笼统的无效结果。 */
+function routeValidationCause(prefix: string, error: ZodError): string {
+  const issue = error.issues[0];
+  if (!issue) {
+    return prefix;
+  }
+  const path = issue.path.length > 0 ? issue.path.join('.') : 'decision';
+  return `${prefix}（${path}: ${issue.message}）`;
 }
 
 /** 校验配置的置信度阈值，避免错误配置使所有请求静默走错路径。 */
@@ -96,7 +110,7 @@ function parseConfidenceThreshold(value: number): number {
   return value;
 }
 
-/** 构造与 legacy Planner 行为接近的稳定安全回退决策。 */
+/** 构造稳定的 Planned Agent 安全回退决策。 */
 function createPlannedAgentFallback(
   request: NormalizedRuntimeRouteRequest,
   cause: string,

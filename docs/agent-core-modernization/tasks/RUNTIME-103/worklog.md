@@ -18,8 +18,8 @@
 | --- | --- |
 | `docs/agent-core-modernization/TASKS.md` | 领取任务并标记为实施中。 |
 | `docs/agent-core-modernization/tasks/RUNTIME-103/*` | 建立任务范围、日志和证据记录。 |
-| `api/src/domain/services/runtime-checkpoint.service.ts` | 定义全部持久化边界，并原子提交 Run 游标/version 与 Checkpoint。 |
-| `api/src/domain/services/runtime-recovery.service.ts` | 把持久化现场解析为恢复动作、游标、工具分类和中断集合。 |
+| `api/src/domain/services/runtime/checkpoint.service.ts` | 定义全部持久化边界，并原子提交 Run 游标/version 与 Checkpoint。 |
+| `api/src/domain/services/runtime/recovery.service.ts` | 把持久化现场解析为恢复动作、游标、工具分类和中断集合。 |
 | `api/test/contracts/runtime-recovery.contract.test.ts` | 覆盖模型/工具故障注入、暂停/等待、事务回滚和缺失快照。 |
 | `api/test/integration/agent-run-persistence.integration.test.ts` | 在真实 PostgreSQL 上验证原子提交和未知副作用恢复分类。 |
 

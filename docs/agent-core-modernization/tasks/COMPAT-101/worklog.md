@@ -19,7 +19,7 @@
 | `docs/agent-core-modernization/TASKS.md` | 将任务链接并标为实施中。 |
 | `docs/agent-core-modernization/tasks/COMPAT-101/*` | 建立任务范围、日志和证据记录。 |
 | `api/src/domain/models/runtime-event.ts` | 定义适配器使用的统一 Runtime Event 联合类型。 |
-| `api/src/application/compatibility/runtime-event.adapter.ts` | 实现 legacy 映射、运行字段透传和按 Run 去重。 |
+| `api/src/application/services/runtime-event.adapter.ts` | 实现 Session Event 映射、运行字段透传和按 Run 去重。 |
 | `api/src/domain/models/event.ts` | 为现有 Event 增加可选兼容字段。 |
 | `api/src/interfaces/dto/event.dto.ts` | 将可选兼容字段传递到 SSE，同时保持 legacy 输出不变。 |
 | `api/test/contracts/runtime-event-adapter.contract.test.ts` | 验证 v2 模拟事件、去重、失败和取消映射。 |

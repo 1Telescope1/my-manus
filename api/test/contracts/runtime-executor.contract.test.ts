@@ -31,7 +31,7 @@ import {
   SingleToolRuntimeExecutor,
   SingleToolSelector,
   WorkflowRuntimeExecutor,
-} from '../../src/domain/services/runtime-executor.service';
+} from '../../src/domain/services/runtime/executor.service';
 import { RuntimeEvent } from '../../src/domain/models/runtime-event';
 import { ToolResult } from '../../src/domain/models/tool-result';
 
@@ -234,6 +234,7 @@ test('Direct 路径应独立生成统一消息和完成事件', async () => {
   const events = await collectEvents(executor.execute(createRequest(RouteKind.DIRECT, {
     nextEventSequence: 7,
     metadata: { trace: 'trace-1', route: 'cannot-override' },
+    privateContext: { attachments: ['/sandbox/private.txt'] },
   })));
 
   assert.equal(provider.calls, 1);

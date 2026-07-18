@@ -3,14 +3,14 @@ import {
   AgentRun,
   RouteKind,
   RunStatus,
-} from '../models/agent-run';
-import { RouteDecision } from '../models/route-decision';
+} from '../../models/agent-run';
+import { RouteDecision } from '../../models/route-decision';
 import {
   RuntimeEvent,
   RuntimeFailedEvent,
   RuntimeTerminalEvent,
-} from '../models/runtime-event';
-import { ToolResult } from '../models/tool-result';
+} from '../../models/runtime-event';
+import { ToolResult } from '../../models/tool-result';
 
 type RuntimeEventEnvelopeKey = 'id' | 'runId' | 'sequence' | 'createdAt';
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
@@ -31,6 +31,7 @@ export type RuntimeExecutionRequest = {
   message: string;
   nextEventSequence?: number;
   metadata?: Readonly<Record<string, unknown>>;
+  privateContext?: Readonly<Record<string, unknown>>;
 };
 
 /** 已完成校验、可安全传给具体能力端口的执行上下文。 */
@@ -39,6 +40,7 @@ export type RuntimeExecutionContext = {
   decision: RouteDecision;
   message: string;
   metadata: Readonly<Record<string, unknown>>;
+  privateContext: Readonly<Record<string, unknown>>;
 };
 
 /** 为事件时间和标识提供可测试的注入点。 */
@@ -342,7 +344,7 @@ export class WorkflowRuntimeExecutor extends BaseRuntimeExecutor {
 export class PlannedAgentRuntimeExecutor extends BaseRuntimeExecutor {
   readonly route = RouteKind.PLANNED_AGENT;
 
-  /** 注入具体 Planned Agent 驱动器，不依赖 legacy Planner 类型。 */
+  /** 注入具体 Planned Agent 驱动器，不依赖特定 Planner 类型。 */
   constructor(
     private readonly runner: PlannedAgentRunner,
     options: RuntimeExecutorOptions = {},
@@ -430,6 +432,8 @@ function normalizeExecutionRequest(
       decision,
       message,
       metadata: { ...(request.metadata ?? {}) },
+      // 私有上下文仅供路径驱动器使用，不能进入对外 Runtime Event。
+      privateContext: { ...(request.privateContext ?? {}) },
     },
     nextEventSequence,
   };

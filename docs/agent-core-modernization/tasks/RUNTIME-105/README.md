@@ -20,8 +20,8 @@
 | 确定结论 | 证据路径 | 不确定项 | 建议改动范围 |
 | --- | --- | --- | --- |
 | 四类 `RouteKind` 和严格 `RouteDecision` 已存在 | `api/src/domain/models/agent-run.ts`、`api/src/domain/models/route-decision.ts` | 无 | 复用现有领域模型，不重复定义 |
-| 统一 `RuntimeEvent` 和兼容适配器已存在 | `api/src/domain/models/runtime-event.ts`、`api/src/application/compatibility/runtime-event.adapter.ts` | 尚无统一事件生产器 | 在执行器层集中分配事件基础字段和 sequence |
-| Router 只做无副作用决策 | `api/src/domain/services/runtime-router.service.ts`、`RUNTIME-104` 任务证据 | 无 | Dispatcher 只消费已校验的决策 |
+| 统一 `RuntimeEvent` 和事件适配器已存在 | `api/src/domain/models/runtime-event.ts`、`api/src/application/services/runtime-event.adapter.ts` | 尚无统一事件生产器 | 在执行器层集中分配事件基础字段和 sequence |
+| Router 只做无副作用决策 | `api/src/domain/services/runtime/router.service.ts`、`RUNTIME-104` 任务证据 | 无 | Dispatcher 只消费已校验的决策 |
 | Tool Registry 与统一可靠调用策略尚未实现 | `TASKS.md` 中 `TOOL-101`、`TOOL-103` | 具体工具发现、重试、审批由后续任务决定 | 本任务定义注入端口并约束 Single Tool 只调用一次 |
 | 真实请求切换属于 `RUNTIME-108` | SDD 10.2、`RUNTIME-104` 当前边界 | 无 | 不修改 legacy `AgentTaskRunner`、Session API 或 UI |
 

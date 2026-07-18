@@ -1,0 +1,25 @@
+# RUNTIME-108 Worklog
+
+## 2026-07-18 — 接入 Runtime
+
+- 串联 Router、Run/Checkpoint、四路径 Dispatcher 与 Event Adapter。
+- 增加 Direct、Single Tool、Planned Agent 和 Workflow 回退适配器，并抽取共用 Toolset。
+- 将附件路径隔离在 `privateContext`，避免写入 Runtime Event metadata。
+- 增加接线契约，验证历史 Session、一次工具调用、Workflow 回退和 waiting 边界。
+
+## 2026-07-18 — 补齐生产路由规则
+
+- 根据真实 Run 的 `routeReason` 定位概念解释请求的 Schema 回退原因。
+- 将概念解释意图落实为生产默认规则，实时外部数据请求继续交给模型判断。
+- 对齐路由提示词和 `RouteDecision` 可选字段语义，并规范化 `workflowName: null`。
+- Schema 回退原因记录首个失败字段。
+
+## 2026-07-18 — Runtime 正式化
+
+- 将 `RuntimeService` 固定为 `AgentTaskRunner` 的唯一消息执行入口。
+- 删除运行模式类型、环境变量、Compose 配置和旧分支。
+- 将版本化或过渡期命名改为正式名称：`RuntimeService`、`RuntimeEventAdapter`、`AgentToolRuntimeInvoker`、`PlannerFlowRuntimeRunner` 和 `createAgentToolset`。
+- 保留 `PlannerReActFlow` 作为 Planned Agent 内部实现，保留 Event Adapter 作为领域事件与公开事件的稳定边界。
+- 取消依赖双入口的 COMPAT-102/103/104，并新增 ADR-012。
+- 专项契约 24/24、全量契约 67/67、类型检查和生产构建通过。
+- API 镜像重建成功，容器 healthy，状态接口确认 PostgreSQL 与 Redis 正常，容器内不存在旧运行模式环境变量。

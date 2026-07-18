@@ -13,12 +13,8 @@ import { UnitOfWork } from '../../repositories/unit-of-work';
 import { PlannerAgent } from '../agents/planner-agent';
 import { ReActAgent } from '../agents/react-agent';
 import { A2ATool } from '../tools/a2a.tool';
-import { BrowserTool } from '../tools/browser.tool';
-import { FileTool } from '../tools/file.tool';
+import { createAgentToolset } from '../tools/agent-toolset';
 import { MCPTool } from '../tools/mcp.tool';
-import { MessageTool } from '../tools/message.tool';
-import { SearchTool } from '../tools/search.tool';
-import { ShellTool } from '../tools/shell.tool';
 import { BaseFlow, FlowStatus } from './base-flow';
 
 export class PlannerReActFlow extends BaseFlow {
@@ -28,6 +24,7 @@ export class PlannerReActFlow extends BaseFlow {
   private status = FlowStatus.IDLE;
   private plan?: Plan;
 
+  /** 创建共享当前 Agent Toolset 的 Planner 和 ReAct Agent。 */
   constructor(
     private readonly uowFactory: () => UnitOfWork,
     private readonly llm: LLM,
@@ -43,15 +40,13 @@ export class PlannerReActFlow extends BaseFlow {
     super();
 
     // 1. 初始化 Agent 预设工具列表。
-    const tools = [
-      new FileTool(this.sandbox),
-      new ShellTool(this.sandbox),
-      new BrowserTool(this.browser),
-      new SearchTool(this.searchEngine),
-      new MessageTool(),
-      this.mcpTool,
-      this.a2aTool,
-    ];
+    const tools = createAgentToolset({
+      browser: this.browser,
+      sandbox: this.sandbox,
+      searchEngine: this.searchEngine,
+      mcpTool: this.mcpTool,
+      a2aTool: this.a2aTool,
+    });
 
     // 2. 创建规划 Agent。
     this.planner = new PlannerAgent(

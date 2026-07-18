@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | 当前 legacy Session API 行为有可执行基线 | Pass | `session-api.contract.test.ts` 覆盖创建、列表、详情、404、chat SSE 和 sessions SSE。 |
 | Plan、Step、Tool、Wait、Done 必填字段被验证 | Pass | `event-sse.contract.test.ts` 对 JSON wire payload 做精确断言。 |
-| 正常完成和等待路径的事件顺序被验证 | Pass | `legacy-event-order.contract.test.ts` 覆盖完整 PlannerReActFlow、普通工具步骤和 ask-user 等待路径。 |
+| 正常完成和等待路径的事件顺序被验证 | Pass | `planner-event-order.contract.test.ts` 覆盖完整 PlannerReActFlow、普通工具步骤和 ask-user 等待路径。 |
 
 ## Verification Commands
 

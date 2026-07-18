@@ -8,8 +8,8 @@ import {
   ToolCallStatus,
   ToolRisk,
   isTerminalRunStatus,
-} from '../models/agent-run';
-import { UnitOfWork } from '../repositories/unit-of-work';
+} from '../../models/agent-run';
+import { UnitOfWork } from '../../repositories/unit-of-work';
 
 /** 恢复解析器交给运行调度器的下一步动作。 */
 export enum RuntimeRecoveryDisposition {

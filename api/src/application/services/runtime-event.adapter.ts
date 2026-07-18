@@ -11,7 +11,7 @@ import { ExecutionStatus, Plan, Step } from '../../domain/models/plan';
 import { RuntimeEvent } from '../../domain/models/runtime-event';
 
 /**
- * 将新 Runtime Event 转换成现有 Session/SSE 流使用的领域事件。
+ * 将 Runtime Event 转换成现有 Session/SSE 流使用的领域事件。
  *
  * 每个适配器实例保存各 Run 的 sequence 水位；重复事件和比水位更旧的事件不会再次输出。
  */
@@ -26,7 +26,7 @@ export class RuntimeEventAdapter {
       return null;
     }
 
-    const event = attachRuntimeContext(toLegacyEvent(runtimeEvent), runtimeEvent);
+    const event = attachRuntimeContext(toSessionEvent(runtimeEvent), runtimeEvent);
     this.lastSequenceByRun.set(runtimeEvent.runId, runtimeEvent.sequence);
     return event;
   }
@@ -55,7 +55,7 @@ export class RuntimeEventAdapter {
   }
 }
 
-function toLegacyEvent(runtimeEvent: RuntimeEvent): Event {
+function toSessionEvent(runtimeEvent: RuntimeEvent): Event {
   switch (runtimeEvent.type) {
     case 'title.updated':
       return {

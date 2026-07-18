@@ -161,6 +161,26 @@ docker compose up -d --build
 
 打开 <http://localhost:8088>。可通过 `APP_PORT` 修改宿主机端口。
 
+### 4. 可选：查看数据库
+
+启动只绑定本机的 Adminer：
+
+```bash
+docker compose --profile tools up -d adminer
+```
+
+打开 <http://127.0.0.1:8089>，使用以下信息登录：
+
+| 登录项 | 值 |
+| --- | --- |
+| 系统 | `PostgreSQL` |
+| 服务器 | `postgres` |
+| 用户名 | `.env` 中的 `POSTGRES_USER`，默认 `postgres`，已预填 |
+| 密码 | `.env` 中的 `POSTGRES_PASSWORD` |
+| 数据库 | `.env` 中的 `POSTGRES_DB`，默认 `manus`，已预填 |
+
+登录页会默认选择 PostgreSQL，并预填服务器、用户名和项目数据库；密码不会写入页面。Adminer 端口只绑定 `127.0.0.1`，不会对局域网开放。使用完可执行 `docker compose --profile tools stop adminer` 停止管理页面。
+
 ## 容器与数据
 
 | Compose 服务 | 技术/用途 | 内部端口 | 默认是否对外暴露 |
@@ -171,6 +191,7 @@ docker compose up -d --build
 | `sandbox` | 工具执行与浏览器沙箱 | 8080/9222/5900/5901 | 否 |
 | `postgres` | 业务数据 | 5432 | 否 |
 | `redis` | Stream 与缓存 | 6379 | 否 |
+| `adminer` | 可选数据库 GUI | 8080 | 仅 `tools` profile，本机 `127.0.0.1:8089` |
 
 持久化卷包括 `postgres_data`、`redis_data` 和 `api_config`。`docker compose down` 不会删除这些数据；`docker compose down -v` 会永久删除，请谨慎使用。
 
@@ -179,6 +200,7 @@ docker compose up -d --build
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
 | `APP_PORT` | `8088` | Nginx 对外端口 |
+| `ADMINER_PORT` | `8089` | 可选 Adminer 本机端口 |
 | `POSTGRES_*` / `DATABASE_URL` | 本地 `manus` 数据库 | PostgreSQL 连接配置 |
 | `REDIS_DB` / `REDIS_PASSWORD` | `0` / 空 | Redis 配置 |
 | `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL_NAME` | DeepSeek 地址 / 空 / `deepseek-reasoner` | OpenAI 兼容模型配置 |

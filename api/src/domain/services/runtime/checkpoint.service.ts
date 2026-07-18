@@ -2,12 +2,12 @@ import {
   AgentRun,
   Checkpoint,
   createCheckpoint,
-} from '../models/agent-run';
+} from '../../models/agent-run';
 import {
   AgentRunUpdateResult,
   CheckpointAppendResult,
-} from '../repositories/agent-run.repository';
-import { UnitOfWork } from '../repositories/unit-of-work';
+} from '../../repositories/agent-run.repository';
+import { UnitOfWork } from '../../repositories/unit-of-work';
 
 /** 可恢复快照的运行边界。 */
 export enum RuntimeCheckpointBoundary {

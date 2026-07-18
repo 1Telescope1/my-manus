@@ -1,14 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { Logger } from '@nestjs/common';
-import { Browser } from '../external/browser';
-import { FileStorage } from '../external/file-storage';
-import { JSONParser } from '../external/json-parser';
-import { LLM } from '../external/llm';
-import { Sandbox, SandboxFileData } from '../external/sandbox';
-import { SearchEngine } from '../external/search-engine';
-import { Task, TaskRunner } from '../external/task';
-import { AgentConfig, A2AConfig, MCPConfig } from '../models/app-config';
+import { Browser } from '../../external/browser';
+import { FileStorage } from '../../external/file-storage';
+import { JSONParser } from '../../external/json-parser';
+import { LLM } from '../../external/llm';
+import { Sandbox, SandboxFileData } from '../../external/sandbox';
+import { SearchEngine } from '../../external/search-engine';
+import { Task, TaskRunner } from '../../external/task';
+import { AgentConfig, A2AConfig, MCPConfig } from '../../models/app-config';
 import {
   A2AToolContent,
   BaseEvent,
@@ -19,16 +19,46 @@ import {
   ToolEvent,
   ToolEventStatus,
   events,
-} from '../models/event';
-import { createFileModel, FileModel } from '../models/file';
-import { createMessage, Message } from '../models/message';
-import { SearchResults } from '../models/search';
-import { SessionStatus } from '../models/session';
-import { ToolResult } from '../models/tool-result';
-import { UnitOfWork } from '../repositories/unit-of-work';
-import { PlannerReActFlow } from './flows/planner-react-flow';
-import { A2ATool } from './tools/a2a.tool';
-import { MCPTool } from './tools/mcp.tool';
+} from '../../models/event';
+import { createFileModel, FileModel } from '../../models/file';
+import { createMessage, Message } from '../../models/message';
+import { SearchResults } from '../../models/search';
+import { RuntimeEvent } from '../../models/runtime-event';
+import { SessionStatus } from '../../models/session';
+import { ToolResult } from '../../models/tool-result';
+import { UnitOfWork } from '../../repositories/unit-of-work';
+import { PlannerReActFlow } from '../flows/planner-react-flow';
+import {
+  AgentToolRuntimeInvoker,
+  LLMDirectResponseProvider,
+  LLMSingleToolProvider,
+  PlannerFlowRuntimeRunner,
+  UnavailableRuntimeWorkflowRunner,
+} from './adapters';
+import {
+  DirectRuntimeExecutor,
+  PlannedAgentRuntimeExecutor,
+  RuntimeExecutorDispatcher,
+  SingleToolRuntimeExecutor,
+  WorkflowRuntimeExecutor,
+} from './executor.service';
+import { RuntimeRouterService } from './router.service';
+import { RuntimeService } from './runtime.service';
+import { A2ATool } from '../tools/a2a.tool';
+import { createAgentToolset } from '../tools/agent-toolset';
+import { MCPTool } from '../tools/mcp.tool';
+
+/** AgentTaskRunner 依赖的 Runtime Event 转换边界。 */
+export interface RuntimeEventAdapterPort {
+  /** 将一条 Runtime Event 转换为当前 Session/UI 使用的 Event。 */
+  adapt(event: RuntimeEvent): Event | null;
+}
+
+/** 创建 AgentTaskRunner 所需的 Runtime 协作依赖。 */
+export type AgentTaskRunnerOptions = {
+  router: RuntimeRouterService;
+  eventAdapter: RuntimeEventAdapterPort;
+};
 
 export class AgentTaskRunner extends TaskRunner {
   private readonly logger = new Logger(AgentTaskRunner.name);
@@ -36,10 +66,13 @@ export class AgentTaskRunner extends TaskRunner {
   private readonly mcpTool = new MCPTool();
   private readonly a2aTool = new A2ATool();
   private readonly flow: PlannerReActFlow;
+  private readonly runtime: RuntimeService;
+  private readonly runtimeEventAdapter: RuntimeEventAdapterPort;
   private readonly generatedFilePaths = new Set<string>();
   private readonly syncedGeneratedFiles = new Map<string, FileModel>();
   private readonly attachedGeneratedFilePaths = new Set<string>();
 
+  /** 创建共享同一 Session、Sandbox 和工具资源的任务运行器。 */
   constructor(
     private readonly uowFactory: () => UnitOfWork,
     private readonly llm: LLM,
@@ -52,6 +85,7 @@ export class AgentTaskRunner extends TaskRunner {
     private readonly browser: Browser,
     private readonly searchEngine: SearchEngine,
     private readonly sandbox: Sandbox,
+    runtimeOptions: AgentTaskRunnerOptions,
   ) {
     super();
     this.uow = this.uowFactory();
@@ -66,6 +100,34 @@ export class AgentTaskRunner extends TaskRunner {
       this.searchEngine,
       this.mcpTool,
       this.a2aTool,
+    );
+    this.runtimeEventAdapter = runtimeOptions.eventAdapter;
+    const tools = createAgentToolset({
+      browser: this.browser,
+      sandbox: this.sandbox,
+      searchEngine: this.searchEngine,
+      mcpTool: this.mcpTool,
+      a2aTool: this.a2aTool,
+    });
+    const singleToolProvider = new LLMSingleToolProvider(
+      this.llm,
+      this.jsonParser,
+      tools,
+    );
+    const dispatcher = new RuntimeExecutorDispatcher([
+      new DirectRuntimeExecutor(new LLMDirectResponseProvider(this.llm)),
+      new SingleToolRuntimeExecutor(
+        singleToolProvider,
+        new AgentToolRuntimeInvoker(tools),
+        singleToolProvider,
+      ),
+      new WorkflowRuntimeExecutor(new UnavailableRuntimeWorkflowRunner()),
+      new PlannedAgentRuntimeExecutor(new PlannerFlowRuntimeRunner(this.flow)),
+    ]);
+    this.runtime = new RuntimeService(
+      this.uowFactory,
+      runtimeOptions.router,
+      dispatcher,
     );
   }
 
@@ -338,8 +400,18 @@ export class AgentTaskRunner extends TaskRunner {
     }
   }
 
-  /** 根据消息对象运行 PlannerReActFlow。 */
-  private async *runFlow(message: Message): AsyncGenerator<BaseEvent> {
+  /** 对输出工具和消息事件执行展示与文件同步处理。 */
+  private async prepareOutputEvent(event: Event): Promise<void> {
+    if (event.type === 'tool') {
+      await this.handleToolEvent(event);
+    } else if (event.type === 'message') {
+      await this.syncMessageAttachmentsToStorage(event);
+      await this.attachGeneratedFiles(event);
+    }
+  }
+
+  /** 运行 Runtime 并把 Runtime Event 转换为当前 Session/UI 事件。 */
+  private async *runRuntime(message: Message): AsyncGenerator<BaseEvent> {
     // 1. 判断传递的消息是否为空。
     if (!message.message) {
       this.logger.warn('AgentTaskRunner接收了一条空消息');
@@ -347,18 +419,16 @@ export class AgentTaskRunner extends TaskRunner {
       return;
     }
 
-    // 2. 调用流并运行获取事件信息。
-    for await (const event of this.flow.invoke(message)) {
-      // 3. 如果是工具事件，则额外处理。
-      if (event.type === 'tool') {
-        await this.handleToolEvent(event);
-      } else if (event.type === 'message') {
-        // 4. 如果是消息事件，则将 AI 消息事件中的附件同步到存储中。
-        await this.syncMessageAttachmentsToStorage(event);
-        await this.attachGeneratedFiles(event);
+    // 2. 执行 Runtime 并逐条转换输出事件。
+    for await (const runtimeEvent of this.runtime.execute({
+      sessionId: this.sessionId,
+      message,
+    })) {
+      const event = this.runtimeEventAdapter.adapt(runtimeEvent);
+      if (!event) {
+        continue;
       }
-
-      // 5. 将事件直接返回。
+      await this.prepareOutputEvent(event);
       yield event;
     }
   }
@@ -406,19 +476,19 @@ export class AgentTaskRunner extends TaskRunner {
           attachments: (event as MessageEvent).attachments.map((attachment) => attachment.filepath),
         });
 
-        // 6. 传递消息对象并运行 PlannerReActFlow。
-        for await (const flowEvent of this.runFlow(messageObj)) {
+        // 6. 使用 Runtime 执行本轮消息。
+        for await (const sessionEvent of this.runRuntime(messageObj)) {
           // 7. 将得到的事件添加到消息队列中。
-          await this.putAndAddEvent(task, flowEvent as Event);
+          await this.putAndAddEvent(task, sessionEvent as Event);
 
           // 8. 如果事件类型为标题事件，则更新会话标题。
-          if (flowEvent.type === 'title') {
+          if (sessionEvent.type === 'title') {
             await this.uow.run(async (active) => {
-              await active.session.updateTitle(this.sessionId, (flowEvent as TitleEvent).title);
+              await active.session.updateTitle(this.sessionId, (sessionEvent as TitleEvent).title);
             });
-          } else if (flowEvent.type === 'message') {
+          } else if (sessionEvent.type === 'message') {
             // 9. 如果事件为消息事件，则更新最新消息并新增未读消息数。
-            const messageEvent = flowEvent as MessageEvent;
+            const messageEvent = sessionEvent as MessageEvent;
             await this.uow.run(async (active) => {
               await active.session.updateLatestMessage(
                 this.sessionId,
@@ -427,7 +497,7 @@ export class AgentTaskRunner extends TaskRunner {
               );
               await active.session.incrementUnreadMessageCount(this.sessionId);
             });
-          } else if (flowEvent.type === 'wait') {
+          } else if (sessionEvent.type === 'wait') {
             // 10. 如果事件为等待，则更新会话状态并终止程序。
             await this.uow.run(async (active) => {
               await active.session.updateStatus(this.sessionId, SessionStatus.WAITING);

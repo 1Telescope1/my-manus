@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { RuntimeEventAdapter } from '../../src/application/compatibility/runtime-event.adapter';
+import { RuntimeEventAdapter } from '../../src/application/services/runtime-event.adapter';
 import { createPlan, ExecutionStatus } from '../../src/domain/models/plan';
 import { RuntimeEvent, RuntimeEventBase } from '../../src/domain/models/runtime-event';
 import { EventMapper } from '../../src/interfaces/dto/event.dto';
@@ -25,7 +25,7 @@ function wireValue(value: unknown): unknown {
   return JSON.parse(JSON.stringify(value));
 }
 
-test('v2 模拟事件应转换为现有 UI 能识别的事件序列', () => {
+test('Runtime 事件应转换为现有 UI 能识别的事件序列', () => {
   const plan = createPlan({
     id: 'plan-1',
     title: '测试计划',
@@ -71,8 +71,8 @@ test('v2 模拟事件应转换为现有 UI 能识别的事件序列', () => {
     { ...eventBase('run.completed', 9), type: 'run.completed' },
   ];
 
-  const legacyEvents = new RuntimeEventAdapter().adaptAll(runtimeEvents);
-  const sseEvents = wireValue(EventMapper.eventsToSseEvents(legacyEvents)) as Array<{
+  const sessionEvents = new RuntimeEventAdapter().adaptAll(runtimeEvents);
+  const sseEvents = wireValue(EventMapper.eventsToSseEvents(sessionEvents)) as Array<{
     event: string;
     data: Record<string, unknown>;
   }>;
@@ -115,7 +115,7 @@ test('v2 模拟事件应转换为现有 UI 能识别的事件序列', () => {
   assert.equal(sseEvents[5].data.status, ExecutionStatus.COMPLETED);
 });
 
-test('v2 兼容字段应按原值写入 SSE，且不改变旧字段', () => {
+test('Runtime 上下文字段应按原值写入 SSE，且不改变现有字段', () => {
   const runtimeEvent: RuntimeEvent = {
     ...eventBase('message.created', 12),
     type: 'message.created',

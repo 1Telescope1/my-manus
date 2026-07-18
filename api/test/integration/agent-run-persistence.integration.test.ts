@@ -25,12 +25,12 @@ import { DbUnitOfWork } from '../../src/infrastructure/repositories/db-uow';
 import {
   RuntimeCheckpointBoundary,
   RuntimeCheckpointService,
-} from '../../src/domain/services/runtime-checkpoint.service';
+} from '../../src/domain/services/runtime/checkpoint.service';
 import {
   RuntimeRecoveryDisposition,
   RuntimeRecoveryReason,
   RuntimeRecoveryService,
-} from '../../src/domain/services/runtime-recovery.service';
+} from '../../src/domain/services/runtime/recovery.service';
 
 const NOW = new Date('2026-07-17T01:00:00.000Z');
 const LATER = new Date('2026-07-17T01:01:00.000Z');

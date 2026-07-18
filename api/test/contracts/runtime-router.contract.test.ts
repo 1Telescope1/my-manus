@@ -11,7 +11,8 @@ import {
 import {
   DeterministicRouteRule,
   RuntimeRouterService,
-} from '../../src/domain/services/runtime-router.service';
+} from '../../src/domain/services/runtime/router.service';
+import { createDefaultRuntimeRouteRules } from '../../src/domain/services/runtime/route-rules';
 import { LLMRuntimeRouteModel } from '../../src/infrastructure/external/llm/llm-runtime-route-model';
 
 type LLMInvokeInput = Parameters<LLM['invoke']>[0];
@@ -115,14 +116,28 @@ test('RouteDecision Schema 应严格校验路由结构和路径约束', () => {
 // Direct 确定性规则命中后必须立即返回，路由模型不应收到请求。
 test('确定性规则应把简单请求路由到 direct 且不调用模型', async () => {
   const model = new FakeRouteModel(createDecision(RouteKind.PLANNED_AGENT));
-  const directRule = new StaticRouteRule('direct-answer', createDecision(RouteKind.DIRECT));
-  const router = new RuntimeRouterService(model, { rules: [directRule] });
+  const router = new RuntimeRouterService(model, {
+    rules: createDefaultRuntimeRouteRules(),
+  });
 
   const result = await router.route({ message: '解释什么是乐观锁' });
 
   assert.equal(result.route, RouteKind.DIRECT);
-  assert.equal(directRule.evaluations, 1);
+  assert.equal(result.reason, '命中无需外部能力的概念解释规则');
   assert.equal(model.requests.length, 0);
+});
+
+// 含实时外部上下文的解释句不能被概念规则误判，必须继续交给模型判断。
+test('Direct 解释规则应跳过需要实时外部数据的请求', async () => {
+  const model = new FakeRouteModel(createDecision(RouteKind.SINGLE_TOOL));
+  const router = new RuntimeRouterService(model, {
+    rules: createDefaultRuntimeRouteRules(),
+  });
+
+  const result = await router.route({ message: '解释一下今天北京天气的数据' });
+
+  assert.equal(result.route, RouteKind.SINGLE_TOOL);
+  assert.equal(model.requests.length, 1);
 });
 
 // 没有规则命中时，合法的单工具模型结果应原样进入 single_tool 路径。
@@ -186,6 +201,7 @@ test('无效模型输出应回退 planned_agent 并保留请求的 Skill', async
   assert.equal(result.confidence, 0);
   assert.deepEqual(result.requestedSkills, ['document-review']);
   assert.match(result.reason, /无效结果/);
+  assert.match(result.reason, /route/);
 });
 
 // 结构合法但置信度不足的模型结果同样不能进入简单路径。
@@ -215,7 +231,9 @@ test('路由模型调用异常时应回退 planned_agent', async () => {
 // LLM 适配器只能请求 JSON 决策，不得向模型暴露任何可执行工具。
 test('路由模型适配器不应携带工具或执行任何副作用', async () => {
   const expected = createDecision(RouteKind.DIRECT);
-  const llm = new FakeLLM({ content: JSON.stringify(expected) });
+  const llm = new FakeLLM({
+    content: JSON.stringify({ ...expected, workflowName: null }),
+  });
   const router = new RuntimeRouterService(new LLMRuntimeRouteModel(llm));
 
   const result = await router.route({ message: '你好' });

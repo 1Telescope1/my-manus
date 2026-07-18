@@ -5,7 +5,7 @@
 | 验收项 | 状态 | 证据 |
 | --- | --- | --- |
 | 四种路径可独立运行 | 通过 | `runtime-executor.contract.test.ts` 分别直接运行 Direct、Single Tool、Workflow、Planned Agent |
-| 每种路径产生统一 Runtime Event | 通过 | `runtime-executor.service.ts` 的 `BaseRuntimeExecutor` 与 `RuntimeEventFactory`；专项测试检查事件类型、envelope 和终态 |
+| 每种路径产生统一 Runtime Event | 通过 | `runtime/executor.service.ts` 的 `BaseRuntimeExecutor` 与 `RuntimeEventFactory`；专项测试检查事件类型、envelope 和终态 |
 | sequence 单调且可从恢复水位继续 | 通过 | Direct 从水位 7 产生 sequence 7、8；其余路径检查 0 起连续序号 |
 | Single Tool 至多一次主要调用 | 通过 | 固定编排只有一个 `invoker.invoke()` 调用点；测试确认 selector、invoker、responder 各调用一次 |
 | 等待和失败终态明确 | 通过 | `run.waiting` 短路且无 completed；依赖异常转换为 `run.failed` |
@@ -27,7 +27,7 @@
 
 ## 代码证据
 
-- `api/src/domain/services/runtime-executor.service.ts`
+- `api/src/domain/services/runtime/executor.service.ts`
   - 公共请求、执行器与能力端口。
   - `RuntimeEventFactory` 和 `BaseRuntimeExecutor`。
   - 四类路径执行器与完整注册 Dispatcher。

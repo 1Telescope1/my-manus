@@ -19,7 +19,7 @@
 | --- | --- |
 | `api/src/domain/models/route-decision.ts` | 定义请求和 RouteDecision 的严格 Zod Schema及跨字段路径约束。 |
 | `api/src/domain/external/runtime-route-model.ts` | 建立只允许分析、不暴露工具的供应商中立模型端口。 |
-| `api/src/domain/services/runtime-router.service.ts` | 实现规则优先、模型回退、置信度检查和 planned_agent 安全降级。 |
+| `api/src/domain/services/runtime/router.service.ts` | 实现规则优先、模型回退、置信度检查和 planned_agent 安全降级。 |
 | `api/src/infrastructure/external/llm/llm-runtime-route-model.ts` | 通过现有 LLM 生成 JSON 候选，并明确省略工具调用参数。 |
 | `api/test/contracts/runtime-router.contract.test.ts` | 覆盖四条路径、规则顺序、严格校验、异常/低置信回退和无工具调用。 |
 | `docs/agent-core-modernization/TASKS.md` | 记录任务从 ready 到 in_progress 再到 done 的状态变化。 |

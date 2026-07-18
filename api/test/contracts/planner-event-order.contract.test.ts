@@ -9,6 +9,7 @@ import { UnitOfWork } from '../../src/domain/repositories/unit-of-work';
 import { ReActAgent } from '../../src/domain/services/agents/react-agent';
 import { PlannerReActFlow } from '../../src/domain/services/flows/planner-react-flow';
 
+/** 为 Planner 事件顺序测试提供容错 JSON 解析。 */
 class ParseJson extends JSONParser {
   async invoke<T>(text: string, defaultValue?: T): Promise<T> {
     try {

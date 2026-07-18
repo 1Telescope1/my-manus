@@ -22,7 +22,7 @@
 | `api/tsconfig.test.json` | 对产品代码和契约测试共同执行严格类型检查。 |
 | `api/test/contracts/event-sse.contract.test.ts` | 固化 Plan、Step、Tool、Wait、Done 的 wire payload。 |
 | `api/test/contracts/session-api.contract.test.ts` | 固化 Session API、404 和 SSE framing。 |
-| `api/test/contracts/legacy-event-order.contract.test.ts` | 固化正常完成、工具调用和等待用户的事件顺序。 |
+| `api/test/contracts/planner-event-order.contract.test.ts` | 固化正常完成、工具调用和等待用户的事件顺序。 |
 
 ### Verification
 

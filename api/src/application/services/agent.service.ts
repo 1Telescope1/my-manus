@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { RuntimeEventAdapter } from './runtime-event.adapter';
 import { FileStorage } from '../../domain/external/file-storage';
 import { JSONParser } from '../../domain/external/json-parser';
 import { SandboxManager } from '../../domain/external/sandbox';
@@ -9,7 +10,10 @@ import { BaseEvent, Event, events } from '../../domain/models/event';
 import { LLMConfig } from '../../domain/models/app-config';
 import { Session, SessionStatus } from '../../domain/models/session';
 import { UnitOfWork } from '../../domain/repositories/unit-of-work';
-import { AgentTaskRunner } from '../../domain/services/agent-task-runner';
+import { AgentTaskRunner } from '../../domain/services/runtime/agent-task-runner';
+import { createDefaultRuntimeRouteRules } from '../../domain/services/runtime/route-rules';
+import { RuntimeRouterService } from '../../domain/services/runtime/router.service';
+import { LLMRuntimeRouteModel } from '../../infrastructure/external/llm/llm-runtime-route-model';
 import { FileAppConfigRepository } from '../../infrastructure/repositories/file-app-config.repository';
 
 export type ChatOptions = {
@@ -22,6 +26,8 @@ export type ChatOptions = {
 @Injectable()
 export class AgentService {
   private readonly logger = new Logger(AgentService.name);
+
+  /** 注入会话执行、配置、外部能力和任务管理依赖。 */
   constructor(
     private readonly uow: UnitOfWork,
     private readonly appConfigRepository: FileAppConfigRepository,
@@ -73,9 +79,10 @@ export class AgentService {
 
     // 5. 创建 AgentTaskRunner。
     const appConfig = await this.appConfigRepository.load();
+    const llm = this.llmFactory.create(appConfig.llm_config);
     const taskRunner = new AgentTaskRunner(
       () => this.uow,
-      this.llmFactory.create(appConfig.llm_config),
+      llm,
       appConfig.agent_config,
       appConfig.mcp_config,
       appConfig.a2a_config,
@@ -85,6 +92,12 @@ export class AgentService {
       browser,
       this.searchEngine,
       sandbox,
+      {
+        router: new RuntimeRouterService(new LLMRuntimeRouteModel(llm), {
+          rules: createDefaultRuntimeRouteRules(),
+        }),
+        eventAdapter: new RuntimeEventAdapter(),
+      },
     );
 
     // 6. 创建任务并更新会话中的任务信息。

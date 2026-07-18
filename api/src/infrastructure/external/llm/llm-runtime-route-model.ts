@@ -3,7 +3,9 @@ import { RuntimeRouteModel } from '../../../domain/external/runtime-route-model'
 import { NormalizedRuntimeRouteRequest } from '../../../domain/models/route-decision';
 
 const ROUTER_SYSTEM_PROMPT = `你是请求路由器，只负责选择执行路径，不回答用户问题，也不调用工具。
-只返回一个 JSON 对象，字段必须是：route、reason、requiredCapabilities、requestedSkills、workflowName（仅 workflow 路由使用）和 confidence。
+只返回一个 JSON 对象，不要使用 Markdown。
+所有路径必须包含 route、reason、requiredCapabilities、requestedSkills 和 confidence；两个 capabilities/skills 字段必须是数组，confidence 必须是 0 到 1 的数字。
+只有 workflow 路径必须额外包含非空字符串 workflowName；direct、single_tool、planned_agent 必须省略 workflowName，不要返回 null。
 route 只能是 direct、single_tool、workflow、planned_agent。
 direct 用于无需外部能力的直接回答；single_tool 用于一次主要工具调用；workflow 用于已知确定性工作流；planned_agent 用于开放复杂任务。`;
 
@@ -39,10 +41,23 @@ export class LLMRuntimeRouteModel extends RuntimeRouteModel {
 function parseModelContent(response: LLMMessage): unknown {
   const content: unknown = response.content;
   if (typeof content === 'string') {
-    return JSON.parse(content);
+    return normalizeRouteModelObject(JSON.parse(content));
   }
   if (content !== null && typeof content === 'object' && !Array.isArray(content)) {
-    return content;
+    return normalizeRouteModelObject(content);
   }
   throw new TypeError('路由模型必须返回 JSON 对象或 JSON 字符串');
+}
+
+/** 兼容模型常见的可选字段 null 表达，并保持其他未知字段交给严格 Schema 拒绝。 */
+function normalizeRouteModelObject(value: object): object {
+  if (
+    'workflowName' in value
+    && (value as Record<string, unknown>).workflowName === null
+  ) {
+    const normalized = { ...value } as Record<string, unknown>;
+    delete normalized.workflowName;
+    return normalized;
+  }
+  return value;
 }
