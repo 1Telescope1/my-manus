@@ -1,4 +1,12 @@
-﻿import { MCPTransport } from '../../domain/models/app-config';
+﻿import { LLMConfig, MCPTransport } from '../../domain/models/app-config';
+
+export type LLMConfigResponse = Omit<LLMConfig, 'api_key'> & {
+  has_api_key: boolean;
+};
+
+export type UpdateLLMConfigBody = Omit<LLMConfig, 'api_key'> & {
+  api_key?: string;
+};
 
 export type ListMCPServerItem = {
   server_name: string;

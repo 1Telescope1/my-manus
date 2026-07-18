@@ -136,12 +136,14 @@ function LLMSetting({config, onChange}: LLMSettingProps) {
               <Input
                 id="api_key"
                 type="password"
-                placeholder="请填写提供商API密钥"
+                placeholder={config.has_api_key ? '留空表示继续使用当前密钥' : '请填写提供商API密钥'}
                 value={config.api_key ?? ''}
                 onChange={(e) => handleChange('api_key', e.target.value)}
               />
               <FieldDescription className="text-xs">
-                请填写模型提供商密钥信息。
+                {config.has_api_key
+                  ? '密钥已配置。留空表示不修改，输入新密钥会覆盖当前密钥。'
+                  : '尚未配置密钥，请填写模型提供商 API 密钥。'}
               </FieldDescription>
             </Field>
             <Field>
@@ -634,7 +636,8 @@ export function ManusSettings() {
         await configApi.updateAgentConfig(agentConfig)
         toast.success('通用配置保存成功')
       } else if (activeSetting === 'llm-setting') {
-        await configApi.updateLLMConfig(llmConfig)
+        const updatedConfig = await configApi.updateLLMConfig(llmConfig)
+        setLlmConfig(updatedConfig)
         toast.success('模型提供商配置保存成功')
       }
     } catch (err) {

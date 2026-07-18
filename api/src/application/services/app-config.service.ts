@@ -9,7 +9,12 @@ import {
 } from '../../domain/models/app-config';
 import { NotFoundError } from '../../core/errors/app-exception';
 import { FileAppConfigRepository } from '../../infrastructure/repositories/file-app-config.repository';
-import { ListA2AServerItem, ListMCPServerItem } from '../../interfaces/dto/app-config.dto';
+import {
+  LLMConfigResponse,
+  ListA2AServerItem,
+  ListMCPServerItem,
+  UpdateLLMConfigBody,
+} from '../../interfaces/dto/app-config.dto';
 import { A2AClientManager } from '../../domain/services/tools/a2a.tool';
 import { MCPClientManager } from '../../domain/services/tools/mcp.tool';
 
@@ -23,29 +28,38 @@ export class AppConfigService {
   }
 
   /** 获取 LLM 提供商配置。 */
-  async getLlmConfig(): Promise<Omit<LLMConfig, 'api_key'>> {
+  async getLlmConfig(): Promise<LLMConfigResponse> {
     const appConfig = await this.loadAppConfig();
-    const { api_key: _apiKey, ...safeConfig } = appConfig.llm_config;
-    return safeConfig;
+    return this.toLlmConfigResponse(appConfig.llm_config);
   }
 
   /** 根据传递的 llmConfig 更新语言模型提供商配置。 */
-  async updateLlmConfig(llmConfig: LLMConfig): Promise<Omit<LLMConfig, 'api_key'>> {
+  async updateLlmConfig(llmConfig: UpdateLLMConfigBody): Promise<LLMConfigResponse> {
     // 1. 获取应用配置。
     const appConfig = await this.loadAppConfig();
 
     // 2. 判断 api_key 是否为空，空值表示沿用原 api_key。
-    const nextConfig = { ...llmConfig };
-    if (!nextConfig.api_key.trim()) {
-      nextConfig.api_key = appConfig.llm_config.api_key;
-    }
+    const nextConfig: LLMConfig = {
+      ...llmConfig,
+      api_key: llmConfig.api_key?.trim()
+        ? llmConfig.api_key
+        : appConfig.llm_config.api_key,
+    };
 
     // 3. 更新配置并写回配置仓库。
     appConfig.llm_config = nextConfig;
     await this.appConfigRepository.save(appConfig);
 
-    const { api_key: _apiKey, ...safeConfig } = appConfig.llm_config;
-    return safeConfig;
+    return this.toLlmConfigResponse(appConfig.llm_config);
+  }
+
+  /** 返回可安全暴露给前端的 LLM 配置，只说明密钥是否存在。 */
+  private toLlmConfigResponse(llmConfig: LLMConfig): LLMConfigResponse {
+    const { api_key: apiKey, ...safeConfig } = llmConfig;
+    return {
+      ...safeConfig,
+      has_api_key: apiKey.trim().length > 0,
+    };
   }
 
   async getAgentConfig(): Promise<AgentConfig> {

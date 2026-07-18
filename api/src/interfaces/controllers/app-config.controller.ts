@@ -1,11 +1,12 @@
 ﻿import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { AppConfigService } from '../../application/services/app-config.service';
 import { ResponseEnvelope } from '../../core/response/api-response';
-import { AgentConfig, LLMConfig, MCPConfig } from '../../domain/models/app-config';
+import { AgentConfig, MCPConfig } from '../../domain/models/app-config';
 import {
   CreateA2AServerBody,
   SetA2AServerEnabledBody,
   SetMcpServerEnabledBody,
+  UpdateLLMConfigBody,
 } from '../dto/app-config.dto';
 
 @Controller('app-config')
@@ -21,7 +22,7 @@ export class AppConfigController {
 
   /** 更新 LLM 配置信息。 */
   @Post('llm')
-  async updateLlmConfig(@Body() body: LLMConfig) {
+  async updateLlmConfig(@Body() body: UpdateLLMConfigBody) {
     const llmConfig = await this.appConfigService.updateLlmConfig(body);
     return ResponseEnvelope.success(llmConfig, '更新LLM信息配置成功');
   }

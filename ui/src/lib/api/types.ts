@@ -35,6 +35,7 @@ export type MCPTransport = "stdio" | "sse" | "streamable_http";
 export type LLMConfig = {
   base_url?: string;
   api_key?: string;
+  has_api_key?: boolean;
   model_name?: string;
   temperature?: number;
   max_tokens?: number;
@@ -304,4 +305,3 @@ export type ViewShellParams = {
   shell_session_id: string;
   [key: string]: unknown;
 };
-

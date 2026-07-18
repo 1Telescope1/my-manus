@@ -23,7 +23,9 @@ export const configApi = {
    * 更新 LLM 配置
    */
   updateLLMConfig: (config: LLMConfig): Promise<LLMConfig> => {
-    return post<LLMConfig>("/app-config/llm", config);
+    const payload = { ...config };
+    delete payload.has_api_key;
+    return post<LLMConfig>("/app-config/llm", payload);
   },
 
   /**
@@ -110,4 +112,3 @@ export const configApi = {
     );
   },
 };
-
