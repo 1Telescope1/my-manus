@@ -1,5 +1,5 @@
-import { Dirent } from 'node:fs';
-import { lstat, readFile, readdir } from 'node:fs/promises';
+import type { Dirent } from 'node:fs';
+import { readFile, readdir, stat } from 'node:fs/promises';
 import { relative, resolve } from 'node:path';
 import YAML from 'yaml';
 import { z } from 'zod';
@@ -17,22 +17,11 @@ export const DEFAULT_SKILL_FILE_MAX_BYTES = 256 * 1024;
 const SKILLS_DIRECTORY = '.agents/skills';
 const SKILL_FILE_NAME = 'SKILL.md';
 
-const skillNameSchema = z.string()
-  .min(1)
-  .max(64)
-  .regex(
-    /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
-    '只能包含小写字母、数字和单个连字符，且连字符不能位于首尾',
-  );
-
+/** 发现阶段只消费 Catalog 必需字段；其他字段由后续激活和权限模块解释。 */
 const skillFrontmatterSchema = z.object({
-  name: skillNameSchema,
-  description: z.string().trim().min(1).max(1024),
-  license: z.string().trim().min(1).optional(),
-  compatibility: z.string().trim().min(1).max(500).optional(),
-  metadata: z.record(z.string(), z.string()).optional(),
-  'allowed-tools': z.string().trim().min(1).optional(),
-}).strict();
+  name: z.string().trim().min(1),
+  description: z.string().trim().min(1),
+}).passthrough();
 
 type SkillCandidate = {
   directoryName: string;
@@ -71,11 +60,6 @@ export class FileSystemSkillCatalog implements SkillCatalogDiscovery {
     // 固定文件系统枚举顺序，使 Catalog 和诊断在不同平台上仍可复核。
     for (const directoryEntry of directoryEntries.sort(compareDirectoryEntries)) {
       if (!directoryEntry.isDirectory()) {
-        diagnostics.push(this.diagnostic(
-          SkillDiagnosticCode.UNSUPPORTED_ENTRY,
-          resolve(this.skillsRoot, directoryEntry.name),
-          `忽略非普通 Skill 目录条目：${directoryEntry.name}`,
-        ));
         continue;
       }
 
@@ -111,31 +95,11 @@ export class FileSystemSkillCatalog implements SkillCatalogDiscovery {
   /** 读取可选的项目 Skills 根；目录不存在代表项目尚未定义 Skill。 */
   private async readSkillsRoot(diagnostics: SkillDiagnostic[]): Promise<Dirent[]> {
     try {
-      const rootStats = await lstat(this.skillsRoot);
-      // 根目录本身也不得是符号链接，否则项目可把发现范围指向任意外部位置。
-      if (!rootStats.isDirectory() || rootStats.isSymbolicLink()) {
-        diagnostics.push(this.diagnostic(
-          SkillDiagnosticCode.ROOT_UNREADABLE,
-          this.skillsRoot,
-          '项目 Skills 根必须是普通目录且不能是符号链接',
-        ));
-        return [];
-      }
+      return await readdir(this.skillsRoot, { withFileTypes: true });
     } catch (error) {
       if (isNodeError(error) && error.code === 'ENOENT') {
         return [];
       }
-      diagnostics.push(this.diagnostic(
-        SkillDiagnosticCode.ROOT_UNREADABLE,
-        this.skillsRoot,
-        `无法检查项目 Skills 目录：${errorMessage(error)}`,
-      ));
-      return [];
-    }
-
-    try {
-      return await readdir(this.skillsRoot, { withFileTypes: true });
-    } catch (error) {
       diagnostics.push(this.diagnostic(
         SkillDiagnosticCode.ROOT_UNREADABLE,
         this.skillsRoot,
@@ -153,26 +117,21 @@ export class FileSystemSkillCatalog implements SkillCatalogDiscovery {
     const skillFilePath = resolve(this.skillsRoot, directoryName, SKILL_FILE_NAME);
     let fileStats;
     try {
-      fileStats = await lstat(skillFilePath);
+      fileStats = await stat(skillFilePath);
     } catch (error) {
       diagnostics.push(this.diagnostic(
-        isNodeError(error) && error.code === 'ENOENT'
-          ? SkillDiagnosticCode.SKILL_FILE_MISSING
-          : SkillDiagnosticCode.SKILL_FILE_READ_FAILED,
+        SkillDiagnosticCode.SKILL_FILE_UNREADABLE,
         skillFilePath,
-        isNodeError(error) && error.code === 'ENOENT'
-          ? `Skill 目录缺少 ${SKILL_FILE_NAME}`
-          : `无法检查 ${SKILL_FILE_NAME}：${errorMessage(error)}`,
+        `无法检查 ${SKILL_FILE_NAME}：${errorMessage(error)}`,
       ));
       return undefined;
     }
 
-    // 发现阶段不跟随符号链接，完整真实路径与资源访问由 SKILL-102 负责。
-    if (!fileStats.isFile() || fileStats.isSymbolicLink()) {
+    if (!fileStats.isFile()) {
       diagnostics.push(this.diagnostic(
-        SkillDiagnosticCode.SKILL_FILE_NOT_REGULAR,
+        SkillDiagnosticCode.SKILL_FILE_UNREADABLE,
         skillFilePath,
-        `${SKILL_FILE_NAME} 必须是普通文件且不能是符号链接`,
+        `${SKILL_FILE_NAME} 必须是普通文件`,
       ));
       return undefined;
     }
@@ -185,14 +144,22 @@ export class FileSystemSkillCatalog implements SkillCatalogDiscovery {
       return undefined;
     }
 
-    const content = await this.readSkillFile(skillFilePath, diagnostics);
-    if (content === undefined) {
+    let content: string;
+    try {
+      content = await readFile(skillFilePath, 'utf8');
+    } catch (error) {
+      diagnostics.push(this.diagnostic(
+        SkillDiagnosticCode.SKILL_FILE_UNREADABLE,
+        skillFilePath,
+        `无法读取 ${SKILL_FILE_NAME}：${errorMessage(error)}`,
+      ));
       return undefined;
     }
+
     const rawFrontmatter = extractFrontmatter(content);
     if (rawFrontmatter === undefined) {
       diagnostics.push(this.diagnostic(
-        SkillDiagnosticCode.FRONTMATTER_MISSING,
+        SkillDiagnosticCode.FRONTMATTER_INVALID,
         skillFilePath,
         `${SKILL_FILE_NAME} 必须以完整 YAML Frontmatter 开头`,
       ));
@@ -210,21 +177,12 @@ export class FileSystemSkillCatalog implements SkillCatalogDiscovery {
       ));
       return undefined;
     }
-    if (!isPlainRecord(parsedFrontmatter)) {
-      diagnostics.push(this.diagnostic(
-        SkillDiagnosticCode.FRONTMATTER_INVALID,
-        skillFilePath,
-        'YAML Frontmatter 必须是字段映射',
-      ));
-      return undefined;
-    }
-
     const frontmatter = skillFrontmatterSchema.safeParse(parsedFrontmatter);
     if (!frontmatter.success) {
       diagnostics.push(this.diagnostic(
-        SkillDiagnosticCode.DESCRIPTOR_INVALID,
+        SkillDiagnosticCode.FRONTMATTER_INVALID,
         skillFilePath,
-        `Skill Frontmatter 字段无效：${formatZodIssue(frontmatter.error)}`,
+        `Skill Frontmatter 缺少 name 或 description：${formatZodIssue(frontmatter.error)}`,
       ));
       return undefined;
     }
@@ -247,32 +205,6 @@ export class FileSystemSkillCatalog implements SkillCatalogDiscovery {
         description: frontmatter.data.description,
       },
     };
-  }
-
-  /** 在静态大小检查后读取文件，并防止读取期间增长绕过上限或无效 UTF-8 混入。 */
-  private async readSkillFile(
-    skillFilePath: string,
-    diagnostics: SkillDiagnostic[],
-  ): Promise<string | undefined> {
-    try {
-      const content = await readFile(skillFilePath);
-      if (content.byteLength > this.skillFileMaxBytes) {
-        diagnostics.push(this.diagnostic(
-          SkillDiagnosticCode.SKILL_FILE_TOO_LARGE,
-          skillFilePath,
-          `${SKILL_FILE_NAME} 读取后超过 ${this.skillFileMaxBytes} 字节上限`,
-        ));
-        return undefined;
-      }
-      return new TextDecoder('utf-8', { fatal: true }).decode(content);
-    } catch (error) {
-      diagnostics.push(this.diagnostic(
-        SkillDiagnosticCode.SKILL_FILE_READ_FAILED,
-        skillFilePath,
-        `无法读取 ${SKILL_FILE_NAME}：${errorMessage(error)}`,
-      ));
-      return undefined;
-    }
   }
 
   /** 将绝对文件位置收敛为项目相对位置，避免诊断依赖部署机器路径。 */
@@ -316,14 +248,6 @@ function formatZodIssue(error: z.ZodError): string {
     return '未知字段错误';
   }
   return `${issue.path.join('.') || 'frontmatter'}: ${issue.message}`;
-}
-
-/** 判断 YAML 结果是否是可校验的普通字段映射。 */
-function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object'
-    && value !== null
-    && !Array.isArray(value)
-    && Object.getPrototypeOf(value) === Object.prototype;
 }
 
 /** 判断未知异常是否携带 Node.js 文件系统错误码。 */

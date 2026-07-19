@@ -22,8 +22,8 @@
 | 首版只扫描项目级 `.agents/skills/`。 | `docs/agent-core-modernization-sdd.md` §6.1 | Catalog 的 Runtime 注入尚未设计。 | 本任务提供发现服务，不接入激活与模型上下文。 |
 | `name`、`description` 必填，目录名必须等于 `name`，`SKILL.md` 最大 256 KiB。 | SDD §6.2 | 稳定 Skill ID 的格式未固定。 | 使用确定的 `project:<name>`，并在领域类型中隔离格式。 |
 | YAML/字段错误、重名、超限、名称不匹配必须隔离并诊断。 | SDD §6.2、§6.4；`TASKS.md` Acceptance | 单项目根目录下重名通常伴随名称不匹配。 | 先解析候选，再按声明名称统一检测冲突，保留全部适用诊断。 |
-| Catalog 只包含稳定 ID、`name` 和 `description`。 | SDD §6.3 | 可选 Frontmatter 字段是否需要暴露。 | 校验可选字段，但不将它们写入 Catalog。 |
-| 安全读取完整指令和资源属于 SKILL-102。 | `TASKS.md` SKILL-102 | 发现阶段怎样处理符号链接。 | 发现阶段不跟随 Skills 根、Skill 目录和 `SKILL.md` 符号链接；完整真实路径能力留给 SKILL-102。 |
+| Catalog 只包含稳定 ID、`name` 和 `description`。 | SDD §6.3 | 可选 Frontmatter 字段是否需要暴露。 | 发现阶段忽略可选和未知字段，也不将它们写入 Catalog。 |
+| 安全读取完整指令和资源属于 SKILL-102。 | `TASKS.md` SKILL-102 | 发现阶段是否重复执行路径安全校验。 | 内置 Skill 视为随源码发布的可信配置；符号链接和真实路径约束统一留给 SKILL-102。 |
 
 ## 本任务做了什么
 
@@ -47,17 +47,17 @@
 | `FileSystemSkillCatalog` | 扫描项目级约定目录、限制输入、解析 YAML、执行 Schema 校验、检测重名并输出确定性快照。 | `new FileSystemSkillCatalog(projectRoot).discover()`。 |
 | 稳定项目级 ID | 让相同项目 Skill 在多次扫描中获得相同标识，并给未来其他来源留出命名空间。 | `web-research` 固定映射为 `project:web-research`。 |
 
-Frontmatter 校验遵循 Agent Skills 规范：`name` 为 1–64 个小写字母、数字或非连续连字符，不能以连字符开头或结尾；`description` 为 1–1024 字符；`compatibility`、`metadata`、`allowed-tools` 和 `license` 按各自类型校验。可选字段只用于确认描述合法，不进入 Catalog。
+发现阶段只要求 `name` 和 `description` 是非空字符串，并检查 `name` 与目录名一致。`compatibility`、`metadata`、`allowed-tools`、`license` 和未来新增字段不属于 Catalog 输入，发现器接受但忽略它们。完整 Agent Skills 格式合规由内置 Skill 的开发评审与测试保证；资源和真实路径安全由 SKILL-102 负责。
 
 ### 主要流程
 
 ```text
 项目根目录
-  → 检查 .agents/skills 是否为真实普通目录
-  → 按名称扫描直接子目录，拒绝符号链接和非目录条目
+  → 读取 .agents/skills；目录不存在时返回空 Catalog
+  → 按名称扫描直接子目录，静默忽略普通杂项文件
   → 检查 SKILL.md 是普通文件且不超过 256 KiB
   → 只提取开头 YAML Frontmatter
-  → 解析 YAML 并执行严格字段 Schema
+  → 解析 YAML 并提取非空 name/description
   → 独立记录目录名不匹配
   → 汇总全部候选后检测重复声明 name
   → 隔离所有失败或冲突候选
@@ -74,12 +74,13 @@ Frontmatter 校验遵循 Agent Skills 规范：`name` 为 1–64 个小写字母
 
 ### 保护规则和当前边界
 
-- `.agents/skills` 不存在是合法空状态，返回空快照；存在但不可读、不是普通目录或是符号链接时返回根诊断。
-- Skill 目录与 `SKILL.md` 符号链接不会被跟随，避免发现范围指向项目外部。
-- 在读取前后都检查 256 KiB 上限，无效 UTF-8、YAML、字段类型和未知顶层字段均被隔离。
+- `.agents/skills` 不存在是合法空状态，返回空快照；无法读取时返回根诊断。
+- 根目录中的普通文件等非 Skill 条目被静默忽略，避免开发辅助文件制造无意义告警。
+- 读取前检查 256 KiB 上限；YAML 无效或缺少非空 `name`/`description` 时隔离候选。
+- 可选和未知 Frontmatter 字段不校验、不暴露；发现器只消费 Catalog 所需的两个声明字段。
 - 单个候选的失败不会抛弃已经发现的其他合法 Skill；重名则隔离全部冲突方，绝不使用先到或后到覆盖。
 - 诊断位置统一为项目相对路径，结果不依赖部署机器的绝对目录。
-- 当前能力是独立的项目 Catalog 发现端口，尚未接入 Run 初始化或模型上下文；安全读取正文/资源属于 SKILL-102，激活与渐进披露属于 SKILL-103。
+- 当前能力是独立的项目 Catalog 发现端口，尚未接入 Run 初始化或模型上下文；符号链接/真实路径、正文和资源安全读取属于 SKILL-102，激活与渐进披露属于 SKILL-103。
 
 ## Scope
 
@@ -88,7 +89,7 @@ Frontmatter 校验遵循 Agent Skills 规范：`name` 为 1–64 个小写字母
 - 扫描项目级 `.agents/skills/` 的直接子目录。
 - 解析并校验 `SKILL.md` YAML Frontmatter。
 - 生成只含稳定 ID、`name`、`description` 的 Catalog。
-- 隔离无效、重名、超限、名称不匹配或不安全的候选并返回结构化诊断。
+- 隔离缺失、不可读、YAML 无效、重名、超限或名称不匹配的候选并返回结构化诊断。
 - 覆盖正常路径、隔离路径和确定性结果测试。
 
 ### Out of scope
@@ -121,7 +122,7 @@ Frontmatter 校验遵循 Agent Skills 规范：`name` 为 1–64 个小写字母
 | 模型可见信息 | 没有 Catalog 边界，未来接入容易连同正文和路径一起暴露。 | entry 只含稳定 ID、`name`、`description`。 | 未激活 Skill 的正文不会因发现动作进入上下文。 |
 | 坏候选处理 | 没有错误协议，单文件错误可能阻断扫描或被静默忽略。 | 每个失败产生结构化诊断，其他合法 Skill 继续可用。 | 项目可定位配置错误，局部故障不会放大成 Registry 故障。 |
 | 名称冲突 | 没有重名检测，存在静默覆盖风险。 | 冲突各方全部隔离并分别诊断。 | Catalog 结果不依赖文件系统返回顺序。 |
-| 输入边界 | 没有大小、格式或符号链接保护。 | 256 KiB、严格 Frontmatter、UTF-8 和非符号链接边界在发现阶段生效。 | 超大或越界候选不会进入 Catalog；完整资源安全仍由 SKILL-102 承担。 |
+| 输入边界 | 没有大小和最小 Frontmatter 保护。 | 发现阶段只保留 256 KiB、YAML、必填字段、名称一致和重名边界。 | 对可信内置 Skill 保持足够防错且减少重复校验；路径和资源安全由 SKILL-102 集中承担。 |
 
 ## Current State
 
@@ -137,7 +138,7 @@ Frontmatter 校验遵循 Agent Skills 规范：`name` 为 1–64 个小写字母
 ## Decisions and Risks
 
 - Catalog 稳定 ID 暂定为 `project:<name>`；后续增加其他来源时可按命名空间扩展，不改变项目级 ID。
-- 本任务拒绝根目录、Skill 目录和 `SKILL.md` 符号链接，避免发现阶段读取项目外元数据；SKILL-102 再提供完整真实路径校验与资源访问。
+- 内置 Skill 视为开发者维护、随源码发布的可信配置；发现阶段不验证可选字段、未知字段、UTF-8 或符号链接，完整真实路径与资源访问统一由 SKILL-102 负责。
 
 ## Latest Session State
 

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test, { TestContext } from 'node:test';
@@ -40,6 +40,7 @@ metadata:
   owner: manus
   version: "1.0.0"
 allowed-tools: search_web browser_view
+future-field: discovery-should-ignore-this
 ---
 # 不应进入 Catalog 的完整指令
 `);
@@ -80,7 +81,7 @@ test('项目未定义 Skills 目录时应返回空快照', async (t) => {
   assert.deepEqual(snapshot, { entries: [], diagnostics: [] });
 });
 
-test('无效 Frontmatter 应被隔离且不影响合法 Skill', async (t) => {
+test('缺少必填字段或 YAML 无效时应隔离候选且不影响合法 Skill', async (t) => {
   const projectRoot = await createProject(t);
   await writeSkill(projectRoot, 'valid-skill', `---
 name: valid-skill
@@ -88,9 +89,8 @@ description: 合法 Skill；用于验证故障隔离。
 ---
 正文
 `);
-  await writeSkill(projectRoot, 'bad--name', `---
-name: bad--name
-description: 名称含有连续连字符。
+  await writeSkill(projectRoot, 'missing-description', `---
+name: missing-description
 ---
 正文
 `);
@@ -105,14 +105,10 @@ description: [没有闭合
   const snapshot = await new FileSystemSkillCatalog(projectRoot).discover();
 
   assert.deepEqual(snapshot.entries.map((entry) => entry.name), ['valid-skill']);
-  assert.deepEqual(
-    new Set(snapshot.diagnostics.map((diagnostic) => diagnostic.code)),
-    new Set([
-      SkillDiagnosticCode.DESCRIPTOR_INVALID,
-      SkillDiagnosticCode.FRONTMATTER_INVALID,
-      SkillDiagnosticCode.FRONTMATTER_MISSING,
-    ]),
-  );
+  assert.equal(snapshot.diagnostics.length, 3);
+  assert.equal(snapshot.diagnostics.every(
+    (diagnostic) => diagnostic.code === SkillDiagnosticCode.FRONTMATTER_INVALID,
+  ), true);
 });
 
 test('超过默认 256 KiB 的 SKILL.md 应被隔离并诊断', async (t) => {
@@ -173,62 +169,33 @@ description: 不受冲突影响的合法 Skill。
   );
 });
 
-test('Skill 目录和 SKILL.md 符号链接不应被发现', async (t) => {
+test('Skills 根目录中的普通文件应被静默忽略', async (t) => {
   const projectRoot = await createProject(t);
   const skillsRoot = join(projectRoot, '.agents', 'skills');
-  const externalDirectory = join(projectRoot, 'external-skill');
-  await mkdir(externalDirectory, { recursive: true });
-  await writeFile(join(externalDirectory, 'SKILL.md'), `---
-name: linked-directory
-description: 符号链接目录不应被跟随。
----
-正文
-`, 'utf8');
   await mkdir(skillsRoot, { recursive: true });
-  await symlink(externalDirectory, join(skillsRoot, 'linked-directory'));
-
-  const linkedFileDirectory = join(skillsRoot, 'linked-file');
-  await mkdir(linkedFileDirectory, { recursive: true });
-  await symlink(
-    join(externalDirectory, 'SKILL.md'),
-    join(linkedFileDirectory, 'SKILL.md'),
-  );
+  await writeFile(join(skillsRoot, 'README.md'), '开发者说明', 'utf8');
 
   const snapshot = await new FileSystemSkillCatalog(projectRoot).discover();
 
-  assert.deepEqual(snapshot.entries, []);
-  assert.deepEqual(
-    snapshot.diagnostics.map((diagnostic) => diagnostic.code),
-    [
-      SkillDiagnosticCode.UNSUPPORTED_ENTRY,
-      SkillDiagnosticCode.SKILL_FILE_NOT_REGULAR,
-    ],
-  );
-  assert.equal(snapshot.diagnostics.every(
-    (diagnostic) => diagnostic.location.startsWith('.agents/skills/'),
-  ), true);
+  assert.deepEqual(snapshot, { entries: [], diagnostics: [] });
 });
 
-test('项目 Skills 根符号链接不应扩大扫描范围', async (t) => {
+test('缺少 SKILL.md 的目录应被隔离但不阻断扫描', async (t) => {
   const projectRoot = await createProject(t);
-  const externalRoot = join(projectRoot, 'external-root');
-  await mkdir(externalRoot, { recursive: true });
-  await mkdir(join(projectRoot, '.agents'), { recursive: true });
-  await writeSkill(projectRoot, 'temporary-skill', `---
-name: temporary-skill
-description: 仅用于创建后替换真实 Skills 根。
+  await mkdir(join(projectRoot, '.agents', 'skills', 'empty-skill'), { recursive: true });
+  await writeSkill(projectRoot, 'valid-skill', `---
+name: valid-skill
+description: 合法 Skill。
 ---
 正文
 `);
-  await rm(join(projectRoot, '.agents', 'skills'), { recursive: true });
-  await symlink(externalRoot, join(projectRoot, '.agents', 'skills'));
 
   const snapshot = await new FileSystemSkillCatalog(projectRoot).discover();
 
-  assert.deepEqual(snapshot.entries, []);
+  assert.deepEqual(snapshot.entries.map((entry) => entry.name), ['valid-skill']);
   assert.equal(snapshot.diagnostics.length, 1);
-  assert.equal(snapshot.diagnostics[0].code, SkillDiagnosticCode.ROOT_UNREADABLE);
-  assert.equal(snapshot.diagnostics[0].location, '.agents/skills');
+  assert.equal(snapshot.diagnostics[0].code, SkillDiagnosticCode.SKILL_FILE_UNREADABLE);
+  assert.equal(snapshot.diagnostics[0].location, '.agents/skills/empty-skill/SKILL.md');
 });
 
 test('非法文件上限配置应在扫描前失败', () => {

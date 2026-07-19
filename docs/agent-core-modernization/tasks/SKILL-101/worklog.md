@@ -40,3 +40,41 @@
 ### Next
 
 - 开始 SKILL-102，实现真实路径校验、资源清单和安全指令读取。
+
+## 2026-07-19 — 按可信内置 Skill 边界精简发现器
+
+### Goal
+
+- 删除发现阶段对开发者维护的内置 Skill 不产生决策价值的重复校验。
+
+### Investigation
+
+- 当前产品目标是把内置 Skills 随 API 源码和发布物交付，Skill 开发者属于可信配置维护者。
+- SKILL-101 的不可删除验收边界是可发现、重名、256 KiB 上限和目录名不匹配；符号链接与真实路径安全已明确属于 SKILL-102。
+- 可选 Frontmatter 字段不进入 Catalog，在发现阶段严格校验会增加未来字段兼容成本，但不会提高 Catalog 正确性。
+
+### Changes
+
+| 文件 | 变更原因 |
+| --- | --- |
+| `api/src/domain/models/skill.ts` | 将过细文件和 Frontmatter 诊断收敛为六个决定 Catalog 结果的稳定诊断码。 |
+| `api/src/infrastructure/skills/file-system-skill-catalog.ts` | 只解析非空 `name`/`description`，忽略可选字段和杂项文件，删除符号链接、严格 UTF-8、读取后二次大小检查。 |
+| `api/test/contracts/skill-catalog.contract.test.ts` | 用最小必填字段、未知字段兼容、杂项文件忽略和缺失文件隔离场景替换过度校验测试。 |
+| `docs/agent-core-modernization/tasks/SKILL-101/*` | 让任务说明和证据反映可信内置 Skill 的当前边界。 |
+
+### Verification
+
+- `node --import tsx --test test/contracts/skill-catalog.contract.test.ts`：8/8 通过。
+- `npm run typecheck`：通过。
+- `npm run test:contract`：139/139 通过。
+- `npm run build`：通过。
+- `git diff --check`：通过。
+
+### Findings
+
+- 发现器只需要保证 Catalog 身份与最小描述正确；不消费的字段不应成为运行时失败来源。
+- 安全责任必须集中：SKILL-101 做元数据发现，SKILL-102 做真实路径和资源读取，避免两套近似规则产生漂移。
+
+### Next
+
+- 精简已完成；下一项按依赖开始 SKILL-102。
