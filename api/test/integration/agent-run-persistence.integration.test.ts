@@ -132,7 +132,6 @@ test('PostgreSQL 运行持久化应支持并发控制、事务回滚和可逆迁
       (await repository.updateToolCall(runningToolCall, ToolCallStatus.PENDING)).outcome,
       'updated',
     );
-    assert.deepEqual(await repository.getIncompleteToolCalls(run.id), [runningToolCall]);
 
     // 完全相同的 Checkpoint 重试应命中 already_exists，而不是重复插入。
     const checkpoint = createCheckpoint({

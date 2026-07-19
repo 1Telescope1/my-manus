@@ -162,7 +162,7 @@ export function createAgentRun(input: CreateAgentRunInput): AgentRun {
     startedAt: null,
     completedAt: null,
     error: null,
-    metadata: { ...(input.metadata ?? {}) },
+    metadata: input.metadata ?? {},
   };
 }
 
@@ -249,7 +249,7 @@ export function createCheckpoint(input: CreateCheckpointInput): Checkpoint {
     sequence: input.sequence,
     resumeNode: input.resumeNode,
     nextEventSequence: input.nextEventSequence,
-    state: { ...(input.state ?? {}) },
+    state: input.state ?? {},
     createdAt: input.createdAt ?? new Date(),
   };
 }
@@ -269,26 +269,26 @@ export function createInterruption(input: CreateInterruptionInput): Interruption
     runId: input.runId,
     kind: input.kind,
     status: InterruptionStatus.PENDING,
-    payload: { ...(input.payload ?? {}) },
+    payload: input.payload ?? {},
     resolution: null,
   };
 }
 
 /** 每个 RunStatus 允许到达的后继状态；空数组表示终态。 */
 const RUN_STATUS_TRANSITIONS: Readonly<Record<RunStatus, readonly RunStatus[]>> = {
-  [RunStatus.CREATED]: Object.freeze([RunStatus.RUNNING, RunStatus.CANCELLED]),
-  [RunStatus.RUNNING]: Object.freeze([
+  [RunStatus.CREATED]: [RunStatus.RUNNING, RunStatus.CANCELLED],
+  [RunStatus.RUNNING]: [
     RunStatus.WAITING,
     RunStatus.PAUSED,
     RunStatus.COMPLETED,
     RunStatus.FAILED,
     RunStatus.CANCELLED,
-  ]),
-  [RunStatus.WAITING]: Object.freeze([RunStatus.RUNNING, RunStatus.CANCELLED]),
-  [RunStatus.PAUSED]: Object.freeze([RunStatus.RUNNING, RunStatus.CANCELLED]),
-  [RunStatus.COMPLETED]: Object.freeze([]),
-  [RunStatus.FAILED]: Object.freeze([]),
-  [RunStatus.CANCELLED]: Object.freeze([]),
+  ],
+  [RunStatus.WAITING]: [RunStatus.RUNNING, RunStatus.CANCELLED],
+  [RunStatus.PAUSED]: [RunStatus.RUNNING, RunStatus.CANCELLED],
+  [RunStatus.COMPLETED]: [],
+  [RunStatus.FAILED]: [],
+  [RunStatus.CANCELLED]: [],
 };
 
 /** 返回指定状态的只读合法后继状态列表。 */
@@ -425,11 +425,11 @@ export function transitionAgentRun(
       cancellation: transition.cancellation.outcome === CancellationOutcome.TIMED_OUT
         ? {
           outcome: transition.cancellation.outcome,
-          uncertainOperationIds: [...transition.cancellation.uncertainOperationIds],
+          uncertainOperationIds: transition.cancellation.uncertainOperationIds,
         }
         : { outcome: transition.cancellation.outcome },
     }
-    : { ...run.metadata };
+    : run.metadata;
 
   return {
     ...run,
@@ -468,7 +468,6 @@ export function requestAgentRunCancellation(
 
   return {
     ...run,
-    metadata: { ...run.metadata },
     cancelRequestedAt: run.cancelRequestedAt ?? requestedAt,
   };
 }

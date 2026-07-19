@@ -299,7 +299,6 @@ export class SingleToolRuntimeExecutor extends BaseRuntimeExecutor {
     const toolCallId = this.toolCallIdFactory?.() ?? stableSingleToolCallId(context.run.id);
     const invocation: RuntimeToolCallInput = {
       ...selected,
-      arguments: { ...selected.arguments },
       runId: context.run.id,
       sessionId: context.run.sessionId,
       toolCallId,
@@ -471,7 +470,7 @@ function normalizeExecutionRequest(
       metadata: { ...(request.metadata ?? {}) },
       // 私有上下文仅供路径驱动器使用，不能进入对外 Runtime Event。
       privateContext: { ...(request.privateContext ?? {}) },
-      toolSelection: structuredClone(request.toolSelection ?? {}),
+      toolSelection: request.toolSelection ?? {},
       signal: request.signal,
     },
     nextEventSequence,

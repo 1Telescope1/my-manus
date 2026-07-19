@@ -278,8 +278,6 @@ test('运行持久化 Mapper 应保持五类聚合记录往返转换语义不变
     completedAt: null,
     error: null,
     metadata: { source: 'contract-test' },
-    createdAt: NOW,
-    updatedAt: NOW,
   });
   assert.deepEqual(restoredRun, run);
 
@@ -301,8 +299,6 @@ test('运行持久化 Mapper 应保持五类聚合记录往返转换语义不变
       input: step.input,
       output: null,
       error: null,
-      createdAt: NOW,
-      updatedAt: NOW,
     }),
     step,
   );
@@ -327,8 +323,6 @@ test('运行持久化 Mapper 应保持五类聚合记录往返转换语义不变
       startedAt: null,
       completedAt: null,
       result: null,
-      createdAt: NOW,
-      updatedAt: NOW,
     }),
     toolCall,
   );
@@ -366,8 +360,6 @@ test('运行持久化 Mapper 应保持五类聚合记录往返转换语义不变
       status: interruption.status,
       payload: interruption.payload,
       resolution: null,
-      createdAt: NOW,
-      updatedAt: NOW,
     }),
     interruption,
   );
@@ -389,8 +381,6 @@ test('运行持久化 Mapper 应拒绝数据库中的未知枚举值', () => {
         completedAt: null,
         error: null,
         metadata: null,
-        createdAt: NOW,
-        updatedAt: NOW,
       }),
     RuntimePersistenceMappingError,
   );

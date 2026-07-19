@@ -121,15 +121,6 @@ class RuntimeMemoryStore {
         return { outcome: 'appended' as const, checkpoint };
       },
       getLatestCheckpoint: async (runId: string) => this.latestCheckpoint(runId),
-      getIncompleteToolCalls: async (runId: string) => this.toolCalls.filter(
-        (toolCall) =>
-          toolCall.runId === runId
-          && [
-            ToolCallStatus.PENDING,
-            ToolCallStatus.RUNNING,
-            ToolCallStatus.UNKNOWN,
-          ].includes(toolCall.status),
-      ),
       listToolCalls: async (runId: string) => this.toolCalls.filter(
         (toolCall) => toolCall.runId === runId,
       ),

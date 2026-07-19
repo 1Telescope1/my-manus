@@ -40,7 +40,7 @@ export class PersistentToolIdempotencyStore implements ToolIdempotencyStore {
       runId: input.scopeId,
       stepId,
       toolName: input.functionName,
-      arguments: structuredClone(input.arguments),
+      arguments: input.arguments,
       risk: toRunToolRisk(input.risk),
       idempotencyKey: input.idempotencyKey,
       requestFingerprint: input.requestFingerprint,
@@ -58,14 +58,11 @@ export class PersistentToolIdempotencyStore implements ToolIdempotencyStore {
     }
 
     const existing = reservation.toolCall;
-    if (
-      this.activeReservations.has(key)
-      && [
-        ToolCallStatus.PENDING,
-        ToolCallStatus.RUNNING,
-        ToolCallStatus.UNKNOWN,
-      ].includes(existing.status)
-    ) {
+    const interrupted = [ToolCallStatus.RUNNING, ToolCallStatus.UNKNOWN]
+      .includes(existing.status);
+    if (this.activeReservations.has(key) && (
+      existing.status === ToolCallStatus.PENDING || interrupted
+    )) {
       return { outcome: 'in_progress' };
     }
     if (existing.status === ToolCallStatus.PENDING) {
@@ -73,10 +70,7 @@ export class PersistentToolIdempotencyStore implements ToolIdempotencyStore {
       this.activeReservations.add(key);
       return { outcome: 'reserved' };
     }
-    if (
-      existing.risk === RunToolRisk.READ
-      && [ToolCallStatus.RUNNING, ToolCallStatus.UNKNOWN].includes(existing.status)
-    ) {
+    if (interrupted && existing.risk === RunToolRisk.READ) {
       // 只读调用没有外部写入风险；新进程可把未完成记录重新打开后安全重试。
       const reopened: ToolCallRecord = {
         ...existing,
@@ -94,10 +88,7 @@ export class PersistentToolIdempotencyStore implements ToolIdempotencyStore {
       this.activeReservations.add(key);
       return { outcome: 'reserved' };
     }
-    if (
-      existing.risk !== RunToolRisk.READ
-      && [ToolCallStatus.RUNNING, ToolCallStatus.UNKNOWN].includes(existing.status)
-    ) {
+    if (interrupted) {
       return { outcome: 'unresolved' };
     }
     if (isReplayable(existing.status)) {
@@ -153,7 +144,7 @@ export class PersistentToolIdempotencyStore implements ToolIdempotencyStore {
     const candidate: ToolCallRecord = {
       ...record,
       status,
-      result: structuredClone(input.result),
+      result: input.result,
       completedAt: status === ToolCallStatus.UNKNOWN ? null : this.clock(),
     };
     const update = await this.uowFactory().run(async (uow) => {
@@ -206,7 +197,7 @@ export class PersistentToolIdempotencyStore implements ToolIdempotencyStore {
       kind: RunStepKind.TOOL,
       input: {
         functionName: input.functionName,
-        arguments: structuredClone(input.arguments),
+        arguments: input.arguments,
         idempotencyKey: input.idempotencyKey,
         requestFingerprint: input.requestFingerprint,
       },
@@ -258,7 +249,7 @@ function finishStep(
   result: ToolResult,
 ): RunStep {
   if (toolStatus === ToolCallStatus.COMPLETED) {
-    return { ...step, status: RunStepStatus.COMPLETED, output: structuredClone(result) };
+    return { ...step, status: RunStepStatus.COMPLETED, output: result };
   }
   if (toolStatus === ToolCallStatus.CANCELLED) {
     return {
@@ -295,7 +286,7 @@ function asToolResult(value: unknown): ToolResult | null {
   }
   const result = value as Record<string, unknown>;
   return typeof result.success === 'boolean'
-    ? structuredClone(result) as ToolResult
+    ? result as ToolResult
     : null;
 }
 

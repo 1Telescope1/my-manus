@@ -165,12 +165,12 @@ export class AgentTaskRunner extends TaskRunner {
   }
 
   /** 从任务输入流中获取事件信息。 */
-  private async popEvent(task: Task): Promise<Event> {
+  private async popEvent(task: Task): Promise<Event | null> {
     // 1. 从任务 input stream 中读取数据。
     const [eventId, eventPayload] = await task.inputStream.pop();
     if (eventPayload == null) {
       this.logger.warn('AgentTaskRunner接收到空消息');
-      return undefined as unknown as Event;
+      return null;
     }
 
     // 2. 将字符串或普通对象转换成事件对象。
@@ -464,16 +464,15 @@ export class AgentTaskRunner extends TaskRunner {
 
   /** 清理 MCP 和 A2A 工具资源，确保在同一个任务上下文中释放。 */
   private async cleanupTools(): Promise<void> {
-    try {
-      await this.mcpTool.cleanup();
-    } catch (error) {
-      this.logger.warn(`清理MCP工具资源时出错: ${errorMessage(error)}`);
-    }
-
-    try {
-      await this.a2aTool.cleanup();
-    } catch (error) {
-      this.logger.warn(`清理A2A工具资源时出错: ${errorMessage(error)}`);
+    const cleanups = await Promise.allSettled([
+      this.mcpTool.cleanup(),
+      this.a2aTool.cleanup(),
+    ]);
+    for (const [index, result] of cleanups.entries()) {
+      if (result.status === 'rejected') {
+        const toolName = index === 0 ? 'MCP' : 'A2A';
+        this.logger.warn(`清理${toolName}工具资源时出错: ${errorMessage(result.reason)}`);
+      }
     }
   }
 
@@ -492,22 +491,22 @@ export class AgentTaskRunner extends TaskRunner {
         throwIfAborted(task.signal);
         // 3. 从输入流中获取数据。
         const event = await this.popEvent(task);
-        let message = '';
-
-        // 4. 如果事件类型为消息事件，则处理消息并将附件同步到沙箱中。
-        if (event.type === 'message') {
-          message = event.message || '';
-          await this.syncMessageAttachmentsToSandbox(event);
-          this.logger.log(`AgentTaskRunner接收到新消息: ${message.slice(0, 50)}...`);
+        if (!event) {
+          break;
         }
+        if (event.type !== 'message') {
+          continue;
+        }
+        await this.syncMessageAttachmentsToSandbox(event);
+        this.logger.log(`AgentTaskRunner接收到新消息: ${event.message.slice(0, 50)}...`);
 
-        // 5. 将消息事件转换成消息对象。
+        // 4. 将消息事件转换成消息对象。
         const messageObj = createMessage({
-          message,
-          attachments: (event as MessageEvent).attachments.map((attachment) => attachment.filepath),
+          message: event.message,
+          attachments: event.attachments.map((attachment) => attachment.filepath),
         });
 
-        // 6. 使用 Runtime 执行本轮消息。
+        // 5. 使用 Runtime 执行本轮消息。
         for await (const sessionEvent of this.runRuntime(messageObj, task.signal)) {
           // 7. 将得到的事件添加到消息队列中。
           await this.putAndAddEvent(task, sessionEvent as Event);
@@ -579,14 +578,8 @@ export class AgentTaskRunner extends TaskRunner {
 
   /** 销毁任务运行器并释放资源。 */
   async destroy(): Promise<void> {
-    // 1. 清除沙箱。
     this.logger.log('开始清除销毁AgentTaskRunner资源');
-    if (this.sandbox) {
-      this.logger.log('销毁AgentTaskRunner中的沙箱环境');
-      await this.sandbox.destroy();
-    }
-
-    // 2. 清除 mcp 和 a2a 工具。
+    await this.sandbox.destroy();
     await this.cleanupTools();
   }
 
@@ -631,24 +624,12 @@ export class AgentTaskRunner extends TaskRunner {
     toolName: 'mcp' | 'a2a',
     result?: ToolResult,
   ): MCPToolContent | A2AToolContent {
-    let resultData: unknown;
-
-    if (result) {
-      if (result.data) {
-        resultData = result.data;
-      } else if (result.success) {
-        resultData = result;
-      } else {
-        resultData = this.stringifyToolResult(result);
-      }
-    } else {
-      resultData = toolName === 'mcp' ? '(MCP工具无可用结果)' : '(A2A智能体无可用结果)';
-    }
-
-    return this.agentToolContent(toolName, resultData);
-  }
-
-  private agentToolContent(toolName: 'mcp' | 'a2a', data: unknown): MCPToolContent | A2AToolContent {
+    const emptyResult = toolName === 'mcp'
+      ? '(MCP工具无可用结果)'
+      : '(A2A智能体无可用结果)';
+    const data = result
+      ? result.data ?? (result.success ? result : this.stringifyToolResult(result))
+      : emptyResult;
     return toolName === 'mcp' ? { result: data } : { a2a_result: data };
   }
 

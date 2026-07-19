@@ -52,28 +52,7 @@ export class RuntimeRouterService {
       if (candidate === null) {
         continue;
       }
-
-      const decision = RouteDecisionSchema.safeParse(candidate);
-      if (!decision.success) {
-        return createPlannedAgentFallback(
-          request,
-          routeValidationCause(`确定性规则 ${rule.name} 返回无效结果`, decision.error),
-        );
-      }
-      if (decision.data.confidence < this.minimumConfidence) {
-        return createPlannedAgentFallback(
-          request,
-          `确定性规则 ${rule.name} 的置信度不足`,
-        );
-      }
-      const unavailableCapabilities = findUnavailableCapabilities(request, decision.data);
-      if (unavailableCapabilities.length > 0) {
-        return createPlannedAgentFallback(
-          request,
-          `确定性规则 ${rule.name} 请求了不可用 capability：${unavailableCapabilities.join(', ')}`,
-        );
-      }
-      return decision.data;
+      return this.validateCandidate(candidate, request, `确定性规则 ${rule.name}`);
     }
 
     // 规则均未命中时才调用受限路由模型；模型异常不能阻断用户请求。
@@ -88,22 +67,30 @@ export class RuntimeRouterService {
       return createPlannedAgentFallback(request, '路由模型调用失败');
     }
 
-    // 模型输出属于不可信边界，必须经过严格 Schema 和置信度双重校验。
+    return this.validateCandidate(candidate, request, '路由模型');
+  }
+
+  /** 统一校验规则与模型候选，失败时收敛到同一安全路径。 */
+  private validateCandidate(
+    candidate: unknown,
+    request: NormalizedRuntimeRouteRequest,
+    source: string,
+  ): RouteDecision {
     const decision = RouteDecisionSchema.safeParse(candidate);
     if (!decision.success) {
       return createPlannedAgentFallback(
         request,
-        routeValidationCause('路由模型返回无效结果', decision.error),
+        routeValidationCause(`${source}返回无效结果`, decision.error),
       );
     }
     if (decision.data.confidence < this.minimumConfidence) {
-      return createPlannedAgentFallback(request, '路由模型置信度不足');
+      return createPlannedAgentFallback(request, `${source}的置信度不足`);
     }
     const unavailableCapabilities = findUnavailableCapabilities(request, decision.data);
     if (unavailableCapabilities.length > 0) {
       return createPlannedAgentFallback(
         request,
-        `路由模型请求了不可用 capability：${unavailableCapabilities.join(', ')}`,
+        `${source}请求了不可用 capability：${unavailableCapabilities.join(', ')}`,
       );
     }
     return decision.data;

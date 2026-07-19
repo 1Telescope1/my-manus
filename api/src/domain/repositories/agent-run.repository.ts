@@ -104,9 +104,6 @@ export abstract class AgentRunRepository {
 
   abstract listToolCalls(runId: string): Promise<ToolCallRecord[]>;
 
-  /** 返回 pending、running 或 unknown 的调用，供恢复解析器处理。 */
-  abstract getIncompleteToolCalls(runId: string): Promise<ToolCallRecord[]>;
-
   /**
    * 首个序号为 0，随后严格 +1，nextEventSequence 不得回退。
    * already_exists 仅用于所有字段完全相同的重试；同序号不同内容返回 content_conflict。

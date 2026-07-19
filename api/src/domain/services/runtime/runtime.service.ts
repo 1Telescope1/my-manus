@@ -1,5 +1,6 @@
 import {
   AgentRun,
+  AgentRunTransition,
   CancellationOutcome,
   RouteKind,
   RunStatus,
@@ -55,14 +56,12 @@ export class RuntimeService {
     private readonly uowFactory: () => UnitOfWork,
     private readonly router: RuntimeRouterService,
     private readonly dispatcher: RuntimeExecutorDispatcher,
-    options: RuntimeServiceOptions | (() => Date) = {},
+    options: RuntimeServiceOptions = {},
   ) {
-    // 兼容 RUNTIME-105 期间公开的第四参数 clock 函数签名。
-    const normalizedOptions = typeof options === 'function' ? { clock: options } : options;
     this.checkpointService = new RuntimeCheckpointService(this.uowFactory);
-    this.clock = normalizedOptions.clock ?? (() => new Date());
-    this.availableToolCapabilities = normalizedOptions.availableToolCapabilities ?? (() => []);
-    this.skillDisclosure = normalizedOptions.skillDisclosure;
+    this.clock = options.clock ?? (() => new Date());
+    this.availableToolCapabilities = options.availableToolCapabilities ?? (() => []);
+    this.skillDisclosure = options.skillDisclosure;
   }
 
   /** 为一条用户消息创建持久化 Run，并流式返回统一 Runtime Event。 */
@@ -170,7 +169,15 @@ export class RuntimeService {
     run: AgentRun,
     status: Exclude<RunStatus, RunStatus.FAILED | RunStatus.CANCELLED>,
   ): Promise<AgentRun> {
-    const candidate = transitionAgentRun(run, { status, at: this.clock() });
+    return this.saveTransition(run, { status, at: this.clock() });
+  }
+
+  /** 应用领域转换并通过同一个 CAS 写入路径持久化。 */
+  private async saveTransition(
+    run: AgentRun,
+    transition: AgentRunTransition,
+  ): Promise<AgentRun> {
+    const candidate = transitionAgentRun(run, transition);
     const result = await this.withUow((uow) => uow.agentRun.update(candidate, run.version));
     if (result.outcome !== 'updated') {
       throw new Error(`AgentRun 状态更新失败：${result.outcome}`);
@@ -243,30 +250,20 @@ export class RuntimeService {
 
   /** 持久化必须携带错误文本的 failed 终态。 */
   private async updateFailedStatus(run: AgentRun, error: string): Promise<AgentRun> {
-    const candidate = transitionAgentRun(run, {
+    return this.saveTransition(run, {
       status: RunStatus.FAILED,
       at: this.clock(),
       error,
     });
-    const result = await this.withUow((uow) => uow.agentRun.update(candidate, run.version));
-    if (result.outcome !== 'updated') {
-      throw new Error(`AgentRun 失败状态更新失败：${result.outcome}`);
-    }
-    return result.run;
   }
 
   /** 在活动执行链已退出后把已请求取消的 Run 收敛到 confirmed 终态。 */
   private async updateCancelledStatus(run: AgentRun): Promise<AgentRun> {
-    const candidate = transitionAgentRun(run, {
+    return this.saveTransition(run, {
       status: RunStatus.CANCELLED,
       at: this.clock(),
       cancellation: { outcome: CancellationOutcome.CONFIRMED },
     });
-    const result = await this.withUow((uow) => uow.agentRun.update(candidate, run.version));
-    if (result.outcome !== 'updated') {
-      throw new Error(`AgentRun 取消状态更新失败：${result.outcome}`);
-    }
-    return result.run;
   }
 }
 

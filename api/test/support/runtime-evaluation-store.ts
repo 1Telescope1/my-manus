@@ -165,14 +165,6 @@ export class RuntimeEvaluationStore {
           (toolCall) => toolCall.runId === runId
             && toolCall.idempotencyKey === idempotencyKey,
         ) ?? null,
-      getIncompleteToolCalls: async (runId: string) => [...this.toolCalls.values()].filter(
-        (toolCall) => toolCall.runId === runId
-          && [
-            ToolCallStatus.PENDING,
-            ToolCallStatus.RUNNING,
-            ToolCallStatus.UNKNOWN,
-          ].includes(toolCall.status),
-      ),
       listToolCalls: async (runId: string) => [...this.toolCalls.values()].filter(
         (toolCall) => toolCall.runId === runId,
       ),

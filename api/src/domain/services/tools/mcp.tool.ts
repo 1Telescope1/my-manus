@@ -236,15 +236,15 @@ export class MCPClientManager {
     serverConfig: MCPServerConfig,
     onToolsChanged: MCPToolsChangedHandler,
   ): Promise<MCPClientConnection> {
-    if (serverConfig.transport === MCPTransport.STDIO) {
-      return this.connectStdioServer(serverName, serverConfig, onToolsChanged);
-    } else if (serverConfig.transport === MCPTransport.SSE) {
-      return this.connectSseServer(serverName, serverConfig, onToolsChanged);
-    } else if (serverConfig.transport === MCPTransport.STREAMABLE_HTTP) {
-      return this.connectStreamableHttpServer(serverName, serverConfig, onToolsChanged);
-    } else {
-      throw new Error(`MCP服务[${serverName}]使用了不支持的传输协议: ${serverConfig.transport}`);
+    switch (serverConfig.transport) {
+      case MCPTransport.STDIO:
+        return this.connectStdioServer(serverName, serverConfig, onToolsChanged);
+      case MCPTransport.SSE:
+        return this.connectSseServer(serverName, serverConfig, onToolsChanged);
+      case MCPTransport.STREAMABLE_HTTP:
+        return this.connectStreamableHttpServer(serverName, serverConfig, onToolsChanged);
     }
+    throw new Error(`MCP服务[${serverName}]使用了不支持的传输协议: ${serverConfig.transport}`);
   }
 
   /** 创建 stdio transport 并交给统一客户端连接逻辑。 */
@@ -345,15 +345,13 @@ export class MCPClientManager {
     serverName: string,
     record: MCPClientConnection,
   ): Promise<void> {
-    const closers = [
-      () => record.client.close?.(),
-      () => record.transport?.close?.(),
-    ];
-    for (const close of closers) {
-      try {
-        await close();
-      } catch (error) {
-        this.logger.warn(`清理MCP服务器[${serverName}]失败: ${errorMessage(error)}`);
+    const results = await Promise.allSettled([
+      record.client.close?.(),
+      record.transport?.close?.(),
+    ]);
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        this.logger.warn(`清理MCP服务器[${serverName}]失败: ${errorMessage(result.reason)}`);
       }
     }
   }
@@ -403,7 +401,6 @@ export class MCPClientManager {
 
 export class MCPTool extends BaseTool {
   readonly name = 'mcp';
-  private initialized = false;
   private manager?: MCPClientManager;
 
   /** 允许契约测试注入受控 manager，生产默认使用 SDK manager。 */
@@ -416,22 +413,18 @@ export class MCPTool extends BaseTool {
 
   /** 初始化 MCP manager；重复初始化保持同一连接集合。 */
   async initialize(mcpConfig: MCPConfig, signal?: AbortSignal): Promise<void> {
-    if (this.initialized) {
+    if (this.manager) {
       return;
     }
-    this.manager = this.managerFactory(mcpConfig);
-    await this.manager.initialize(signal);
-    this.initialized = true;
+    const manager = this.managerFactory(mcpConfig);
+    await manager.initialize(signal);
+    this.manager = manager;
   }
 
   /** 从 manager 的实时缓存导出注册项，不保留会过期的二次 Descriptor 快照。 */
   override getRegistrations(): ToolRegistration[] {
     return (this.manager?.getAllTools() ?? []).map((descriptor) => ({
-      descriptor: {
-        ...descriptor,
-        inputSchema: structuredClone(descriptor.inputSchema),
-        capabilities: [...descriptor.capabilities],
-      },
+      descriptor,
       groupName: this.name,
       invoke: (arguments_, context) => this.invoke(descriptor.name, arguments_, context),
       supportsAbortSignal: true,
@@ -473,7 +466,6 @@ export class MCPTool extends BaseTool {
   async cleanup(): Promise<void> {
     await this.manager?.cleanup();
     this.manager = undefined;
-    this.initialized = false;
   }
 }
 

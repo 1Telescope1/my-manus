@@ -51,36 +51,25 @@ export function tool(input: {
 export abstract class BaseTool {
   abstract readonly name: string;
   protected readonly supportsAbortSignal: boolean = false;
-  private registrationsCache?: ToolRegistration[];
 
   /** 将当前工具包中的装饰器方法转换为内置工具注册项。 */
   getRegistrations(): ToolRegistration[] {
-    if (!this.registrationsCache) {
-      this.registrationsCache = this.getToolMethods().map((method) => {
-        const definition = method.toolDefinition as ToolDefinition;
-        return {
-          descriptor: {
-            ...definition,
-            id: `builtin:${definition.name}`,
-            source: 'builtin',
-            capabilities: definition.capabilities?.length
-              ? [...definition.capabilities]
-              : [this.name],
-          },
-          groupName: this.name,
-          invoke: (arguments_, context) => this.invoke(definition.name, arguments_, context),
-          supportsAbortSignal: this.supportsAbortSignal,
-        };
-      });
-    }
-    return this.registrationsCache.map((registration) => ({
-      ...registration,
-      descriptor: {
-        ...registration.descriptor,
-        inputSchema: structuredClone(registration.descriptor.inputSchema),
-        capabilities: [...registration.descriptor.capabilities],
-      },
-    }));
+    return this.getToolMethods().map<ToolRegistration>((method) => {
+      const definition = method.toolDefinition as ToolDefinition;
+      return {
+        descriptor: {
+          ...definition,
+          id: `builtin:${definition.name}`,
+          source: 'builtin',
+          capabilities: definition.capabilities?.length
+            ? [...definition.capabilities]
+            : [this.name],
+        },
+        groupName: this.name,
+        invoke: (arguments_, context) => this.invoke(definition.name, arguments_, context),
+        supportsAbortSignal: this.supportsAbortSignal,
+      };
+    });
   }
 
   /** 判断工具包是否包含指定模型可见函数名。 */

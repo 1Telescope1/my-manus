@@ -127,7 +127,7 @@ export class ToolInvocationService {
     }
 
     const requestFingerprint = fingerprint(request.functionName, request.arguments);
-    const reservation = await this.reserve(request, requestFingerprint);
+    const reservation = await this.reserve(registration, request, requestFingerprint);
     const reservationResult = this.resultFromReservation(
       reservation,
       registration,
@@ -198,7 +198,7 @@ export class ToolInvocationService {
     }
     const decision = await this.options.approvalGate.authorize({
       descriptor: registration.descriptor,
-      arguments: structuredClone(request.arguments),
+      arguments: request.arguments,
       scopeId: request.scopeId,
       idempotencyKey: request.idempotencyKey,
       signal: request.signal,
@@ -219,6 +219,7 @@ export class ToolInvocationService {
 
   /** 仅在调用方提供幂等键时占用；未提供时返回首次执行语义。 */
   private async reserve(
+    registration: ToolRegistration,
     request: ToolInvocationRequest,
     requestFingerprint: string,
   ): Promise<ToolIdempotencyReservation> {
@@ -232,8 +233,8 @@ export class ToolInvocationService {
       toolCallId: request.toolCallId,
       stepId: request.stepId,
       functionName: request.functionName,
-      arguments: structuredClone(request.arguments),
-      risk: this.registry.resolve(request.functionName)?.descriptor.risk ?? 'read',
+      arguments: request.arguments,
+      risk: registration.descriptor.risk,
     });
   }
 
@@ -313,7 +314,7 @@ export class ToolInvocationService {
 
     try {
       const invocation = Promise.resolve().then(() => registration.invoke(
-        structuredClone(request.arguments),
+        request.arguments,
         {
           signal: controller.signal,
           attempt,

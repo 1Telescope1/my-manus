@@ -281,20 +281,6 @@ export class DbAgentRunRepository extends AgentRunRepository {
     return records.map(persistenceToToolCall);
   }
 
-  /** 返回恢复时仍需解析的 pending、running 和 unknown 工具调用。 */
-  async getIncompleteToolCalls(runId: string): Promise<ToolCallRecord[]> {
-    const records = await this.client.toolCallRecord.findMany({
-      where: {
-        runId,
-        status: {
-          in: [ToolCallStatus.PENDING, ToolCallStatus.RUNNING, ToolCallStatus.UNKNOWN],
-        },
-      },
-      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-    });
-    return records.map(persistenceToToolCall);
-  }
-
   /** 以连续序号追加 Checkpoint，并处理重试、冲突和事件水位回退。 */
   async appendCheckpoint(checkpoint: Checkpoint): Promise<CheckpointAppendResult> {
     // 第一阶段先处理同序号重试：内容完全相同才视为幂等成功。

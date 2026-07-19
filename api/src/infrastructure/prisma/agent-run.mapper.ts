@@ -28,8 +28,6 @@ export type AgentRunPersistenceRecord = {
   completedAt: Date | null;
   error: string | null;
   metadata: unknown;
-  updatedAt?: Date;
-  createdAt?: Date;
 };
 
 /** Prisma 查询返回的 RunStep 数据形状。 */
@@ -43,8 +41,6 @@ export type RunStepPersistenceRecord = {
   input: unknown;
   output: unknown;
   error: string | null;
-  updatedAt?: Date;
-  createdAt?: Date;
 };
 
 /** Prisma 查询返回的 ToolCallRecord 数据形状。 */
@@ -61,8 +57,6 @@ export type ToolCallPersistenceRecord = {
   requestFingerprint: string;
   startedAt: Date | null;
   completedAt: Date | null;
-  updatedAt?: Date;
-  createdAt?: Date;
 };
 
 /** Prisma 查询返回的 Checkpoint 数据形状。 */
@@ -84,8 +78,6 @@ export type InterruptionPersistenceRecord = {
   status: string;
   payload: unknown;
   resolution: unknown;
-  updatedAt?: Date;
-  createdAt?: Date;
 };
 
 /** 持久化记录不能安全恢复为领域模型时抛出。 */
@@ -322,12 +314,12 @@ function parseEnum<EnumValue extends string>(
   return value as EnumValue;
 }
 
-/** 将未知 JSON 值收窄并复制为普通只读对象。 */
+/** 将未知 JSON 值收窄为领域对象。 */
 function toRecord(value: unknown, field: string): Readonly<Record<string, unknown>> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new RuntimePersistenceMappingError(field, '必须是对象');
   }
-  return { ...(value as Record<string, unknown>) };
+  return value as Record<string, unknown>;
 }
 
 /** 通过 JSON 往返校验可序列化性，并移除对象原型等运行时细节。 */

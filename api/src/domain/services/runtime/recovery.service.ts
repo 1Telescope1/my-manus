@@ -76,8 +76,8 @@ export class RuntimeRecoveryService {
 
       // 汇总恢复所需的持久化现场，后续只基于这些记录生成确定性决策。
       const checkpoint = await uow.agentRun.getLatestCheckpoint(runId);
-      const incompleteToolCalls = await uow.agentRun.getIncompleteToolCalls(runId);
       const allToolCalls = await uow.agentRun.listToolCalls(runId);
+      const incompleteToolCalls = allToolCalls.filter(isIncomplete);
       const pendingInterruptions = await uow.agentRun.getPendingInterruptions(runId);
 
       // 进程重启后仍为 running 的副作用调用已经越过“提交前”检查点，
@@ -107,6 +107,13 @@ export class RuntimeRecoveryService {
       );
       const unresolvedToolCalls = normalizedIncompleteToolCalls.filter(requiresResolution);
       const retryableToolCalls = normalizedIncompleteToolCalls.filter(isSafeToRetry);
+      const recoveryState = {
+        checkpoint,
+        reusableToolCalls,
+        retryableToolCalls,
+        unresolvedToolCalls,
+        pendingInterruptions,
+      };
 
       // 不确定副作用的风险最高，必须优先于审批、等待和普通 Checkpoint 恢复。
       if (unresolvedToolCalls.length > 0) {
@@ -122,14 +129,10 @@ export class RuntimeRecoveryService {
           run = update.run;
         }
         return createPlan({
+          ...recoveryState,
           disposition: RuntimeRecoveryDisposition.PAUSE,
           reason: RuntimeRecoveryReason.UNCERTAIN_SIDE_EFFECT,
           run,
-          checkpoint,
-          reusableToolCalls,
-          retryableToolCalls,
-          unresolvedToolCalls,
-          pendingInterruptions,
         });
       }
 
@@ -138,13 +141,10 @@ export class RuntimeRecoveryService {
         (interruption) => interruption.kind === InterruptionKind.APPROVAL,
       )) {
         return createPlan({
+          ...recoveryState,
           disposition: RuntimeRecoveryDisposition.PAUSE,
           reason: RuntimeRecoveryReason.APPROVAL_PENDING,
           run,
-          checkpoint,
-          reusableToolCalls,
-          retryableToolCalls,
-          pendingInterruptions,
         });
       }
 
@@ -153,65 +153,60 @@ export class RuntimeRecoveryService {
         (interruption) => interruption.kind === InterruptionKind.USER_INPUT,
       )) {
         return createPlan({
+          ...recoveryState,
           disposition: RuntimeRecoveryDisposition.WAIT,
           reason: RuntimeRecoveryReason.USER_INPUT_PENDING,
           run,
-          checkpoint,
-          reusableToolCalls,
-          retryableToolCalls,
-          pendingInterruptions,
         });
       }
 
       // 没有待处理中断时，仍需尊重 Run 自身已持久化的暂停或等待状态。
       if (run.status === RunStatus.PAUSED) {
         return createPlan({
+          ...recoveryState,
           disposition: RuntimeRecoveryDisposition.PAUSE,
           reason: RuntimeRecoveryReason.RUN_PAUSED,
           run,
-          checkpoint,
-          reusableToolCalls,
-          retryableToolCalls,
-          pendingInterruptions,
         });
       }
 
       if (run.status === RunStatus.WAITING) {
         return createPlan({
+          ...recoveryState,
           disposition: RuntimeRecoveryDisposition.WAIT,
           reason: RuntimeRecoveryReason.RUN_WAITING,
           run,
-          checkpoint,
-          reusableToolCalls,
-          retryableToolCalls,
-          pendingInterruptions,
         });
       }
 
       // 可运行的 Run 如果没有 Checkpoint，就没有可信的恢复节点，不能猜测执行位置。
       if (!checkpoint) {
         return createPlan({
+          ...recoveryState,
           disposition: RuntimeRecoveryDisposition.NO_CHECKPOINT,
           reason: RuntimeRecoveryReason.CHECKPOINT_MISSING,
           run,
-          reusableToolCalls,
-          retryableToolCalls,
-          pendingInterruptions,
         });
       }
 
       // 通过全部安全检查后，才允许从最新 Checkpoint 的精确下一节点恢复。
       return createPlan({
+        ...recoveryState,
         disposition: RuntimeRecoveryDisposition.RESUME,
         reason: RuntimeRecoveryReason.CHECKPOINT_AVAILABLE,
         run,
-        checkpoint,
-        reusableToolCalls,
-        retryableToolCalls,
-        pendingInterruptions,
       });
     });
   }
+}
+
+/** pending、running 和 unknown 仍需要恢复逻辑处理。 */
+function isIncomplete(toolCall: ToolCallRecord): boolean {
+  return [
+    ToolCallStatus.PENDING,
+    ToolCallStatus.RUNNING,
+    ToolCallStatus.UNKNOWN,
+  ].includes(toolCall.status);
 }
 
 /** running/unknown 的有副作用调用必须先确认外部结果，不能直接重放。 */

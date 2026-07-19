@@ -252,7 +252,7 @@ function runtimeSkillSystemMessages(context: RuntimeExecutionContext) {
 /** 把 Runtime 路由能力和外部约束组合成一次完整工具选择请求。 */
 function toolSelectionRequest(context: RuntimeExecutionContext): ToolSelectionRequest {
   return {
-    ...structuredClone(context.toolSelection),
+    ...context.toolSelection,
     // Router 决策是权威输入，外部约束不能用同名运行时属性覆盖。
     routerCapabilities: [...context.decision.requiredCapabilities],
   };
