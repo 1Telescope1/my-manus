@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | Signal、Timeout、Risk、Approval、Idempotency 和统一结果 | Pass | `tool-invocation.ts`、`tool-result.ts`、`tool-invocation.service.ts`。 |
 | 超时、取消、校验错误、重试和副作用策略 | Pass | `tool-invocation.contract.test.ts` 12 个中文契约测试。 |
-| Single Tool 与 ReAct 真实接线 | Pass | `runtime/adapters.ts`、`base-agent.ts`；真实接线测试断言 metadata。 |
+| Single Tool 与 ReAct 真实接线 | Pass | `runtime/adapters.ts`、`base-agent.ts`；真实接线测试断言统一结果和幂等语义。 |
 
 ## Verification Commands
 
@@ -14,7 +14,7 @@
 | --- | --- | --- |
 | `node --import tsx --test test/contracts/tool-invocation.contract.test.ts` | Pass | 12/12。 |
 | 三个相关契约文件联合执行 | Pass | 20/20，覆盖专项、Single Tool 和 ReAct。 |
-| `npm run test:contract` | Pass | 100/100，包含 `test:contract:typecheck`。 |
+| `npm run test:contract` | Pass | 159/159，包含 `test:contract:typecheck`。 |
 | `npm run build` | Pass | Nest 生产构建成功。 |
 | `git diff --check` | Pass | 无空白错误。 |
 
@@ -34,6 +34,6 @@
 ## Completion Evidence
 
 - 相关提交或 PR：待提交。
-- 评测或运行报告：专项 12/12；相关路径 20/20；全量契约 100/100；构建通过。
-- 未解决限制：根 Run 取消属于 RUNTIME-106；持久化副作用恢复属于 RUNTIME-107；大型结果 Artifact 化属于 TOOL-106。
+- 评测或运行报告：专项 12/12；全量契约 159/159；类型检查和构建通过。
+- 未解决限制：大型结果 Artifact 化属于 TOOL-106。
 - 最终结论：`pass`，TOOL-103 验收完成。

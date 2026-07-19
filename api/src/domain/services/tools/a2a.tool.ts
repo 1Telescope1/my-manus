@@ -164,7 +164,6 @@ export class A2AClientManager {
 
 export class A2ATool extends BaseTool {
   readonly name = 'a2a';
-  protected override readonly supportsAbortSignal = true;
   private initialized = false;
   private manager?: A2AClientManager;
 

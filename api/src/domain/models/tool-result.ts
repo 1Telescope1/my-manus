@@ -27,7 +27,6 @@ export type ToolResultMetadata = {
   risk: ToolRisk;
   idempotencyKey?: string;
   replayed?: boolean;
-  signalPropagation: 'forwarded' | 'guarded';
 };
 
 /** 所有工具共用的结果；message 为现有消费者保留，error/metadata 提供稳定机器语义。 */

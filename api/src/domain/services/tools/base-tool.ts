@@ -8,9 +8,7 @@ import { ToolResult } from '../../models/tool-result';
 
 const DEFAULT_TOOL_TIMEOUT_MS = 60_000;
 
-type ToolDefinition = Omit<ToolDescriptor, 'id' | 'source' | 'capabilities'> & {
-  capabilities?: string[];
-};
+type ToolDefinition = Omit<ToolDescriptor, 'id' | 'source'>;
 
 type ToolMethod = ((...args: any[]) => Promise<ToolResult>) & {
   toolName?: string;
@@ -23,7 +21,7 @@ export function tool(input: {
   description: string;
   parameters: Record<string, unknown>;
   required: string[];
-  capabilities?: string[];
+  capabilities: string[];
   risk?: ToolRisk;
   requiresApproval?: boolean;
   timeoutMs?: number;
@@ -50,7 +48,6 @@ export function tool(input: {
 /** 现有工具包的领域基类，可把装饰器方法导出为 Registry 注册项。 */
 export abstract class BaseTool {
   abstract readonly name: string;
-  protected readonly supportsAbortSignal: boolean = false;
 
   /** 将当前工具包中的装饰器方法转换为内置工具注册项。 */
   getRegistrations(): ToolRegistration[] {
@@ -61,20 +58,12 @@ export abstract class BaseTool {
           ...definition,
           id: `builtin:${definition.name}`,
           source: 'builtin',
-          capabilities: definition.capabilities?.length
-            ? [...definition.capabilities]
-            : [this.name],
+          capabilities: [...definition.capabilities],
         },
         groupName: this.name,
         invoke: (arguments_, context) => this.invoke(definition.name, arguments_, context),
-        supportsAbortSignal: this.supportsAbortSignal,
       };
     });
-  }
-
-  /** 判断工具包是否包含指定模型可见函数名。 */
-  hasTool(toolName: string): boolean {
-    return this.getToolMethod(toolName) !== undefined;
   }
 
   /** 按输入 Schema 的属性顺序组装参数并调用工具方法。 */

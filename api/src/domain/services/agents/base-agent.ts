@@ -340,12 +340,11 @@ export abstract class BaseAgent {
     return result.tools;
   }
 
-  /** 按模型可见函数名解析注册项，并同步初始化后出现的 MCP 工具。 */
+  /** 在本轮已选工具名称范围内解析可执行注册项。 */
   protected findTool(
     toolName: string,
     allowedNames: ReadonlySet<string>,
   ): ToolRegistration | undefined {
-    synchronizeAgentToolRegistry(this.toolRegistry, this.tools);
     return allowedNames.has(toolName) ? this.toolRegistry.resolve(toolName) : undefined;
   }
 

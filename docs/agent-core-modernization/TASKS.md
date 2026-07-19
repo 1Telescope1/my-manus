@@ -58,7 +58,7 @@
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | [TOOL-101](./tasks/TOOL-101/README.md) | `done` | — | 统一描述内置、MCP 和 Agent 工具 | 建立 ToolDescriptor、capability、risk 和 registry 接口 | 三类工具可注册、查询和检测名称冲突；领域层无厂商类型 | [验收证据](./tasks/TOOL-101/evidence.md) | 2026-07-18：完成统一 Tool Registry 与现有路径接入 |
 | [TOOL-102](./tasks/TOOL-102/README.md) | `done` | TOOL-101 | 减少模型可见工具 | 根据 Router、Workflow、Agent、Skill 和 Policy 计算最终工具集合 | 工具选择测试证明未授权/无关工具不进入模型请求 | [验收证据](./tasks/TOOL-102/evidence.md) | 2026-07-18：完成最小工具选择与真实模型入口接入 |
-| [TOOL-103](./tasks/TOOL-103/README.md) | `done` | TOOL-101 | 统一调用可靠性和错误语义 | Tool 调用支持 Signal、Timeout、Risk、Approval、Idempotency 和统一结果 | 超时、取消、校验错误、重试和副作用策略测试通过 | [验收证据](./tasks/TOOL-103/evidence.md) | 2026-07-18：完成统一可靠调用层与真实路径接入 |
+| [TOOL-103](./tasks/TOOL-103/README.md) | `done` | TOOL-101 | 统一调用可靠性和错误语义 | Tool 调用支持 Signal、Timeout、Risk、Approval、Idempotency 和统一结果 | 超时、取消、校验错误、重试和副作用策略测试通过 | [验收证据](./tasks/TOOL-103/evidence.md) | 2026-07-19：删除无消费者的防御性抽象 |
 | [TOOL-104](./tasks/TOOL-104/README.md) | `done` | TOOL-101 | 修复 MCP 动态管理 | 只连接 enabled 服务，保留命名空间，隔离连接故障并刷新工具列表 | disabled 服务不连接/不暴露；单服务故障不影响其他工具 | [验收证据](./tasks/TOOL-104/evidence.md) | 2026-07-18：完成 MCP enabled、故障隔离与动态刷新 |
 | TOOL-105 | `proposed` | TOOL-104, MEMORY-102 | 使用完整 MCP 上下文能力 | Resources 接入 Context Manager，Prompts 作为模板，处理 Notifications | Tools/Resources/Prompts 类型边界清晰；动态变化可被刷新 | — | 2026-07-16：初始化 |
 | TOOL-106 | `proposed` | TOOL-103, MEMORY-103 | 防止大型工具结果污染上下文 | 超过阈值的结果保存为 Artifact，只返回摘要和引用 | 128 KiB 以上结果不直接进入 LLM；Artifact 可按需读取 | — | 2026-07-16：初始化 |

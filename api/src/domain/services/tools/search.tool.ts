@@ -6,7 +6,6 @@ import { BaseTool, tool } from './base-tool';
 
 export class SearchTool extends BaseTool {
   readonly name = 'search';
-  protected override readonly supportsAbortSignal = true;
 
   constructor(private readonly searchEngine: SearchEngine) {
     super();

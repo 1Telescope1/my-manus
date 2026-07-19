@@ -239,12 +239,8 @@ test('主动刷新应隔离单服务错误并保留最后成功快照', async ()
 
   states.stable.tools = [{ name: 'after' }];
   states.flaky.listError = new Error('临时列表故障');
-  const results = await manager.refreshTools();
+  await manager.refreshTools();
 
-  assert.deepEqual(results, [
-    { serverName: 'stable', outcome: 'refreshed' },
-    { serverName: 'flaky', outcome: 'failed', error: '临时列表故障' },
-  ]);
   assert.deepEqual(manager.getAllTools().map((tool) => tool.name), [
     'mcp_stable_after',
     'mcp_flaky_cached',

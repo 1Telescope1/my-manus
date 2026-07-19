@@ -28,8 +28,8 @@ export class InvalidToolDescriptorError extends Error {
 
 /** 使用进程内索引实现不绑定特定模型厂商的 Tool Registry。 */
 export class InMemoryToolRegistry implements ToolRegistry {
-  private readonly registrationsById = new Map<string, ToolRegistration>();
-  private readonly idsByName = new Map<string, string>();
+  private registrationsById = new Map<string, ToolRegistration>();
+  private idsByName = new Map<string, string>();
 
   /** 注册一个工具，并复用批量注册的原子校验语义。 */
   register(registration: ToolRegistration): void {
@@ -82,14 +82,8 @@ export class InMemoryToolRegistry implements ToolRegistry {
       nextIdsByName.set(name, id);
     }
 
-    this.registrationsById.clear();
-    this.idsByName.clear();
-    for (const [id, registration] of nextRegistrations) {
-      this.registrationsById.set(id, registration);
-    }
-    for (const [name, id] of nextIdsByName) {
-      this.idsByName.set(name, id);
-    }
+    this.registrationsById = nextRegistrations;
+    this.idsByName = nextIdsByName;
   }
 
   /** 按稳定 id 返回隔离于 Registry 内部状态的描述快照。 */

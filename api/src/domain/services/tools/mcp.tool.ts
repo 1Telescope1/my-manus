@@ -48,13 +48,6 @@ export type MCPClientManagerOptions = {
   connector?: MCPServerConnector;
 };
 
-/** 一次主动刷新每个目标服务的结果。 */
-export type MCPToolRefreshResult = {
-  serverName: string;
-  outcome: 'refreshed' | 'failed' | 'not_connected';
-  error?: string;
-};
-
 export class MCPClientManager {
   private readonly logger = new Logger(MCPClientManager.name);
   private readonly clients: Record<string, MCPClientConnection> = {};
@@ -124,23 +117,17 @@ export class MCPClientManager {
   async refreshTools(
     serverName?: string,
     signal?: AbortSignal,
-  ): Promise<MCPToolRefreshResult[]> {
+  ): Promise<void> {
     const serverNames = serverName ? [serverName] : Object.keys(this.clients);
-    const results: MCPToolRefreshResult[] = [];
 
     for (const target of serverNames) {
       signal?.throwIfAborted();
       const record = this.clients[target];
       if (!record) {
-        results.push({ serverName: target, outcome: 'not_connected' });
         continue;
       }
-      const refreshed = await this.fetchAndCacheTools(target, record.client, false, signal);
-      results.push(refreshed.ok
-        ? { serverName: target, outcome: 'refreshed' }
-        : { serverName: target, outcome: 'failed', error: refreshed.error });
+      await this.fetchAndCacheTools(target, record.client, false, signal);
     }
-    return results;
   }
 
   /** 只解析当前已连接且仍存在于最新缓存的命名空间工具。 */
@@ -168,7 +155,7 @@ export class MCPClientManager {
       }
 
       const record = this.clients[originalServerName];
-      if (!record?.client) {
+      if (!record) {
         return { success: false, message: `MCP服务器[${originalServerName}]未连接` };
       }
 
@@ -176,7 +163,7 @@ export class MCPClientManager {
         name: originalToolName,
         arguments: arguments_,
       }, undefined, { signal });
-      const content = Array.isArray(result?.content)
+      const content = Array.isArray(result.content)
         ? result.content.map((item: any) => item.text ?? String(item)).join('\n')
         : undefined;
 
@@ -225,7 +212,6 @@ export class MCPClientManager {
         }
         const err = error instanceof Error ? error : new Error(String(error));
         this.logger.error(`连接MCP服务器[${serverName}]出错: ${err.message}`);
-        continue;
       }
     }
   }
@@ -362,12 +348,11 @@ export class MCPClientManager {
     client: MCPClientConnection['client'],
     clearOnFailure: boolean,
     signal?: AbortSignal,
-  ): Promise<{ ok: true } | { ok: false; error: string }> {
+  ): Promise<void> {
     try {
       const toolsResponse = await client.listTools(undefined, { signal });
-      this.cachedTools[serverName] = (toolsResponse?.tools ?? []).map(cloneMcpToolSchema);
+      this.cachedTools[serverName] = (toolsResponse.tools ?? []).map(cloneMcpToolSchema);
       this.logger.log(`MCP服务器[${serverName}]提供了${this.cachedTools[serverName].length}个工具`);
-      return { ok: true };
     } catch (error) {
       if (signal?.aborted) {
         throw error;
@@ -377,7 +362,6 @@ export class MCPClientManager {
       if (clearOnFailure) {
         this.cachedTools[serverName] = [];
       }
-      return { ok: false, error: err.message };
     }
   }
 
@@ -427,14 +411,7 @@ export class MCPTool extends BaseTool {
       descriptor,
       groupName: this.name,
       invoke: (arguments_, context) => this.invoke(descriptor.name, arguments_, context),
-      supportsAbortSignal: true,
     }));
-  }
-
-  /** 判断当前 MCP 快照是否包含指定的命名空间工具名。 */
-  override hasTool(toolName: string): boolean {
-    return (this.manager?.getAllTools() ?? [])
-      .some((descriptor) => descriptor.name === toolName);
   }
 
   /** 把命名空间工具调用交给 manager；未初始化时返回兼容失败结果。 */
@@ -453,11 +430,9 @@ export class MCPTool extends BaseTool {
   async refreshTools(
     serverName?: string,
     signal?: AbortSignal,
-  ): Promise<MCPToolRefreshResult[]> {
+  ): Promise<void> {
     if (!this.manager) {
-      return serverName
-        ? [{ serverName, outcome: 'not_connected' }]
-        : [];
+      return;
     }
     return this.manager.refreshTools(serverName, signal);
   }

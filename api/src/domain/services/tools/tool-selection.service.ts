@@ -13,22 +13,18 @@ export class ToolSelectionService {
 
   /** 按相关性、允许范围和 Policy 拒绝规则计算稳定有序的最终集合。 */
   select(request: ToolSelectionRequest): ToolSelectionResult {
+    const scopes = [request.workflow, request.agent, ...(request.skills ?? [])]
+      .filter((scope): scope is ToolSelectionScope => scope !== undefined);
     const requestedCapabilities = uniqueStrings([
       ...request.routerCapabilities,
-      ...(request.workflow?.requestedCapabilities ?? []),
-      ...(request.agent?.requestedCapabilities ?? []),
-      ...(request.skills ?? []).flatMap((skill) => skill.requestedCapabilities ?? []),
+      ...scopes.flatMap((scope) => scope.requestedCapabilities ?? []),
     ]);
-    const requestedToolIds = uniqueStrings([
-      ...(request.workflow?.requestedToolIds ?? []),
-      ...(request.agent?.requestedToolIds ?? []),
-      ...(request.skills ?? []).flatMap((skill) => skill.requestedToolIds ?? []),
-    ]);
-    const requestedToolNames = uniqueStrings([
-      ...(request.workflow?.requestedToolNames ?? []),
-      ...(request.agent?.requestedToolNames ?? []),
-      ...(request.skills ?? []).flatMap((skill) => skill.requestedToolNames ?? []),
-    ]);
+    const requestedToolIds = uniqueStrings(
+      scopes.flatMap((scope) => scope.requestedToolIds ?? []),
+    );
+    const requestedToolNames = uniqueStrings(
+      scopes.flatMap((scope) => scope.requestedToolNames ?? []),
+    );
 
     // 没有任何相关性信号时 fail closed，不能把“未指定”解释为允许全部工具。
     const hasRelevanceSignal = requestedCapabilities.length > 0
@@ -45,7 +41,7 @@ export class ToolSelectionService {
         && matchesAllowScope(descriptor, request.workflow)
         && matchesAllowScope(descriptor, request.agent)
         && matchesSkillScopes(descriptor, request.skills ?? [])
-        && matchesPolicyAllow(descriptor, request.policy)
+        && matchesAllowScope(descriptor, request.policy)
         && !matchesPolicyDeny(descriptor, request.policy)
       ))
       : [];
@@ -86,7 +82,7 @@ function matchesAllowScope(
     return true;
   }
   return matchesIdentityAllow(descriptor, scope.allowedToolIds, scope.allowedToolNames)
-    && matchesSourceAllow(descriptor, scope.allowedSources);
+    && (scope.allowedSources === undefined || scope.allowedSources.includes(descriptor.source));
 }
 
 /** 将多个已激活 Skill 的授权范围按并集合并，再作为一个整体上界。 */
@@ -104,18 +100,6 @@ function hasAllowConstraint(scope: ToolSelectionScope): boolean {
   return scope.allowedToolIds !== undefined
     || scope.allowedToolNames !== undefined
     || scope.allowedSources !== undefined;
-}
-
-/** Policy allow 与普通授权范围语义一致。 */
-function matchesPolicyAllow(
-  descriptor: ToolDescriptor,
-  policy: ToolPolicyConstraints | undefined,
-): boolean {
-  if (!policy) {
-    return true;
-  }
-  return matchesIdentityAllow(descriptor, policy.allowedToolIds, policy.allowedToolNames)
-    && matchesSourceAllow(descriptor, policy.allowedSources);
 }
 
 /** Policy 任一 deny 条件命中即移除工具，并覆盖其他来源的显式请求。 */
@@ -147,12 +131,4 @@ function matchesIdentityAllow(
     allowedIds?.includes(descriptor.id)
     || allowedNames?.includes(descriptor.name),
   );
-}
-
-/** source 是独立授权轴，声明空数组时明确拒绝全部来源。 */
-function matchesSourceAllow(
-  descriptor: ToolDescriptor,
-  allowedSources: ToolSelectionScope['allowedSources'] | undefined,
-): boolean {
-  return allowedSources === undefined || allowedSources.includes(descriptor.source);
 }

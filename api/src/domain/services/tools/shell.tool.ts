@@ -5,7 +5,6 @@ import { BaseTool, tool } from './base-tool';
 
 export class ShellTool extends BaseTool {
   readonly name = 'shell';
-  protected override readonly supportsAbortSignal = true;
 
   constructor(private readonly sandbox: Sandbox) {
     super();

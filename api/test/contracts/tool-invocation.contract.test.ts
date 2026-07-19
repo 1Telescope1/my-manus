@@ -17,7 +17,6 @@ type RegistrationOverrides = {
   risk?: ToolRisk;
   requiresApproval?: boolean;
   timeoutMs?: number;
-  supportsAbortSignal?: boolean;
   supportsIdempotency?: boolean;
 };
 
@@ -47,7 +46,6 @@ function registration(
     },
     groupName: 'test',
     invoke,
-    supportsAbortSignal: overrides.supportsAbortSignal,
     supportsIdempotency: overrides.supportsIdempotency,
   };
 }
@@ -82,7 +80,7 @@ test('可靠调用应返回统一成功结果并传递执行上下文', async ()
   const service = createService(registration(async (arguments_, context) => {
     receivedContext = context;
     return { success: true, data: arguments_ };
-  }, { supportsAbortSignal: true }));
+  }));
 
   const result = await service.invoke(request({ idempotencyKey: 'call-1' }));
 
@@ -92,7 +90,6 @@ test('可靠调用应返回统一成功结果并传递执行上下文', async ()
   assert.equal(result.metadata?.attempts, 1);
   assert.equal(result.metadata?.risk, 'read');
   assert.equal(result.metadata?.idempotencyKey, 'call-1');
-  assert.equal(result.metadata?.signalPropagation, 'forwarded');
   assert.equal(receivedContext?.attempt, 1);
   assert.equal(receivedContext?.idempotencyKey, 'call-1');
   assert.equal(receivedContext?.signal.aborted, false);
@@ -217,7 +214,7 @@ test('工具超时后应中止 Signal 并停止消费迟到结果', async () => 
   const service = createService(registration(async (_arguments, context) => {
     receivedSignal = context?.signal;
     return new Promise<ToolResult>(() => undefined);
-  }, { risk: 'write', timeoutMs: 10, supportsAbortSignal: true }));
+  }, { risk: 'write', timeoutMs: 10 }));
 
   const result = await service.invoke(request());
 

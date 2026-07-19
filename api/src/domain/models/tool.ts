@@ -34,7 +34,6 @@ export type ToolRegistration = {
     arguments_: Record<string, unknown>,
     context?: ToolExecutionContext,
   ) => Promise<ToolResult>;
-  supportsAbortSignal?: boolean;
   supportsIdempotency?: boolean;
 };
 

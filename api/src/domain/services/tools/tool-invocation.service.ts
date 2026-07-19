@@ -19,8 +19,6 @@ const DEFAULT_MAX_READ_ATTEMPTS = 3;
 export type ToolInvocationServiceOptions = {
   approvalGate?: ToolApprovalGate;
   idempotencyStore?: ToolIdempotencyStore;
-  maxReadAttempts?: number;
-  clock?: () => number;
 };
 
 type StoredInvocation = {
@@ -73,8 +71,6 @@ export class InMemoryToolIdempotencyStore implements ToolIdempotencyStore {
 /** 在 Tool Registry 之上统一执行校验、审批、幂等、取消、超时和风险感知重试。 */
 export class ToolInvocationService {
   private readonly idempotencyStore: ToolIdempotencyStore;
-  private readonly maxReadAttempts: number;
-  private readonly clock: () => number;
 
   /** 注入 Registry 与可替换策略端口；审批器缺失时需要审批的工具默认拒绝。 */
   constructor(
@@ -82,16 +78,11 @@ export class ToolInvocationService {
     private readonly options: ToolInvocationServiceOptions = {},
   ) {
     this.idempotencyStore = options.idempotencyStore ?? new InMemoryToolIdempotencyStore();
-    this.maxReadAttempts = options.maxReadAttempts ?? DEFAULT_MAX_READ_ATTEMPTS;
-    this.clock = options.clock ?? Date.now;
-    if (!Number.isSafeInteger(this.maxReadAttempts) || this.maxReadAttempts < 1) {
-      throw new Error('maxReadAttempts 必须是正安全整数');
-    }
   }
 
   /** 按固定安全顺序执行一次注册工具，并把所有失败归一为 ToolResult。 */
   async invoke(request: ToolInvocationRequest): Promise<ToolResult> {
-    const startedAt = this.clock();
+    const startedAt = Date.now();
     const registration = this.registry.resolve(request.functionName);
     if (!registration) {
       return this.failure(
@@ -285,10 +276,10 @@ export class ToolInvocationService {
     request: ToolInvocationRequest,
   ): number {
     if (registration.descriptor.risk === 'read') {
-      return this.maxReadAttempts;
+      return DEFAULT_MAX_READ_ATTEMPTS;
     }
     return registration.supportsIdempotency && request.idempotencyKey
-      ? this.maxReadAttempts
+      ? DEFAULT_MAX_READ_ATTEMPTS
       : 1;
   }
 
@@ -439,10 +430,9 @@ export class ToolInvocationService {
   ): ToolResultMetadata {
     return {
       attempts,
-      durationMs: Math.max(0, this.clock() - startedAt),
+      durationMs: Date.now() - startedAt,
       risk: registration.descriptor.risk,
       ...(idempotencyKey ? { idempotencyKey } : {}),
-      signalPropagation: registration.supportsAbortSignal ? 'forwarded' : 'guarded',
     };
   }
 }

@@ -44,8 +44,8 @@
 | `ToolIdempotencyStore` | 原子区分首次占用、完成结果重放、执行中重复和键冲突。 | 相同 Run、key 和参数直接复用结果；相同 key 换参数返回冲突。 |
 | `InMemoryToolIdempotencyStore` | 提供当前进程内的默认幂等实现和并发保护。 | 两个并发请求只有一个进入实际工具。 |
 | `ToolInvocationService` | 固定执行校验、审批、幂等、Signal/Timeout、风险重试和结果归一化。 | 只读工具瞬时失败最多重试两次，普通写工具只尝试一次。 |
-| `ToolError` / `ToolResultMetadata` | 让调用方稳定区分错误原因，并记录次数、耗时、风险、幂等键和 Signal 能力。 | 超时结果的 code 为 `timeout`，`attempts` 表示实际尝试次数。 |
-| 注册项执行能力 | `ToolRegistration` 接收每次尝试的 Signal、attempt 和 idempotencyKey，并声明是否真正支持中止/适配器幂等。 | 旧适配器不支持底层中止时标记 `signalPropagation: guarded`。 |
+| `ToolError` / `ToolResultMetadata` | 让调用方稳定区分错误原因，并记录次数、耗时、风险和幂等键。 | 超时结果的 code 为 `timeout`，`attempts` 表示实际尝试次数。 |
+| 注册项执行能力 | `ToolRegistration` 接收每次尝试的 Signal、attempt 和 idempotencyKey，并声明适配器是否提供幂等保证。 | 支持幂等的写工具带稳定 key 时才允许安全重试。 |
 
 ### 主要流程
 
@@ -86,8 +86,7 @@ requiresApproval ? 审批通过 : 继续
   metadata: {
     attempts: 2,
     risk: 'read',
-    idempotencyKey: 'call-search',
-    signalPropagation: 'guarded'
+    idempotencyKey: 'call-search'
   }
 }
 ```
@@ -99,7 +98,7 @@ requiresApproval ? 审批通过 : 继续
 - Schema 校验和审批发生在幂等占用、实际执行之前，失败不会产生工具副作用。
 - 幂等指纹对对象键排序，同一语义参数不会因 JSON 键顺序不同而误判。
 - 同一 scope/key 的并发调用只放行一个；已完成结果以快照重放，不再次执行工具。
-- 超时会中止本次尝试的 Signal；底层暂不支持中止时，上层仍停止消费迟到结果并记录 `guarded`。
+- 超时会中止本次尝试的 Signal；底层暂不支持中止时，上层仍停止消费迟到结果。
 - Single Tool 使用 `toolCallId` 作为幂等键；ReAct 把 Runtime runId 作为作用域并沿用模型 tool call ID。
 - 现有 `success/message/data` 消费者保持兼容；经过可靠调用层的失败额外获得结构化 `error`，成功和失败都获得 `metadata`。
 - 根 Run 级取消控制器属于 RUNTIME-106；本任务保证调用边界接收并遵守传入 Signal。
@@ -150,7 +149,7 @@ requiresApproval ? 审批通过 : 继续
 
 - 当前进展：统一调用模型、服务、Single Tool/ReAct 接线和全部契约测试已完成。
 - 当前阻塞：无。
-- 下一步：执行 RUNTIME-106，把根 `AbortController` 贯穿 LLM 和所有工具适配器；或执行 RUNTIME-107，把幂等端口接入持久化 ToolCallRecord。
+- 后续接入：RUNTIME-106 的根取消和 RUNTIME-107 的持久化幂等均已完成，TOOL-103 不再保留重复状态。
 
 ## Task Files
 
@@ -161,11 +160,11 @@ requiresApproval ? 审批通过 : 继续
 
 - 本任务不把领域调用服务直接绑定 AgentRun Repository，避免把 Tool 可靠性与 Runtime 持久化混成一个职责。
 - 审批能力缺失时对 `requiresApproval` 工具默认拒绝，不能把“未配置审批器”当作批准。
-- `signalPropagation: guarded` 明确表示只能停止消费结果，不能声称底层操作已物理停止。
+- `AbortSignal` 统一传给注册项；具体适配器是否物理停止由 RUNTIME-106 的取消契约验证，不再维护无人消费的重复元数据。
 
 ## Latest Session State
 
-- Current state: `done`；专项 12/12、全量契约 100/100、类型检查和构建通过。
+- Current state: `done`；专项 12/12、全量契约 159/159、类型检查和构建通过。
 - Remaining work: 无 TOOL-103 范围内工作。
 - Blockers: 无。
-- Recommended next action: RUNTIME-106 或 RUNTIME-107；前者完成根取消传播，后者完成跨进程副作用幂等。
+- Recommended next action: 保持当前统一调用边界；大型结果 Artifact 化由 TOOL-106 单独处理。

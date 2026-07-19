@@ -5,7 +5,6 @@ import { BaseTool, tool } from './base-tool';
 
 export class BrowserTool extends BaseTool {
   readonly name = 'browser';
-  protected override readonly supportsAbortSignal = true;
 
   constructor(private readonly browser: Browser) {
     super();

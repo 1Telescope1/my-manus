@@ -236,7 +236,6 @@ test('Shell 取消应把 Signal 传到底层并停止消费命令结果', async 
   const result = await pending;
   assert.equal(receivedSignal?.aborted, true);
   assert.equal(result.error?.code, 'cancelled');
-  assert.equal(result.metadata?.signalPropagation, 'forwarded');
 });
 
 test('Browser 取消应把 Signal 传到底层并停止消费页面结果', async () => {
@@ -265,7 +264,6 @@ test('Browser 取消应把 Signal 传到底层并停止消费页面结果', asyn
   const result = await pending;
   assert.equal(receivedSignal?.aborted, true);
   assert.equal(result.error?.code, 'cancelled');
-  assert.equal(result.metadata?.signalPropagation, 'forwarded');
 });
 
 test('MCP 取消应把 Signal 交给 SDK callTool', async () => {
