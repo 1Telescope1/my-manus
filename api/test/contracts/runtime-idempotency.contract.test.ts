@@ -4,12 +4,9 @@ import {
   AgentRun,
   RouteKind,
   RunStatus,
-  RunStep,
   RunStepStatus,
-  ToolCallRecord,
   ToolCallStatus,
   ToolRisk as RunToolRisk,
-  canTransitionRunStatus,
   createAgentRun,
   transitionAgentRun,
 } from '../../src/domain/models/agent-run';
@@ -20,8 +17,6 @@ import {
   ToolRisk,
 } from '../../src/domain/models/tool';
 import { ToolResult } from '../../src/domain/models/tool-result';
-import { AgentRunRepository } from '../../src/domain/repositories/agent-run.repository';
-import { UnitOfWork } from '../../src/domain/repositories/unit-of-work';
 import { PersistentToolIdempotencyStore } from '../../src/domain/services/runtime/persistent-tool-idempotency.store';
 import {
   RuntimeRecoveryDisposition,
@@ -30,172 +25,9 @@ import {
 } from '../../src/domain/services/runtime/recovery.service';
 import { ToolInvocationService } from '../../src/domain/services/tools/tool-invocation.service';
 import { InMemoryToolRegistry } from '../../src/domain/services/tools/tool-registry';
+import { RuntimeEvaluationStore } from '../support/runtime-evaluation-store';
 
 const NOW = new Date('2026-07-19T04:00:00.000Z');
-
-/** 覆盖 PersistentToolIdempotencyStore 所需的事务仓储行为。 */
-class IdempotencyMemoryStore {
-  readonly runs = new Map<string, AgentRun>();
-  readonly steps = new Map<string, RunStep>();
-  readonly toolCalls = new Map<string, ToolCallRecord>();
-
-  /** 写入一个可执行 Run。 */
-  seedRun(run: AgentRun): void {
-    this.runs.set(run.id, run);
-  }
-
-  /** 每次返回带回滚快照的新事务边界，模拟进程重建后的共享数据库。 */
-  createUnitOfWork(): UnitOfWork {
-    const repository = this.createRepository();
-    const unitOfWork = {
-      agentRun: repository,
-      file: {},
-      session: {},
-      run: async <T>(handler: (active: UnitOfWork) => Promise<T>): Promise<T> => {
-        const snapshot = {
-          runs: new Map(this.runs),
-          steps: new Map(this.steps),
-          toolCalls: new Map(this.toolCalls),
-        };
-        try {
-          return await handler(unitOfWork as UnitOfWork);
-        } catch (error) {
-          replaceMap(this.runs, snapshot.runs);
-          replaceMap(this.steps, snapshot.steps);
-          replaceMap(this.toolCalls, snapshot.toolCalls);
-          throw error;
-        }
-      },
-    } as UnitOfWork;
-    return unitOfWork;
-  }
-
-  /** 实现 Run、Step 和 ToolCall 的唯一键与条件更新契约。 */
-  private createRepository(): AgentRunRepository {
-    return {
-      getById: async (runId: string) => this.runs.get(runId) ?? null,
-      update: async (candidate: AgentRun, expectedVersion: number) => {
-        const current = this.runs.get(candidate.id);
-        if (!current) {
-          return { outcome: 'not_found' as const };
-        }
-        if (current.version !== expectedVersion || candidate.version !== expectedVersion) {
-          return {
-            outcome: 'version_conflict' as const,
-            actualVersion: current.version,
-          };
-        }
-        if (
-          candidate.status !== current.status
-          && !canTransitionRunStatus(current.status, candidate.status)
-        ) {
-          return {
-            outcome: 'invalid_status_transition' as const,
-            from: current.status,
-            to: candidate.status,
-          };
-        }
-        const updated = { ...candidate, version: expectedVersion + 1 };
-        this.runs.set(updated.id, updated);
-        return { outcome: 'updated' as const, run: updated };
-      },
-      createStep: async (step: RunStep) => {
-        if (!this.runs.has(step.runId)) {
-          throw new Error('Run 不存在');
-        }
-        const duplicate = [...this.steps.values()].some(
-          (item) => item.runId === step.runId
-            && item.key === step.key
-            && item.attempt === step.attempt,
-        );
-        if (this.steps.has(step.id) || duplicate) {
-          throw new Error('RunStep 唯一键冲突');
-        }
-        this.steps.set(step.id, step);
-      },
-      getStepById: async (stepId: string) => this.steps.get(stepId) ?? null,
-      getStepByKey: async (runId: string, key: string, attempt: number) =>
-        [...this.steps.values()].find(
-          (step) => step.runId === runId
-            && step.key === key
-            && step.attempt === attempt,
-        ) ?? null,
-      updateStep: async (candidate: RunStep, expectedStatus: RunStepStatus) => {
-        const current = this.steps.get(candidate.id);
-        if (!current) {
-          return { outcome: 'not_found' as const };
-        }
-        if (current.status !== expectedStatus) {
-          return {
-            outcome: 'status_conflict' as const,
-            actualStatus: current.status,
-          };
-        }
-        this.steps.set(candidate.id, candidate);
-        return { outcome: 'updated' as const, entity: candidate };
-      },
-      reserveToolCall: async (candidate: ToolCallRecord) => {
-        if (!this.steps.has(candidate.stepId)) {
-          throw new Error('RunStep 不存在');
-        }
-        const existing = [...this.toolCalls.values()].find(
-          (toolCall) => toolCall.runId === candidate.runId
-            && toolCall.idempotencyKey === candidate.idempotencyKey,
-        );
-        if (!existing) {
-          this.toolCalls.set(candidate.id, candidate);
-          return { outcome: 'reserved' as const, toolCall: candidate };
-        }
-        return existing.requestFingerprint === candidate.requestFingerprint
-          ? { outcome: 'existing' as const, toolCall: existing }
-          : { outcome: 'key_conflict' as const, existingToolCall: existing };
-      },
-      updateToolCall: async (
-        candidate: ToolCallRecord,
-        expectedStatus: ToolCallStatus,
-      ) => {
-        const current = this.toolCalls.get(candidate.id);
-        if (!current) {
-          return { outcome: 'not_found' as const };
-        }
-        if (current.status !== expectedStatus) {
-          return {
-            outcome: 'status_conflict' as const,
-            actualStatus: current.status,
-          };
-        }
-        this.toolCalls.set(candidate.id, candidate);
-        return { outcome: 'updated' as const, entity: candidate };
-      },
-      getToolCallByIdempotencyKey: async (runId: string, idempotencyKey: string) =>
-        [...this.toolCalls.values()].find(
-          (toolCall) => toolCall.runId === runId
-            && toolCall.idempotencyKey === idempotencyKey,
-        ) ?? null,
-      getIncompleteToolCalls: async (runId: string) => [...this.toolCalls.values()].filter(
-        (toolCall) => toolCall.runId === runId
-          && [
-            ToolCallStatus.PENDING,
-            ToolCallStatus.RUNNING,
-            ToolCallStatus.UNKNOWN,
-          ].includes(toolCall.status),
-      ),
-      listToolCalls: async (runId: string) => [...this.toolCalls.values()].filter(
-        (toolCall) => toolCall.runId === runId,
-      ),
-      getLatestCheckpoint: async () => null,
-      getPendingInterruptions: async () => [],
-    } as unknown as AgentRunRepository;
-  }
-}
-
-/** 用源 Map 恢复事务开始前的状态。 */
-function replaceMap<Key, Value>(target: Map<Key, Value>, source: Map<Key, Value>): void {
-  target.clear();
-  for (const [key, value] of source) {
-    target.set(key, value);
-  }
-}
 
 /** 创建处于 running 的测试 Run。 */
 function runningRun(id: string): AgentRun {
@@ -273,7 +105,7 @@ class FailBeforeResultPersistenceStore implements ToolIdempotencyStore {
 }
 
 test('副作用结果持久化后应跨服务实例复用，且同键不同请求必须冲突', async () => {
-  const memory = new IdempotencyMemoryStore();
+  const memory = new RuntimeEvaluationStore();
   const run = runningRun('run-runtime-107-replay');
   memory.seedRun(run);
   let externalWrites = 0;
@@ -306,7 +138,7 @@ test('副作用结果持久化后应跨服务实例复用，且同键不同请�
 });
 
 test('副作用发生后结果未持久化时，恢复必须标记 unknown、暂停 Run 且禁止重放', async () => {
-  const memory = new IdempotencyMemoryStore();
+  const memory = new RuntimeEvaluationStore();
   const run = runningRun('run-runtime-107-crash');
   memory.seedRun(run);
   let externalWrites = 0;
@@ -350,7 +182,7 @@ test('副作用发生后结果未持久化时，恢复必须标记 unknown、暂
 });
 
 test('只读调用崩溃后可由新实例重新打开并安全重试', async () => {
-  const memory = new IdempotencyMemoryStore();
+  const memory = new RuntimeEvaluationStore();
   const run = runningRun('run-runtime-107-read-retry');
   memory.seedRun(run);
   let reads = 0;

@@ -97,7 +97,7 @@
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | EVAL-101 | `ready` | — | 建立可重复的 Agent 质量基线 | 建立版本化任务集、期望结果和统一运行器 | 数据集覆盖 SDD 约定场景；结果可机器读取和重复运行 | — | 2026-07-16：初始化 |
 | [EVAL-102](./tasks/EVAL-102/README.md) | `done` | — | 固化现有 API/Event 行为 | 为 Session、SSE、Plan、Step、Tool、Wait、Done 建契约测试 | 当前发布行为有基线；事件顺序和必填字段被验证 | [验收证据](./tasks/EVAL-102/evidence.md) | 2026-07-18：补充任务说明 |
-| EVAL-103 | `proposed` | RUNTIME-103, RUNTIME-106, RUNTIME-107 | 验证耐久执行而非只测正常路径 | 注入进程崩溃、超时、取消和不确定副作用 | 所有恢复门槛满足；重复副作用为 0 | — | 2026-07-16：初始化 |
+| [EVAL-103](./tasks/EVAL-103/README.md) | `done` | RUNTIME-103, RUNTIME-106, RUNTIME-107 | 验证耐久执行而非只测正常路径 | 注入进程崩溃、超时、取消和不确定副作用 | 所有恢复门槛满足；重复副作用为 0 | [验收证据](./tasks/EVAL-103/evidence.md) | 2026-07-19：完成六场景耐久评测与发布门槛 |
 | EVAL-104 | `proposed` | SKILL-103, TOOL-102 | 量化 Skill 和工具选择 | 构建正例、负例和近似场景，记录 Precision/Recall | 无关 Skill/Tool 不过度披露；指标写入报告 | — | 2026-07-16：初始化 |
 | EVAL-105 | `proposed` | AGENT-103, AGENT-105 | 验证多 Agent 边界 | 覆盖 Agent-as-Tool、Handoff、A2A 流、输入恢复和取消 | 所有权、上下文过滤、Artifact 和终态符合设计 | — | 2026-07-16：初始化 |
 | EVAL-106 | `proposed` | EVAL-101, EVAL-102 | 形成统一比较报告 | 汇总完成率、Token、调用、延迟、恢复和事件契约 | 可按 runtime/version/task 过滤；作为完成证据被任务表引用 | — | 2026-07-16：初始化 |
