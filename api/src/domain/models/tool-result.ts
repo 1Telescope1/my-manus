@@ -7,6 +7,7 @@ export type ToolErrorCode =
   | 'approval_denied'
   | 'idempotency_conflict'
   | 'duplicate_in_progress'
+  | 'uncertain_side_effect'
   | 'timeout'
   | 'cancelled'
   | 'execution_failed';

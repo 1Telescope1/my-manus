@@ -11,6 +11,7 @@ import { ExecutionStatus, getNextStep, Plan, Step } from '../../models/plan';
 import { getLatestPlan, SessionStatus } from '../../models/session';
 import { UnitOfWork } from '../../repositories/unit-of-work';
 import { ToolSelectionRequest } from '../../models/tool-selection';
+import { ToolIdempotencyStore } from '../../models/tool-invocation';
 import { PlannerAgent } from '../agents/planner-agent';
 import { ReActAgent } from '../agents/react-agent';
 import { A2ATool } from '../tools/a2a.tool';
@@ -38,6 +39,7 @@ export class PlannerReActFlow extends BaseFlow {
     private readonly searchEngine: SearchEngine,
     private readonly mcpTool: MCPTool,
     private readonly a2aTool: A2ATool,
+    private readonly toolIdempotencyStore?: ToolIdempotencyStore,
   ) {
     super();
 
@@ -69,6 +71,7 @@ export class PlannerReActFlow extends BaseFlow {
       this.llm,
       this.jsonParser,
       tools,
+      this.toolIdempotencyStore,
     );
     this.logger.debug(`创建执行Agent成功, 会话id: ${this.sessionId}`);
   }

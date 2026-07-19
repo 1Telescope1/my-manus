@@ -8,6 +8,7 @@ import {
 } from '../../models/event';
 import { createMessage, messageToText } from '../../models/message';
 import { ToolResult } from '../../models/tool-result';
+import { ToolIdempotencyStore } from '../../models/tool-invocation';
 import { PlannerReActFlow } from '../flows/planner-react-flow';
 import {
   DirectResponseProvider,
@@ -174,9 +175,12 @@ export class AgentToolRuntimeInvoker implements RuntimeToolInvoker {
   private readonly toolInvoker: ToolInvocationService;
 
   /** 固定本轮可调用工具集合。 */
-  constructor(private readonly tools: readonly BaseTool[]) {
+  constructor(
+    private readonly tools: readonly BaseTool[],
+    idempotencyStore?: ToolIdempotencyStore,
+  ) {
     this.toolRegistry = createAgentToolRegistry(tools);
-    this.toolInvoker = new ToolInvocationService(this.toolRegistry);
+    this.toolInvoker = new ToolInvocationService(this.toolRegistry, { idempotencyStore });
   }
 
   /** 按函数名找到工具并执行一次结构化调用。 */
@@ -187,6 +191,7 @@ export class AgentToolRuntimeInvoker implements RuntimeToolInvoker {
       arguments: input.arguments,
       scopeId: input.runId,
       idempotencyKey: input.idempotencyKey,
+      toolCallId: input.toolCallId,
       signal: input.signal,
     });
   }

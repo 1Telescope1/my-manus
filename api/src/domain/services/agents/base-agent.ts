@@ -6,6 +6,7 @@ import { Event, events, ToolEventStatus } from '../../models/event';
 import { Memory } from '../../models/memory';
 import { Message } from '../../models/message';
 import { ToolResult } from '../../models/tool-result';
+import { ToolIdempotencyStore } from '../../models/tool-invocation';
 import { ToolRegistration, ToolRegistry } from '../../models/tool';
 import { ToolSelectionRequest } from '../../models/tool-selection';
 import { UnitOfWork } from '../../repositories/unit-of-work';
@@ -65,10 +66,11 @@ export abstract class BaseAgent {
     protected readonly llm: LLM,
     protected readonly jsonParser: JSONParser,
     protected readonly tools: BaseTool[],
+    idempotencyStore?: ToolIdempotencyStore,
   ) {
     this.toolRegistry = createAgentToolRegistry(tools);
     this.toolSelector = new ToolSelectionService(this.toolRegistry);
-    this.toolInvoker = new ToolInvocationService(this.toolRegistry);
+    this.toolInvoker = new ToolInvocationService(this.toolRegistry, { idempotencyStore });
   }
 
   async compactMemory(): Promise<void> {

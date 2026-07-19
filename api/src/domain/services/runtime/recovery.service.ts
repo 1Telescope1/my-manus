@@ -8,6 +8,7 @@ import {
   ToolCallStatus,
   ToolRisk,
   isTerminalRunStatus,
+  transitionAgentRun,
 } from '../../models/agent-run';
 import { UnitOfWork } from '../../repositories/unit-of-work';
 
@@ -50,13 +51,16 @@ export type RuntimeRecoveryPlan = {
 /** 读取运行聚合并把崩溃现场解析为可执行的恢复决策。 */
 export class RuntimeRecoveryService {
   /** 接收 UoW 工厂，使一次恢复读取共享相同的数据访问边界。 */
-  constructor(private readonly uowFactory: () => UnitOfWork) {}
+  constructor(
+    private readonly uowFactory: () => UnitOfWork,
+    private readonly clock: () => Date = () => new Date(),
+  ) {}
 
   /** 返回指定 Run 的恢复计划；Run 不存在时返回 null。 */
   async resolve(runId: string): Promise<RuntimeRecoveryPlan | null> {
     return this.uowFactory().run(async (uow) => {
       // 先确认聚合根仍然存在；不存在的 Run 没有可恢复的运行现场。
-      const run = await uow.agentRun.getById(runId);
+      let run = await uow.agentRun.getById(runId);
       if (!run) {
         return null;
       }
@@ -76,15 +80,47 @@ export class RuntimeRecoveryService {
       const allToolCalls = await uow.agentRun.listToolCalls(runId);
       const pendingInterruptions = await uow.agentRun.getPendingInterruptions(runId);
 
+      // 进程重启后仍为 running 的副作用调用已经越过“提交前”检查点，
+      // 但没有持久化终态；先固化为 unknown，确保后续任何调度器都不能自动重放。
+      const normalizedIncompleteToolCalls: ToolCallRecord[] = [];
+      for (const toolCall of incompleteToolCalls) {
+        if (
+          toolCall.status === ToolCallStatus.RUNNING
+          && toolCall.risk !== ToolRisk.READ
+        ) {
+          const update = await uow.agentRun.updateToolCall(
+            { ...toolCall, status: ToolCallStatus.UNKNOWN },
+            ToolCallStatus.RUNNING,
+          );
+          if (update.outcome !== 'updated') {
+            throw new Error(`恢复 ToolCall 状态失败：${update.outcome}`);
+          }
+          normalizedIncompleteToolCalls.push(update.entity);
+        } else {
+          normalizedIncompleteToolCalls.push(toolCall);
+        }
+      }
+
       // 将工具调用分为结果复用、安全重试和必须人工确认三类，避免恢复时重复副作用。
       const reusableToolCalls = allToolCalls.filter(
         (toolCall) => toolCall.status === ToolCallStatus.COMPLETED,
       );
-      const unresolvedToolCalls = incompleteToolCalls.filter(requiresResolution);
-      const retryableToolCalls = incompleteToolCalls.filter(isSafeToRetry);
+      const unresolvedToolCalls = normalizedIncompleteToolCalls.filter(requiresResolution);
+      const retryableToolCalls = normalizedIncompleteToolCalls.filter(isSafeToRetry);
 
       // 不确定副作用的风险最高，必须优先于审批、等待和普通 Checkpoint 恢复。
       if (unresolvedToolCalls.length > 0) {
+        if (run.status === RunStatus.RUNNING) {
+          const paused = transitionAgentRun(run, {
+            status: RunStatus.PAUSED,
+            at: this.clock(),
+          });
+          const update = await uow.agentRun.update(paused, run.version);
+          if (update.outcome !== 'updated') {
+            throw new Error(`恢复 Run 暂停状态失败：${update.outcome}`);
+          }
+          run = update.run;
+        }
         return createPlan({
           disposition: RuntimeRecoveryDisposition.PAUSE,
           reason: RuntimeRecoveryReason.UNCERTAIN_SIDE_EFFECT,

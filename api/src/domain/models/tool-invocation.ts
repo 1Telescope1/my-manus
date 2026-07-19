@@ -1,4 +1,4 @@
-import { ToolDescriptor } from './tool';
+import { ToolDescriptor, ToolRisk } from './tool';
 import { ToolResult } from './tool-result';
 
 /** 一次可靠工具调用所需的运行上下文。 */
@@ -7,6 +7,8 @@ export type ToolInvocationRequest = {
   arguments: Record<string, unknown>;
   scopeId: string;
   idempotencyKey?: string;
+  toolCallId?: string;
+  stepId?: string;
   signal?: AbortSignal;
 };
 
@@ -32,22 +34,39 @@ export type ToolIdempotencyReservation =
   | { outcome: 'reserved' }
   | { outcome: 'existing'; result: ToolResult }
   | { outcome: 'in_progress' }
+  | { outcome: 'unresolved' }
   | { outcome: 'conflict' };
+
+/** 幂等存储占用时持久化一次工具调用所需的完整身份。 */
+export type ToolIdempotencyReservationInput = {
+  scopeId: string;
+  idempotencyKey: string;
+  requestFingerprint: string;
+  toolCallId?: string;
+  stepId?: string;
+  functionName: string;
+  arguments: Readonly<Record<string, unknown>>;
+  risk: ToolRisk;
+};
+
+/** 幂等存储推进调用状态时使用的稳定身份。 */
+export type ToolIdempotencyExecutionInput = {
+  scopeId: string;
+  idempotencyKey: string;
+  requestFingerprint: string;
+};
 
 /** 工具调用幂等端口；RUNTIME-107 可用持久化实现替换进程内实现。 */
 export interface ToolIdempotencyStore {
   /** 原子占用 scope 内的幂等键，并校验请求指纹。 */
-  reserve(input: {
-    scopeId: string;
-    idempotencyKey: string;
-    requestFingerprint: string;
-  }): Promise<ToolIdempotencyReservation>;
+  reserve(input: ToolIdempotencyReservationInput): Promise<ToolIdempotencyReservation>;
+
+  /** 在实际提交外部请求前把已占用调用推进为 running。 */
+  start(input: ToolIdempotencyExecutionInput): Promise<void>;
 
   /** 保存最终结果，使相同请求可以直接复用而不重复执行副作用。 */
-  complete(input: {
-    scopeId: string;
-    idempotencyKey: string;
-    requestFingerprint: string;
+  complete(input: ToolIdempotencyExecutionInput & {
     result: ToolResult;
+    risk: ToolRisk;
   }): Promise<void>;
 }

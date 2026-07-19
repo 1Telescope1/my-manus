@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import {
   AgentRun,
   RouteKind,
@@ -275,7 +275,7 @@ export class DirectRuntimeExecutor extends BaseRuntimeExecutor {
 /** 严格限制为一次主要工具调用并随后归纳结果的执行器。 */
 export class SingleToolRuntimeExecutor extends BaseRuntimeExecutor {
   readonly route = RouteKind.SINGLE_TOOL;
-  private readonly toolCallIdFactory: () => string;
+  private readonly toolCallIdFactory?: () => string;
 
   /** 注入工具选择、单次调用、结果归纳和标识生成依赖。 */
   constructor(
@@ -285,7 +285,7 @@ export class SingleToolRuntimeExecutor extends BaseRuntimeExecutor {
     options: SingleToolExecutorOptions = {},
   ) {
     super(options);
-    this.toolCallIdFactory = options.toolCallIdFactory ?? randomUUID;
+    this.toolCallIdFactory = options.toolCallIdFactory;
   }
 
   /** 按 select → call once → summarize 的固定顺序执行，路径内不存在调用循环。 */
@@ -294,7 +294,9 @@ export class SingleToolRuntimeExecutor extends BaseRuntimeExecutor {
   ): AsyncIterable<RuntimeExecutionEventPayload> {
     const selected = await this.selector.select(context);
     throwIfAborted(context.signal);
-    const toolCallId = this.toolCallIdFactory();
+    // Single Tool 在一个 Run 中只有一个逻辑调用；ID 必须跨进程重建保持稳定，
+    // 否则恢复会生成新幂等键并绕过已持久化的 ToolCallRecord。
+    const toolCallId = this.toolCallIdFactory?.() ?? stableSingleToolCallId(context.run.id);
     const invocation: RuntimeToolCallInput = {
       ...selected,
       arguments: { ...selected.arguments },
@@ -340,6 +342,15 @@ export class SingleToolRuntimeExecutor extends BaseRuntimeExecutor {
       message: response,
     };
   }
+}
+
+/** 从 Run ID 生成固定长度的 Single Tool 调用 ID，避免泄露或超过数据库字段长度。 */
+function stableSingleToolCallId(runId: string): string {
+  const digest = createHash('sha256')
+    .update('single_tool\0')
+    .update(runId)
+    .digest('hex');
+  return `single-tool-${digest}`;
 }
 
 /** 按路由指定名称运行代码定义流程的 Workflow 执行器。 */

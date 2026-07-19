@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto';
 import {
   ToolApprovalGate,
   ToolIdempotencyReservation,
+  ToolIdempotencyExecutionInput,
+  ToolIdempotencyReservationInput,
   ToolIdempotencyStore,
   ToolInvocationRequest,
 } from '../../models/tool-invocation';
@@ -37,11 +39,7 @@ export class InMemoryToolIdempotencyStore implements ToolIdempotencyStore {
   private readonly entries = new Map<string, StoredInvocation>();
 
   /** 按 scope 和 key 原子判断首次调用、重放、执行中或指纹冲突。 */
-  async reserve(input: {
-    scopeId: string;
-    idempotencyKey: string;
-    requestFingerprint: string;
-  }): Promise<ToolIdempotencyReservation> {
+  async reserve(input: ToolIdempotencyReservationInput): Promise<ToolIdempotencyReservation> {
     const key = storageKey(input.scopeId, input.idempotencyKey);
     const existing = this.entries.get(key);
     if (!existing) {
@@ -56,11 +54,11 @@ export class InMemoryToolIdempotencyStore implements ToolIdempotencyStore {
       : { outcome: 'in_progress' };
   }
 
+  /** 进程内占用在 reserve 时已完成，开始钩子保持空操作。 */
+  async start(_input: ToolIdempotencyExecutionInput): Promise<void> {}
+
   /** 仅完成同一指纹已占用的调用，防止错误覆盖其他请求。 */
-  async complete(input: {
-    scopeId: string;
-    idempotencyKey: string;
-    requestFingerprint: string;
+  async complete(input: ToolIdempotencyExecutionInput & {
     result: ToolResult;
   }): Promise<void> {
     const key = storageKey(input.scopeId, input.idempotencyKey);
@@ -140,6 +138,14 @@ export class ToolInvocationService {
       return reservationResult;
     }
 
+    if (request.idempotencyKey) {
+      await this.idempotencyStore.start({
+        scopeId: request.scopeId,
+        idempotencyKey: request.idempotencyKey,
+        requestFingerprint,
+      });
+    }
+
     const maxAttempts = this.maxAttempts(registration, request);
     let finalResult: ToolResult | undefined;
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
@@ -163,6 +169,7 @@ export class ToolInvocationService {
         idempotencyKey: request.idempotencyKey,
         requestFingerprint,
         result,
+        risk: registration.descriptor.risk,
       });
     }
     return result;
@@ -222,6 +229,11 @@ export class ToolInvocationService {
       scopeId: request.scopeId,
       idempotencyKey: request.idempotencyKey,
       requestFingerprint,
+      toolCallId: request.toolCallId,
+      stepId: request.stepId,
+      functionName: request.functionName,
+      arguments: structuredClone(request.arguments),
+      risk: this.registry.resolve(request.functionName)?.descriptor.risk ?? 'read',
     });
   }
 
@@ -246,10 +258,14 @@ export class ToolInvocationService {
     }
     const code: ToolErrorCode = reservation.outcome === 'conflict'
       ? 'idempotency_conflict'
-      : 'duplicate_in_progress';
+      : reservation.outcome === 'unresolved'
+        ? 'uncertain_side_effect'
+        : 'duplicate_in_progress';
     const message = reservation.outcome === 'conflict'
       ? '同一幂等键对应了不同工具请求'
-      : '同一幂等调用仍在执行中';
+      : reservation.outcome === 'unresolved'
+        ? '工具副作用状态无法确认，已禁止自动重放'
+        : '同一幂等调用仍在执行中';
     return this.failure(
       code,
       message,

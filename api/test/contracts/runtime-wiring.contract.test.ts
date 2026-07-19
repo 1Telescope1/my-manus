@@ -12,6 +12,10 @@ import {
   Checkpoint,
   RouteKind,
   RunStatus,
+  RunStep,
+  RunStepStatus,
+  ToolCallRecord,
+  ToolCallStatus,
   canTransitionRunStatus,
 } from '../../src/domain/models/agent-run';
 import { Event, events } from '../../src/domain/models/event';
@@ -30,6 +34,8 @@ import { LLMRuntimeRouteModel } from '../../src/infrastructure/external/llm/llm-
 /** 为真实 Runner 接线测试保存 Session 历史和运行聚合。 */
 class RuntimeWiringStore {
   readonly runs = new Map<string, AgentRun>();
+  readonly steps = new Map<string, RunStep>();
+  readonly toolCalls = new Map<string, ToolCallRecord>();
   readonly checkpoints: Checkpoint[] = [];
   readonly sessionEvents: Event[];
   readonly session = createSession({ id: 'session-wiring', status: SessionStatus.PENDING });
@@ -104,6 +110,65 @@ class RuntimeWiringStore {
         const updated = { ...candidate, version: expectedVersion + 1 };
         this.runs.set(updated.id, updated);
         return { outcome: 'updated' as const, run: updated };
+      },
+      createStep: async (step: RunStep) => {
+        this.steps.set(step.id, step);
+      },
+      getStepById: async (stepId: string) => this.steps.get(stepId) ?? null,
+      getStepByKey: async (runId: string, key: string, attempt: number) =>
+        [...this.steps.values()].find(
+          (step) => step.runId === runId
+            && step.key === key
+            && step.attempt === attempt,
+        ) ?? null,
+      updateStep: async (candidate: RunStep, expectedStatus: RunStepStatus) => {
+        const current = this.steps.get(candidate.id);
+        if (!current) {
+          return { outcome: 'not_found' as const };
+        }
+        if (current.status !== expectedStatus) {
+          return {
+            outcome: 'status_conflict' as const,
+            actualStatus: current.status,
+          };
+        }
+        this.steps.set(candidate.id, candidate);
+        return { outcome: 'updated' as const, entity: candidate };
+      },
+      reserveToolCall: async (candidate: ToolCallRecord) => {
+        const existing = [...this.toolCalls.values()].find(
+          (toolCall) => toolCall.runId === candidate.runId
+            && toolCall.idempotencyKey === candidate.idempotencyKey,
+        );
+        if (!existing) {
+          this.toolCalls.set(candidate.id, candidate);
+          return { outcome: 'reserved' as const, toolCall: candidate };
+        }
+        return existing.requestFingerprint === candidate.requestFingerprint
+          ? { outcome: 'existing' as const, toolCall: existing }
+          : { outcome: 'key_conflict' as const, existingToolCall: existing };
+      },
+      getToolCallByIdempotencyKey: async (runId: string, idempotencyKey: string) =>
+        [...this.toolCalls.values()].find(
+          (toolCall) => toolCall.runId === runId
+            && toolCall.idempotencyKey === idempotencyKey,
+        ) ?? null,
+      updateToolCall: async (
+        candidate: ToolCallRecord,
+        expectedStatus: ToolCallStatus,
+      ) => {
+        const current = this.toolCalls.get(candidate.id);
+        if (!current) {
+          return { outcome: 'not_found' as const };
+        }
+        if (current.status !== expectedStatus) {
+          return {
+            outcome: 'status_conflict' as const,
+            actualStatus: current.status,
+          };
+        }
+        this.toolCalls.set(candidate.id, candidate);
+        return { outcome: 'updated' as const, entity: candidate };
       },
       appendCheckpoint: async (checkpoint: Checkpoint): Promise<CheckpointAppendResult> => {
         const latest = this.latestCheckpoint(checkpoint.runId);
@@ -408,6 +473,8 @@ test('Single Tool 应执行一次现有工具并输出兼容事件', async () =>
     'read',
   );
   assert.equal(output[2].type === 'message' && output[2].message, '搜索完成');
+  assert.equal([...store.toolCalls.values()][0]?.status, ToolCallStatus.COMPLETED);
+  assert.equal([...store.steps.values()][0]?.status, RunStepStatus.COMPLETED);
   assert.equal([...store.runs.values()][0].status, RunStatus.COMPLETED);
   assert.equal(llm.calls.length, 3);
   assert.equal(llm.calls[1].toolChoice, 'auto');

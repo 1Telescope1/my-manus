@@ -44,6 +44,7 @@ import {
 } from './executor.service';
 import { RuntimeRouterService } from './router.service';
 import { RuntimeService } from './runtime.service';
+import { PersistentToolIdempotencyStore } from './persistent-tool-idempotency.store';
 import { A2ATool } from '../tools/a2a.tool';
 import {
   createAgentToolRegistry,
@@ -94,6 +95,7 @@ export class AgentTaskRunner extends TaskRunner {
   ) {
     super();
     this.uow = this.uowFactory();
+    const toolIdempotencyStore = new PersistentToolIdempotencyStore(this.uowFactory);
     this.flow = new PlannerReActFlow(
       this.uowFactory,
       this.llm,
@@ -105,6 +107,7 @@ export class AgentTaskRunner extends TaskRunner {
       this.searchEngine,
       this.mcpTool,
       this.a2aTool,
+      toolIdempotencyStore,
     );
     this.runtimeEventAdapter = runtimeOptions.eventAdapter;
     const tools = createAgentToolset({
@@ -124,7 +127,7 @@ export class AgentTaskRunner extends TaskRunner {
       new DirectRuntimeExecutor(new LLMDirectResponseProvider(this.llm)),
       new SingleToolRuntimeExecutor(
         singleToolProvider,
-        new AgentToolRuntimeInvoker(tools),
+        new AgentToolRuntimeInvoker(tools, toolIdempotencyStore),
         singleToolProvider,
       ),
       new WorkflowRuntimeExecutor(new UnavailableRuntimeWorkflowRunner()),

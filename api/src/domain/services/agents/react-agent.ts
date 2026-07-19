@@ -12,6 +12,7 @@ import { Message, messageToText } from '../../models/message';
 import { createStep, ExecutionStatus, Plan, Step } from '../../models/plan';
 import { UnitOfWork } from '../../repositories/unit-of-work';
 import { ToolSelectionRequest } from '../../models/tool-selection';
+import { ToolIdempotencyStore } from '../../models/tool-invocation';
 import { BaseTool } from '../tools/base-tool';
 import { BaseAgent } from './base-agent';
 import { SYSTEM_PROMPT } from '../prompts/system';
@@ -49,8 +50,9 @@ export class ReActAgent extends BaseAgent {
     llm: LLM,
     jsonParser: JSONParser,
     tools: BaseTool[],
+    idempotencyStore?: ToolIdempotencyStore,
   ) {
-    super(uowFactory, sessionId, agentConfig, llm, jsonParser, tools);
+    super(uowFactory, sessionId, agentConfig, llm, jsonParser, tools, idempotencyStore);
   }
 
   /** 在 Runtime 选定的工具边界内执行一个计划步骤。 */
