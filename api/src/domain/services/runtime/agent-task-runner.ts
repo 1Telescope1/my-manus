@@ -52,7 +52,7 @@ import {
   synchronizeAgentToolRegistry,
 } from '../tools/agent-toolset';
 import { MCPTool } from '../tools/mcp.tool';
-import { throwIfAborted } from './cancellation';
+import { isCancellationError, throwIfAborted } from './cancellation';
 
 /** AgentTaskRunner 依赖的 Runtime Event 转换边界。 */
 export interface RuntimeEventAdapterPort {
@@ -545,14 +545,16 @@ export class AgentTaskRunner extends TaskRunner {
         await active.session.updateStatus(this.sessionId, SessionStatus.COMPLETED);
       });
     } catch (error) {
-      if (isCancelledError(error)) {
+      if (isCancellationError(error, task.signal)) {
         // 13. 异步任务被取消，推送结束事件并更新状态。
         this.logger.log('AgentTaskRunner任务运行取消');
-        await this.putAndAddEvent(task, events.done());
+        const doneEvent = events.done();
+        doneEvent.metadata = { terminal_status: 'cancelled' };
+        await this.putAndAddEvent(task, doneEvent);
         await this.uow.run(async (active) => {
           await active.session.updateStatus(this.sessionId, SessionStatus.COMPLETED);
         });
-        throw error;
+        return;
       }
 
       // 14. 记录日志并往任务队列/消息队列中写入异常事件。
@@ -658,11 +660,4 @@ export class AgentTaskRunner extends TaskRunner {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-function isCancelledError(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    ['AbortError', 'CancelError', 'CancelledError'].includes(error.name)
-  );
 }

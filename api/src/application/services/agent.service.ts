@@ -8,7 +8,12 @@ import { SearchEngine } from '../../domain/external/search-engine';
 import { Task, TaskManager } from '../../domain/external/task';
 import { BaseEvent, Event, events } from '../../domain/models/event';
 import { LLMConfig } from '../../domain/models/app-config';
-import { Session, SessionStatus } from '../../domain/models/session';
+import {
+  createInitialSessionTitle,
+  needsInitialSessionTitle,
+  Session,
+  SessionStatus,
+} from '../../domain/models/session';
 import { UnitOfWork } from '../../domain/repositories/unit-of-work';
 import { AgentTaskRunner } from '../../domain/services/runtime/agent-task-runner';
 import { createDefaultRuntimeRouteRules } from '../../domain/services/runtime/route-rules';
@@ -177,6 +182,20 @@ export class AgentService {
         await this.uow.run(async (active) => {
           await active.session.addEvent(sessionId, messageEvent);
         });
+
+        // 会话标题属于 Session 边界：第一条用户消息即产生初始标题，不依赖后续 Runtime 路由。
+        if (needsInitialSessionTitle(session.title)) {
+          const title = createInitialSessionTitle(options.message);
+          if (title) {
+            const titleEvent = events.title(title);
+            await this.uow.run(async (active) => {
+              await active.session.updateTitle(sessionId, title);
+              await active.session.addEvent(sessionId, titleEvent);
+            });
+            session.title = title;
+            yield titleEvent;
+          }
+        }
 
         // 9. 执行任务。
         await task.invoke();

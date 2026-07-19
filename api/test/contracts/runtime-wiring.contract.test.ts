@@ -251,6 +251,20 @@ class MemoryTask extends Task {
   }
 }
 
+/** 模拟 Runtime 启动前已收到的用户取消。 */
+class CancelledMemoryTask extends MemoryTask {
+  private readonly controller = new AbortController();
+
+  constructor() {
+    super();
+    this.controller.abort(new DOMException('用户取消任务', 'AbortError'));
+  }
+
+  override get signal(): AbortSignal {
+    return this.controller.signal;
+  }
+}
+
 /** 解析测试 LLM 返回的 JSON 参数。 */
 class ParseJson extends JSONParser {
   /** 解析 JSON，失败时使用调用方默认值。 */
@@ -353,6 +367,21 @@ async function invokeRunner(runner: AgentTaskRunner, message: string): Promise<M
 function outputEvents(task: MemoryTask): Event[] {
   return task.outputStream.values.map((value) => JSON.parse(String(value)) as Event);
 }
+
+test('Runner 应将启动阶段取消视为正常终止而非错误', async () => {
+  const store = new RuntimeWiringStore([]);
+  const runner = createRunner(store, new SequenceLLM([]));
+  const task = new CancelledMemoryTask();
+
+  await assert.doesNotReject(() => runner.invoke(task));
+
+  const output = outputEvents(task);
+  assert.deepEqual(output.map((event) => event.type), ['done']);
+  assert.equal(output[0].metadata?.terminal_status, 'cancelled');
+  assert.equal(store.sessionEvents[0]?.type, 'done');
+  assert.equal(store.sessionEvents[0]?.metadata?.terminal_status, 'cancelled');
+  assert.equal(store.session.status, SessionStatus.COMPLETED);
+});
 
 // 生产默认规则必须在 Runner 真实接线中跳过路由模型并直接执行回答路径。
 test('生产规则应将概念解释请求直接路由到 Direct', async () => {

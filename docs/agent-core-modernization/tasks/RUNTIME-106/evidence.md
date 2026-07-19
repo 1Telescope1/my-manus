@@ -6,9 +6,12 @@
 | --- | --- | --- |
 | 生产类型检查 | `cd api && npm run typecheck` | 通过。 |
 | 测试类型检查 | `cd api && npm run test:contract:typecheck` | 通过。 |
-| RUNTIME-106 专项 | `cd api && node --import tsx --test test/contracts/runtime-cancellation.contract.test.ts` | 7/7 通过：LLM 执行器、OpenAI HTTP、Shell、Browser、MCP、A2A、Run 终态与停止调度。 |
-| 完整契约测试 | `cd api && npm run test:contract` | 119/119 通过。 |
+| RUNTIME-106 专项 | `cd api && node --import tsx --test test/contracts/runtime-cancellation.contract.test.ts` | 8/8 通过：增加 SDK 包装取消异常的根 Signal 识别回归。 |
+| Runner 取消回归 | `cd api && node --import tsx --test test/contracts/runtime-wiring.contract.test.ts` | 通过：启动阶段取消只输出 `done(metadata.terminal_status=cancelled)`，不抛异常。 |
+| 完整契约测试 | `cd api && npm run test:contract` | 128/128 通过。 |
 | 生产构建 | `cd api && npm run build` | 通过。 |
+| API 镜像部署 | `docker compose up -d --build --no-deps api` | 通过；`manus-api-1` 重建并启动。 |
+| 容器健康检查 | `docker compose ps api nginx` | API `healthy`，Nginx 继续监听 `8088`。 |
 | PostgreSQL 集成测试 | `cd api && npm run test:integration:runtime` | 未执行到业务断言；环境缺少必需的 `DATABASE_URL`。 |
 | Diff 格式检查 | `git diff --check` | 通过。 |
 
@@ -22,6 +25,8 @@
 | MCP 取消 | `MCP 取消应把 Signal 交给 SDK callTool`。 |
 | A2A 取消 | `A2A 取消应中止远程 fetch`。 |
 | 停止新调度并进入 CANCELLED | `根取消应先记录请求再收敛到 CANCELLED，且不调度后续事件`；断言首次请求时间、唯一 `run.cancelled` 事件、Run 状态和 `confirmed` metadata。 |
+| SDK 包装取消 | `SDK 包装取消异常后应以根 Signal 的终止状态为准`；不依赖被 SDK 改写后的 `Error.name`。 |
+| Session/SSE 取消终止 | `Runner 应将启动阶段取消视为正常终止而非错误`；断言无 `error`、不抛异常且保留 cancelled metadata。 |
 
 ## 可复核代码路径
 

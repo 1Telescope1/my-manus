@@ -30,6 +30,7 @@ import {
 } from '../../src/domain/services/runtime/executor.service';
 import { RuntimeRouterService } from '../../src/domain/services/runtime/router.service';
 import { RuntimeService } from '../../src/domain/services/runtime/runtime.service';
+import { isCancellationError } from '../../src/domain/services/runtime/cancellation';
 import { BrowserTool } from '../../src/domain/services/tools/browser.tool';
 import {
   MCPClientManager,
@@ -67,6 +68,16 @@ async function collect(events: AsyncIterable<RuntimeEvent>): Promise<RuntimeEven
   }
   return result;
 }
+
+test('SDK 包装取消异常后应以根 Signal 的终止状态为准', () => {
+  const controller = new AbortController();
+  controller.abort(new DOMException('用户取消任务', 'AbortError'));
+
+  const wrapped = new Error('MCP error -32001: AbortError: 用户取消任务');
+  assert.equal(wrapped.name, 'Error');
+  assert.equal(isCancellationError(wrapped), false);
+  assert.equal(isCancellationError(wrapped, controller.signal), true);
+});
 
 class AbortableLLM extends LLM {
   readonly modelName = 'abortable';

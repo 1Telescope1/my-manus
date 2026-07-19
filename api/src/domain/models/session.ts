@@ -4,6 +4,9 @@ import { createFileModel, FileModel } from './file';
 import { Memory } from './memory';
 import { Plan } from './plan';
 
+export const DEFAULT_SESSION_TITLE = '新对话';
+const INITIAL_SESSION_TITLE_MAX_LENGTH = 30;
+
 export enum SessionStatus {
   PENDING = 'pending',
   RUNNING = 'running',
@@ -43,6 +46,22 @@ export function createSession(input: Partial<Session> = {}): Session {
     updated_at: input.updated_at ?? new Date(),
     created_at: input.created_at ?? new Date(),
   };
+}
+
+/** 从第一条用户消息生成跨 Runtime 路由一致的初始会话标题。 */
+export function createInitialSessionTitle(message: string): string {
+  const normalized = message.replace(/\s+/g, ' ').trim();
+  const characters = Array.from(normalized);
+  if (characters.length <= INITIAL_SESSION_TITLE_MAX_LENGTH) {
+    return normalized;
+  }
+  return `${characters.slice(0, INITIAL_SESSION_TITLE_MAX_LENGTH).join('')}…`;
+}
+
+/** 只允许尚未命名的会话自动生成初始标题。 */
+export function needsInitialSessionTitle(title: string): boolean {
+  const normalized = title.trim();
+  return normalized.length === 0 || normalized === DEFAULT_SESSION_TITLE;
 }
 
 export function getLatestPlan(session: Session): Plan | undefined {

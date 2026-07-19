@@ -3,6 +3,7 @@
 import {useCallback, useSyncExternalStore} from 'react'
 import {CheckCircle2, Circle, Loader2, MoreHorizontal, Trash} from 'lucide-react'
 import {Button} from '@/components/ui/button'
+import {Tooltip, TooltipContent, TooltipTrigger} from '@/components/ui/tooltip'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,6 +42,7 @@ export function SessionItem({session, isActive, onClick, onDelete}: SessionItemP
   }, [onDelete, session])
 
   const dateLabel = formatRelativeDate(session.latest_message_at)
+  const title = session.title || '新任务'
   const isRunning = session.status === 'running' || session.status === 'waiting'
   const statusLabel = session.status === 'completed'
     ? '任务完成'
@@ -68,9 +70,21 @@ export function SessionItem({session, isActive, onClick, onDelete}: SessionItemP
       </ItemMedia>
       {/* 中间内容 */}
       <ItemContent className="gap-0 min-w-0">
-        <p className="text-sm font-medium leading-5 text-foreground truncate">
-          {session.title || '新任务'}
-        </p>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <p className="text-sm font-medium leading-5 text-foreground truncate">
+              {title}
+            </p>
+          </TooltipTrigger>
+          <TooltipContent
+            side="right"
+            align="start"
+            sideOffset={8}
+            className="max-w-[min(28rem,calc(100vw-2rem))] whitespace-normal break-words text-left leading-5"
+          >
+            {title}
+          </TooltipContent>
+        </Tooltip>
         <p className={`text-xs leading-5 truncate ${session.status === 'completed' ? 'text-success' : 'text-muted-foreground'}`}>
           {statusLabel}
         </p>
@@ -86,7 +100,7 @@ export function SessionItem({session, isActive, onClick, onDelete}: SessionItemP
                 variant="ghost"
                 className="cursor-pointer"
                 onClick={(e) => e.stopPropagation()}
-                aria-label={`管理任务：${session.title || '新任务'}`}
+                aria-label={`管理任务：${title}`}
               >
                 <MoreHorizontal/>
               </Button>

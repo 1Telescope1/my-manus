@@ -134,6 +134,9 @@ export const events = {
   plan(plan: Plan, status = PlanEventStatus.CREATED): PlanEvent {
     return { ...baseEvent('plan'), type: 'plan', plan, status };
   },
+  title(title: string): TitleEvent {
+    return { ...baseEvent('title'), type: 'title', title };
+  },
   step(step: Step, status = StepEventStatus.STARTED): StepEvent {
     return { ...baseEvent('step'), type: 'step', step, status };
   },

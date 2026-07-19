@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { NotFoundError, ServerRequestsError } from '../../core/errors/app-exception';
 import { SandboxManager } from '../../domain/external/sandbox';
 import { FileModel } from '../../domain/models/file';
-import { createSession, Session } from '../../domain/models/session';
+import { createSession, DEFAULT_SESSION_TITLE, Session } from '../../domain/models/session';
 import { UnitOfWork } from '../../domain/repositories/unit-of-work';
 import { FileReadResponse, ShellReadResponse } from '../../interfaces/dto/session.dto';
 
@@ -17,7 +17,7 @@ export class SessionService {
   /** 创建一个空白的新任务会话。 */
   async createSession(): Promise<Session> {
     this.logger.log('创建一个空白新任务会话');
-    const session = createSession({ title: '新对话' });
+    const session = createSession({ title: DEFAULT_SESSION_TITLE });
     await this.uow.run(async (active) => {
       await active.session.save(session);
     });

@@ -2,7 +2,13 @@
 
 import {useEffect} from 'react'
 import {useRouter} from 'next/navigation'
-import {Sidebar, SidebarContent, SidebarHeader, SidebarTrigger} from '@/components/ui/sidebar'
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarHeader,
+  SidebarResizeHandle,
+  SidebarTrigger,
+} from '@/components/ui/sidebar'
 import {Button} from '@/components/ui/button'
 import {Feather, ListTodo, Plus} from 'lucide-react'
 import {Kbd, KbdGroup} from '@/components/ui/kbd'
@@ -59,6 +65,7 @@ export function LeftPanel() {
         </div>
         <SessionList/>
       </SidebarContent>
+      <SidebarResizeHandle/>
     </Sidebar>
   )
 }

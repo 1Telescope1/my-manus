@@ -14,9 +14,9 @@ export function throwIfAborted(signal?: AbortSignal): void {
   }
 }
 
-/** 判断异常是否属于标准或 SDK 常见取消异常。 */
-export function isCancellationError(error: unknown): boolean {
-  return error instanceof Error
-    && ['AbortError', 'CancelError', 'CancelledError'].includes(error.name);
+/** 判断异常或当前 Signal 是否表示取消，兼容 SDK 包装后丢失异常名的情况。 */
+export function isCancellationError(error: unknown, signal?: AbortSignal): boolean {
+  return signal?.aborted === true
+    || (error instanceof Error
+      && ['AbortError', 'CancelError', 'CancelledError'].includes(error.name));
 }
-

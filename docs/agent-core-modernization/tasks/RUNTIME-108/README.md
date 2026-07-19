@@ -8,7 +8,7 @@
 | Status | `done` |
 | Dependencies | `RUNTIME-103, RUNTIME-105, COMPAT-101` |
 | Started | `2026-07-18` |
-| Last Updated | `2026-07-18` |
+| Last Updated | `2026-07-19` |
 
 ## Intent
 
@@ -22,6 +22,7 @@
 | Router、四路径执行器和 Checkpoint 已可组合 | RUNTIME-103/104/105 代码与证据 | Workflow Registry 尚未实现 | 未注册 Workflow 明确回退 Planned Agent |
 | `PlannerReActFlow` 是当前复杂任务执行能力 | `api/src/domain/services/flows/planner-react-flow.ts` | 无 | 作为 Planned Agent 的内部实现保留 |
 | API/UI 消费 Session Event | `api/src/interfaces/dto/event.dto.ts`、前端事件类型 | 无 | Runtime Event 经 Adapter 转换，不改公开协议 |
+| 会话标题仅由 Planned Agent 的 Plan 产生，Direct/Single Tool 不会输出 `title` | `api/src/domain/services/flows/planner-react-flow.ts`、`api/src/application/services/agent.service.ts` | 无 | 在 Session 首条用户消息边界生成初始标题，Planned 仍可后续覆盖 |
 | 内核模式开关没有正式运行价值 | `AgentTaskRunner` 唯一入口和接线契约 | 无 | 删除配置、分支及过渡命名 |
 
 ## 正式架构
@@ -62,6 +63,7 @@ RuntimeEventAdapter 转成 Session Event
 - 概念解释规则只匹配短定义句，并排除 Skill、长上下文、实时数据、网页、文件和外部动作迹象。
 - Router 返回未注册 Workflow 时，本次决策明确回退为 Planned Agent，原因写入 Run 元数据。
 - Runtime 新增的 `run_id`、`sequence`、`checkpoint_id`、`metadata` 作为可选字段进入 Session Event，事件类型不变。
+- 默认标题的 Session 在首条用户消息持久化后立即输出 `title` 事件，因此 Direct、Single Tool、Workflow 和 Planned Agent 行为一致；已命名会话不被后续消息覆盖。
 - 附件沙箱路径通过 `privateContext` 传给执行器，不进入 Runtime Event metadata 或 SSE。
 - 路由 Schema 失败时记录首个错误字段并回退 Planned Agent。
 
