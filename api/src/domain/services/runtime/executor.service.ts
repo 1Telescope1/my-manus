@@ -11,6 +11,7 @@ import {
   RuntimeTerminalEvent,
 } from '../../models/runtime-event';
 import { ToolResult } from '../../models/tool-result';
+import { isCancellationError, throwIfAborted } from './cancellation';
 import { ToolSelectionConstraints } from '../../models/tool-selection';
 
 type RuntimeEventEnvelopeKey = 'id' | 'runId' | 'sequence' | 'createdAt';
@@ -212,8 +213,11 @@ abstract class BaseRuntimeExecutor implements RuntimeExecutor {
     );
 
     try {
+      throwIfAborted(normalized.context.signal);
       // 路径驱动器只提交类型约束后的业务载荷，Run envelope 和终态由本层控制。
       for await (const payload of this.executePath(normalized.context)) {
+        // 取消优先于迟到的业务结果，避免停止后继续向 UI 暴露活动事件。
+        throwIfAborted(normalized.context.signal);
         yield eventFactory.create(payload);
 
         // 等待输入是本次调度的合法停止点，不能再伪造 completed 终态。
@@ -222,8 +226,13 @@ abstract class BaseRuntimeExecutor implements RuntimeExecutor {
         }
       }
 
+      throwIfAborted(normalized.context.signal);
       yield eventFactory.create({ type: 'run.completed' });
     } catch (error) {
+      if (normalized.context.signal?.aborted || isCancellationError(error)) {
+        yield eventFactory.create({ type: 'run.cancelled' });
+        return;
+      }
       yield eventFactory.create({
         type: 'run.failed',
         error: errorMessage(error),
@@ -254,6 +263,7 @@ export class DirectRuntimeExecutor extends BaseRuntimeExecutor {
     context: RuntimeExecutionContext,
   ): AsyncIterable<RuntimeExecutionEventPayload> {
     const response = (await this.responseProvider.respond(context)).trim();
+    throwIfAborted(context.signal);
     yield {
       type: 'message.created',
       role: 'assistant',
@@ -283,6 +293,7 @@ export class SingleToolRuntimeExecutor extends BaseRuntimeExecutor {
     context: RuntimeExecutionContext,
   ): AsyncIterable<RuntimeExecutionEventPayload> {
     const selected = await this.selector.select(context);
+    throwIfAborted(context.signal);
     const toolCallId = this.toolCallIdFactory();
     const invocation: RuntimeToolCallInput = {
       ...selected,
@@ -304,6 +315,11 @@ export class SingleToolRuntimeExecutor extends BaseRuntimeExecutor {
 
     // 路径只提交一次逻辑调用；可靠调用层可按风险和幂等策略执行受控重试。
     const result = await this.invoker.invoke(invocation);
+    if (result.error?.code === 'cancelled') {
+      throwIfAborted(context.signal);
+      throw new DOMException('工具调用已取消', 'AbortError');
+    }
+    throwIfAborted(context.signal);
     yield {
       type: 'tool.called',
       toolCallId,
@@ -317,6 +333,7 @@ export class SingleToolRuntimeExecutor extends BaseRuntimeExecutor {
     const response = (
       await this.responseProvider.respond({ context, invocation, result })
     ).trim();
+    throwIfAborted(context.signal);
     yield {
       type: 'message.created',
       role: 'assistant',

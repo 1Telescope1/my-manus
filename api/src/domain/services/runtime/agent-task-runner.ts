@@ -51,6 +51,7 @@ import {
   synchronizeAgentToolRegistry,
 } from '../tools/agent-toolset';
 import { MCPTool } from '../tools/mcp.tool';
+import { throwIfAborted } from './cancellation';
 
 /** AgentTaskRunner 依赖的 Runtime Event 转换边界。 */
 export interface RuntimeEventAdapterPort {
@@ -425,7 +426,10 @@ export class AgentTaskRunner extends TaskRunner {
   }
 
   /** 运行 Runtime 并把 Runtime Event 转换为当前 Session/UI 事件。 */
-  private async *runRuntime(message: Message): AsyncGenerator<BaseEvent> {
+  private async *runRuntime(
+    message: Message,
+    signal?: AbortSignal,
+  ): AsyncGenerator<BaseEvent> {
     // 1. 判断传递的消息是否为空。
     if (!message.message) {
       this.logger.warn('AgentTaskRunner接收了一条空消息');
@@ -434,12 +438,14 @@ export class AgentTaskRunner extends TaskRunner {
     }
 
     // 2. 每条用户消息路由前主动刷新一次，覆盖未声明 tools.listChanged 的 MCP 服务。
-    await this.mcpTool.refreshTools();
+    throwIfAborted(signal);
+    await this.mcpTool.refreshTools(undefined, signal);
 
     // 3. 执行 Runtime 并逐条转换输出事件。
     for await (const runtimeEvent of this.runtime.execute({
       sessionId: this.sessionId,
       message,
+      signal,
     })) {
       const event = this.runtimeEventAdapter.adapt(runtimeEvent);
       if (!event) {
@@ -470,12 +476,14 @@ export class AgentTaskRunner extends TaskRunner {
     try {
       // 1. 确保沙箱、mcp、a2a 均初始化完成。
       this.logger.log('AgentTaskRunner任务处理开始');
-      await this.sandbox.ensureSandbox();
-      await this.mcpTool.initialize(this.mcpConfig);
-      await this.a2aTool.initialize(this.a2aConfig);
+      throwIfAborted(task.signal);
+      await this.sandbox.ensureSandbox(task.signal);
+      await this.mcpTool.initialize(this.mcpConfig, task.signal);
+      await this.a2aTool.initialize(this.a2aConfig, task.signal);
 
       // 2. 循环读取任务中的输入消息队列。
       while (!(await task.inputStream.isEmpty())) {
+        throwIfAborted(task.signal);
         // 3. 从输入流中获取数据。
         const event = await this.popEvent(task);
         let message = '';
@@ -494,7 +502,7 @@ export class AgentTaskRunner extends TaskRunner {
         });
 
         // 6. 使用 Runtime 执行本轮消息。
-        for await (const sessionEvent of this.runRuntime(messageObj)) {
+        for await (const sessionEvent of this.runRuntime(messageObj, task.signal)) {
           // 7. 将得到的事件添加到消息队列中。
           await this.putAndAddEvent(task, sessionEvent as Event);
 
@@ -554,6 +562,11 @@ export class AgentTaskRunner extends TaskRunner {
       // 15. 在同一个任务上下文中清理 MCP/A2A 工具资源。
       await this.cleanupTools();
     }
+  }
+
+  /** 供 Task 在触发根 Signal 前持久化当前活动 Run 的取消请求。 */
+  override async requestCancellation(): Promise<void> {
+    await this.runtime.requestCancellation();
   }
 
   /** 销毁任务运行器并释放资源。 */

@@ -12,6 +12,7 @@ export abstract class LLM {
     tools?: ToolDescriptor[];
     responseFormat?: Record<string, any> | null;
     toolChoice?: string | null;
+    signal?: AbortSignal;
   }): Promise<LLMMessage>;
 }
 

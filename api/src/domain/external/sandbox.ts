@@ -12,23 +12,37 @@ export type SandboxFileData = Buffer | NodeJS.ReadableStream;
  */
 export abstract class Sandbox {
   /** 执行指定会话和目录下的命令。 */
-  abstract execCommand(sessionId: string, execDir: string, command: string): Promise<ToolResult>;
+  abstract execCommand(
+    sessionId: string,
+    execDir: string,
+    command: string,
+    signal?: AbortSignal,
+  ): Promise<ToolResult>;
 
   /** 读取指定会话的 shell 输出；console=true 时返回控制台记录。 */
-  abstract readShellOutput(sessionId: string, console?: boolean): Promise<ToolResult>;
+  abstract readShellOutput(
+    sessionId: string,
+    console?: boolean,
+    signal?: AbortSignal,
+  ): Promise<ToolResult>;
 
   /** 等待指定会话中的进程执行一段时间。 */
-  abstract waitProcess(sessionId: string, seconds?: number): Promise<ToolResult>;
+  abstract waitProcess(
+    sessionId: string,
+    seconds?: number,
+    signal?: AbortSignal,
+  ): Promise<ToolResult>;
 
   /** 向指定会话的进程写入标准输入。 */
   abstract writeShellInput(
     sessionId: string,
     inputText: string,
     pressEnter?: boolean,
+    signal?: AbortSignal,
   ): Promise<ToolResult>;
 
   /** 终止指定会话中的进程。 */
-  abstract killProcess(sessionId: string): Promise<ToolResult>;
+  abstract killProcess(sessionId: string, signal?: AbortSignal): Promise<ToolResult>;
 
   /** 写入沙箱文件，支持追加、首尾换行和 sudo 标记。 */
   abstract writeFile(
@@ -83,7 +97,7 @@ export abstract class Sandbox {
   abstract downloadFile(filepath: string): Promise<SandboxFileData>;
 
   /** 确保沙箱实例存在；不存在时由 concrete implementation 创建。 */
-  abstract ensureSandbox(): Promise<void>;
+  abstract ensureSandbox(signal?: AbortSignal): Promise<void>;
 
   /** 销毁当前沙箱实例并释放资源。 */
   abstract destroy(): Promise<boolean>;
@@ -106,4 +120,3 @@ export abstract class SandboxManager {
   abstract create(): Promise<Sandbox>;
   abstract get(id: string): Promise<Sandbox | null>;
 }
-

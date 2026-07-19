@@ -18,7 +18,11 @@ export class BingSearchEngine extends SearchEngine {
     'Upgrade-Insecure-Requests': '1',
   };
 
-  async invoke(query: string, dateRange?: string | null): Promise<ToolResult<SearchResults>> {
+  async invoke(
+    query: string,
+    dateRange?: string | null,
+    signal?: AbortSignal,
+  ): Promise<ToolResult<SearchResults>> {
     const url = new URL(this.baseUrl);
     url.searchParams.set('q', query);
 
@@ -40,7 +44,9 @@ export class BingSearchEngine extends SearchEngine {
       const response = await fetch(url, {
         headers: this.headers,
         redirect: 'follow',
-        signal: AbortSignal.timeout(60_000),
+        signal: signal
+          ? AbortSignal.any([signal, AbortSignal.timeout(60_000)])
+          : AbortSignal.timeout(60_000),
       });
       if (!response.ok) {
         throw new Error(`Bing returned ${response.status}`);
@@ -137,6 +143,9 @@ export class BingSearchEngine extends SearchEngine {
         },
       };
     } catch (error) {
+      if (signal?.aborted) {
+        throw error;
+      }
       const err = error instanceof Error ? error : new Error(String(error));
       this.logger.error(`Bing搜索出错: ${err.message}`);
       return {

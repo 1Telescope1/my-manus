@@ -149,6 +149,32 @@ export class PlaywrightBrowser extends BrowserPort {
     });
   }
 
+  /** 在根 Signal 取消时关闭活动 Page，使导航、页面读取和 Playwright 等待立即退出。 */
+  private async withAbort<T>(
+    signal: AbortSignal | undefined,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    signal?.throwIfAborted();
+    if (!signal) {
+      return operation();
+    }
+
+    let rejectAbort: ((reason: unknown) => void) | undefined;
+    const aborted = new Promise<never>((_resolve, reject) => {
+      rejectAbort = reject;
+    });
+    const abort = () => {
+      void this.page?.close().catch(() => undefined);
+      rejectAbort?.(signal.reason ?? new DOMException('浏览器操作已取消', 'AbortError'));
+    };
+    signal.addEventListener('abort', abort, { once: true });
+    try {
+      return await Promise.race([operation(), aborted]);
+    } finally {
+      signal.removeEventListener('abort', abort);
+    }
+  }
+
   /** 初始化 CDP 连接；失败时最多重试 5 次。 */
   async initialize(): Promise<boolean> {
     const maxRetries = 5;
@@ -251,20 +277,25 @@ export class PlaywrightBrowser extends BrowserPort {
     return false;
   }
 
-  async navigate(url: string): Promise<ToolResult> {
+  async navigate(url: string, signal?: AbortSignal): Promise<ToolResult> {
     await this.ensurePage();
     const page = this.getCurrentPage();
 
     try {
-      this.interactiveElementsCache = [];
-      await page.goto(url);
-      return {
-        success: true,
-        data: {
-          interactive_elements: await this.extractInteractiveElements(),
-        },
-      };
+      return await this.withAbort(signal, async () => {
+        this.interactiveElementsCache = [];
+        await page.goto(url);
+        return {
+          success: true,
+          data: {
+            interactive_elements: await this.extractInteractiveElements(),
+          },
+        };
+      });
     } catch (error) {
+      if (signal?.aborted) {
+        throw error;
+      }
       const err = error instanceof Error ? error : new Error(String(error));
       return {
         success: false,
@@ -273,19 +304,20 @@ export class PlaywrightBrowser extends BrowserPort {
     }
   }
 
-  async viewPage(): Promise<ToolResult> {
-    await this.ensurePage();
-    await this.waitForPageLoad();
+  async viewPage(signal?: AbortSignal): Promise<ToolResult> {
+    return this.withAbort(signal, async () => {
+      await this.ensurePage();
+      await this.waitForPageLoad();
 
-    const interactiveElements = await this.extractInteractiveElements();
-
-    return {
-      success: true,
-      data: {
-        content: await this.extractContent(),
-        interactive_elements: interactiveElements,
-      },
-    };
+      const interactiveElements = await this.extractInteractiveElements();
+      return {
+        success: true,
+        data: {
+          content: await this.extractContent(),
+          interactive_elements: interactiveElements,
+        },
+      };
+    });
   }
 
   async click(
@@ -422,9 +454,9 @@ export class PlaywrightBrowser extends BrowserPort {
     }
   }
 
-  async restart(url: string): Promise<ToolResult> {
+  async restart(url: string, signal?: AbortSignal): Promise<ToolResult> {
     await this.cleanup();
-    return this.navigate(url);
+    return this.navigate(url, signal);
   }
 
   async scrollUp(toTop?: boolean): Promise<ToolResult> {
@@ -496,6 +528,5 @@ export class PlaywrightBrowser extends BrowserPort {
     };
   }
 }
-
 
 

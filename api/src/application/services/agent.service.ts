@@ -248,6 +248,8 @@ export class AgentService {
     const task = this.getTask(session);
     if (task) {
       task.cancel();
+      // stop 只有在 Runtime 确认活动链退出后才返回，避免 UI 已停止而后台仍运行。
+      await task.waitForCompletion();
     }
 
     // 3. 更新会话任务状态。

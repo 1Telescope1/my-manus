@@ -38,13 +38,16 @@ export class PlannerAgent extends BaseAgent {
     super(uowFactory, sessionId, agentConfig, llm, jsonParser, tools);
   }
 
-  async *createPlan(message: Message): AsyncGenerator<Event> {
+  async *createPlan(
+    message: Message,
+    toolInvocation?: { scopeId: string; signal?: AbortSignal },
+  ): AsyncGenerator<Event> {
     const query = formatTemplate(CREATE_PLAN_PROMPT, {
       message: message.message,
       attachments: message.attachments.join('\n'),
     });
 
-    for await (const event of this.invoke(query)) {
+    for await (const event of this.invoke(query, undefined, { toolInvocation })) {
       if (event.type === 'message') {
         const parsed = await this.jsonParser.invoke<Partial<Plan>>(event.message);
         yield events.plan(createPlan(parsed), PlanEventStatus.CREATED);
@@ -54,13 +57,17 @@ export class PlannerAgent extends BaseAgent {
     }
   }
 
-  async *updatePlan(plan: Plan, step: Step): AsyncGenerator<Event> {
+  async *updatePlan(
+    plan: Plan,
+    step: Step,
+    toolInvocation?: { scopeId: string; signal?: AbortSignal },
+  ): AsyncGenerator<Event> {
     const query = formatTemplate(UPDATE_PLAN_PROMPT, {
       plan: JSON.stringify(plan),
       step: JSON.stringify(step),
     });
 
-    for await (const event of this.invoke(query)) {
+    for await (const event of this.invoke(query, undefined, { toolInvocation })) {
       if (event.type === 'message') {
         const parsed = await this.jsonParser.invoke<Partial<Plan>>(event.message);
         const updatedPlan = createPlan(parsed);

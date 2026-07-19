@@ -16,9 +16,22 @@ import {
 } from '../tools/agent-toolset';
 import { ToolSelectionService } from '../tools/tool-selection.service';
 import { ToolInvocationService } from '../tools/tool-invocation.service';
+import { throwIfAborted } from '../runtime/cancellation';
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+/** 等待模型重试间隔，并允许根取消立即打断等待。 */
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    throwIfAborted(signal);
+    const abort = () => {
+      clearTimeout(timer);
+      reject(new DOMException('模型调用已取消', 'AbortError'));
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', abort);
+      resolve();
+    }, ms);
+    signal?.addEventListener('abort', abort, { once: true });
+  });
 }
 
 type AgentInvokeOptions = {
@@ -108,6 +121,7 @@ export abstract class BaseAgent {
       undefined,
       new Set(),
       options.toolSelection,
+      options.toolInvocation?.signal,
     );
 
     // 部分思考模型不支持 tool_choice="required"。保持 tool_choice=auto，并在模型
@@ -130,6 +144,7 @@ export abstract class BaseAgent {
           undefined,
           new Set(),
           options.toolSelection,
+          options.toolInvocation?.signal,
         );
       }
 
@@ -153,6 +168,7 @@ export abstract class BaseAgent {
 
       const toolMessages: LLMMessage[] = [];
       for (const toolCall of message.tool_calls) {
+        throwIfAborted(options.toolInvocation?.signal);
         if (!toolCall.function) {
           continue;
         }
@@ -219,6 +235,10 @@ export abstract class BaseAgent {
           toolCallId,
           options.toolInvocation,
         );
+        if (result.error?.code === 'cancelled') {
+          throwIfAborted(options.toolInvocation?.signal);
+          throw new DOMException('工具调用已取消', 'AbortError');
+        }
 
         // 当前调用仍正常执行并把结果回传给模型；从下一轮开始才从工具列表移除，
         // 确保 OpenAI/DeepSeek 的 tool_call 与 tool result 消息始终成对出现。
@@ -261,6 +281,7 @@ export abstract class BaseAgent {
           'none',
           excludedToolNames,
           options.toolSelection,
+          options.toolInvocation?.signal,
         );
         break;
       }
@@ -271,6 +292,7 @@ export abstract class BaseAgent {
         undefined,
         excludedToolNames,
         options.toolSelection,
+        options.toolInvocation?.signal,
       );
     }
 
@@ -326,7 +348,9 @@ export abstract class BaseAgent {
     toolChoice?: string | null,
     excludedToolNames: ReadonlySet<string> = new Set(),
     selection?: ToolSelectionRequest,
+    signal?: AbortSignal,
   ): Promise<LLMMessage> {
+    throwIfAborted(signal);
     await this.addToMemory(messages);
 
     const responseFormat = format ? { type: format } : null;
@@ -346,6 +370,7 @@ export abstract class BaseAgent {
           ...(availableTools.length > 0
             ? { toolChoice: toolChoice === undefined ? this.toolChoice : toolChoice }
             : {}),
+          signal,
         });
 
         let filteredMessage: LLMMessage;
@@ -355,7 +380,7 @@ export abstract class BaseAgent {
               { role: 'assistant', content: '' },
               { role: 'user', content: 'AI无响应内容，请继续。' },
             ]);
-            await sleep(this.retryIntervalMs);
+            await sleep(this.retryIntervalMs, signal);
             continue;
           }
 
@@ -373,9 +398,12 @@ export abstract class BaseAgent {
         await this.addToMemory([filteredMessage]);
         return filteredMessage;
       } catch (error) {
+        if (signal?.aborted) {
+          throw error;
+        }
         const err = error instanceof Error ? error : new Error(String(error));
         lastError = err.message;
-        await sleep(this.retryIntervalMs);
+        await sleep(this.retryIntervalMs, signal);
       }
     }
 

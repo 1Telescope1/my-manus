@@ -1,5 +1,6 @@
 import {
   ToolDescriptor,
+  ToolExecutionContext,
   ToolRegistration,
   ToolRisk,
 } from '../../models/tool';
@@ -49,6 +50,7 @@ export function tool(input: {
 /** 现有工具包的领域基类，可把装饰器方法导出为 Registry 注册项。 */
 export abstract class BaseTool {
   abstract readonly name: string;
+  protected readonly supportsAbortSignal: boolean = false;
   private registrationsCache?: ToolRegistration[];
 
   /** 将当前工具包中的装饰器方法转换为内置工具注册项。 */
@@ -66,7 +68,8 @@ export abstract class BaseTool {
               : [this.name],
           },
           groupName: this.name,
-          invoke: (arguments_) => this.invoke(definition.name, arguments_),
+          invoke: (arguments_, context) => this.invoke(definition.name, arguments_, context),
+          supportsAbortSignal: this.supportsAbortSignal,
         };
       });
     }
@@ -86,12 +89,16 @@ export abstract class BaseTool {
   }
 
   /** 按输入 Schema 的属性顺序组装参数并调用工具方法。 */
-  async invoke(toolName: string, kwargs: Record<string, any> = {}): Promise<ToolResult> {
+  async invoke(
+    toolName: string,
+    kwargs: Record<string, any> = {},
+    context?: ToolExecutionContext,
+  ): Promise<ToolResult> {
     const method = this.getToolMethod(toolName);
     if (!method) {
       throw new Error(`工具[${toolName}]未找到`);
     }
-    return method.call(this, ...this.buildArguments(method, kwargs));
+    return method.call(this, ...this.buildArguments(method, kwargs), context);
   }
 
   /** 返回原型上全部带 Tool 元数据的方法。 */

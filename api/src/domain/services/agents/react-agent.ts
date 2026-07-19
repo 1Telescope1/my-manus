@@ -134,13 +134,16 @@ export class ReActAgent extends BaseAgent {
     }
   }
 
-  async *summarize(plan: Plan): AsyncGenerator<Event> {
+  async *summarize(
+    plan: Plan,
+    toolInvocation?: { scopeId: string; signal?: AbortSignal },
+  ): AsyncGenerator<Event> {
     // 把最终计划（包含每一步的 success/result/error）显式交给总结阶段，
     // 避免总结模型只根据对话记忆复述开场白或把失败任务描述成已完成。
     const query = formatTemplate(SUMMARIZE_PROMPT, {
       plan: JSON.stringify(plan),
     });
-    for await (const event of this.invoke(query)) {
+    for await (const event of this.invoke(query, undefined, { toolInvocation })) {
       if (event.type === 'message') {
         const parsed = await this.jsonParser.invoke<Partial<Message> & Record<string, unknown>>(
           event.message,

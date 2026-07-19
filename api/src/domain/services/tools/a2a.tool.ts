@@ -3,6 +3,7 @@ import { Logger } from '@nestjs/common';
 import { ServerRequestsError } from '../../../core/errors/app-exception';
 import { A2AConfig } from '../../models/app-config';
 import { ToolResult } from '../../models/tool-result';
+import { ToolExecutionContext } from '../../models/tool';
 import { BaseTool, tool } from './base-tool';
 
 export type A2AAgentCard = Record<string, any> & {
@@ -32,7 +33,7 @@ export class A2AClientManager {
   }
 
   /** 异步初始化所有已配置的 A2A 服务。 */
-  async initialize(): Promise<void> {
+  async initialize(signal?: AbortSignal): Promise<void> {
     // 1. 检测是否已经初始化，避免同一个管理器重复请求远程 Agent 卡片。
     if (this.initialized) {
       return;
@@ -41,29 +42,39 @@ export class A2AClientManager {
     try {
       // 2. 记录当前配置数量并开始拉取 AgentCard。
       this.logger.log(`加载${this.a2aConfig.a2a_servers.length}个A2A服务`);
-      await this.getA2aAgentCards();
+      signal?.throwIfAborted();
+      await this.getA2aAgentCards(signal);
       this.initialized = true;
       this.logger.log('A2A客户端加载成功');
     } catch (error) {
+      if (signal?.aborted) {
+        throw error;
+      }
       this.logger.error(`A2A客户端管理器加载失败: ${errorMessage(error)}`);
       throw new ServerRequestsError('A2A客户端管理器加载失败');
     }
   }
 
   /** 根据配置连接所有 A2A 服务器获取 AgentCard 信息。 */
-  private async getA2aAgentCards(): Promise<void> {
+  private async getA2aAgentCards(signal?: AbortSignal): Promise<void> {
     // 1. 循环遍历所有 A2A 服务，不在这里过滤 enabled。
     for (const a2aServerConfig of this.a2aConfig.a2a_servers) {
+      signal?.throwIfAborted();
       try {
         // 2. 按 A2A 约定请求远程 Agent 卡片。
         const agentCard = await this.fetchJson<A2AAgentCard>(
           `${a2aServerConfig.base_url}/.well-known/agent-card.json`,
+          {},
+          signal,
         );
 
         // 3. 将配置中的 enabled 状态补充到 AgentCard 缓存里。
         agentCard.enabled = a2aServerConfig.enabled;
         this.cachedAgentCards[a2aServerConfig.id] = agentCard;
       } catch (error) {
+        if (signal?.aborted) {
+          throw error;
+        }
         this.logger.warn(`加载A2A服务[${a2aServerConfig.id}]失败: ${errorMessage(error)}`);
         continue;
       }
@@ -71,7 +82,7 @@ export class A2AClientManager {
   }
 
   /** 根据传递的智能体 id 和 query 调用远程 Agent。 */
-  async invoke(agentId: string, query: string): Promise<ToolResult> {
+  async invoke(agentId: string, query: string, signal?: AbortSignal): Promise<ToolResult> {
     // 1. 判断传递的 agentId 是否存在。
     if (!(agentId in this.cachedAgentCards)) {
       return { success: false, message: '该远程Agent不存在' };
@@ -105,10 +116,13 @@ export class A2AClientManager {
             },
           },
         }),
-      });
+      }, signal);
 
       return { success: true, message: '调用远程Agent成功', data: result };
     } catch (error) {
+      if (signal?.aborted) {
+        throw error;
+      }
       const message = `调用远程Agent[${agentId}:${url}]出错: ${errorMessage(error)}`;
       this.logger.error(message);
       return { success: false, message };
@@ -127,10 +141,17 @@ export class A2AClientManager {
     }
   }
 
-  private async fetchJson<T = unknown>(url: string, init: RequestInit = {}): Promise<T> {
+  private async fetchJson<T = unknown>(
+    url: string,
+    init: RequestInit = {},
+    signal?: AbortSignal,
+  ): Promise<T> {
+    const requestSignal = signal
+      ? AbortSignal.any([signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS)])
+      : AbortSignal.timeout(REQUEST_TIMEOUT_MS);
     const response = await fetch(url, {
       ...init,
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      signal: requestSignal,
     });
 
     if (!response.ok) {
@@ -143,11 +164,12 @@ export class A2AClientManager {
 
 export class A2ATool extends BaseTool {
   readonly name = 'a2a';
+  protected override readonly supportsAbortSignal = true;
   private initialized = false;
   private manager?: A2AClientManager;
 
   /** 初始化 A2A 工具包。 */
-  async initialize(a2aConfig?: A2AConfig): Promise<void> {
+  async initialize(a2aConfig?: A2AConfig, signal?: AbortSignal): Promise<void> {
     // 1. 判断是否已经初始化。
     if (this.initialized) {
       return;
@@ -155,7 +177,7 @@ export class A2ATool extends BaseTool {
 
     // 2. 初始化 A2A 客户端管理器。
     this.manager = new A2AClientManager(a2aConfig);
-    await this.manager.initialize();
+    await this.manager.initialize(signal);
     this.initialized = true;
   }
 
@@ -166,7 +188,7 @@ export class A2ATool extends BaseTool {
     parameters: {},
     required: [],
   })
-  async getRemoteAgentCards(): Promise<ToolResult> {
+  async getRemoteAgentCards(_context?: ToolExecutionContext): Promise<ToolResult> {
     if (!this.manager) {
       return { success: false, message: 'A2A工具包尚未初始化' };
     }
@@ -204,11 +226,15 @@ export class A2ATool extends BaseTool {
     },
     required: ['id', 'query'],
   })
-  async callRemoteAgent(id: string, query: string): Promise<ToolResult> {
+  async callRemoteAgent(
+    id: string,
+    query: string,
+    context?: ToolExecutionContext,
+  ): Promise<ToolResult> {
     if (!this.manager) {
       return { success: false, message: 'A2A工具包尚未初始化' };
     }
-    return this.manager.invoke(id, query);
+    return this.manager.invoke(id, query, context?.signal);
   }
 
   /** 清理 A2A 工具包资源。 */

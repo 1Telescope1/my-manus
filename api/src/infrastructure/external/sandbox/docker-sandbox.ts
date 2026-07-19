@@ -236,15 +236,16 @@ export class DockerSandbox extends Sandbox {
   }
 
   /** 确保沙箱一定存在，服务全部都开启了才执行后续步骤。 */
-  async ensureSandbox(): Promise<void> {
+  async ensureSandbox(signal?: AbortSignal): Promise<void> {
     // 沙箱容器启动后，Supervisor 管理的子服务还需要一段初始化时间。
     const maxRetries = 30;
     const retryInterval = 2_000;
 
     for (let attempt = 0; attempt < maxRetries; attempt += 1) {
+      signal?.throwIfAborted();
       try {
         // 通过沙箱内部状态接口检查 Supervisor 管理的服务进程。
-        const response = await fetch(`${this.baseUrl}/api/supervisor/status`);
+        const response = await fetch(`${this.baseUrl}/api/supervisor/status`, { signal });
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
         }
@@ -429,22 +430,38 @@ export class DockerSandbox extends Sandbox {
   }
 
   /** 在沙箱中执行命令。 */
-  async execCommand(sessionId: string, execDir: string, command: string): Promise<ToolResult> {
+  async execCommand(
+    sessionId: string,
+    execDir: string,
+    command: string,
+    signal?: AbortSignal,
+  ): Promise<ToolResult> {
+    // HTTP 请求被取消时同时请求沙箱终止对应进程，避免命令在后台继续运行。
+    const stopProcess = () => { void this.killProcess(sessionId); };
+    signal?.addEventListener('abort', stopProcess, { once: true });
     // sessionId 用来复用同一个 Shell 会话，execDir 是命令执行目录。
-    return this.postToolResult('/api/shell/exec-command', {
-      session_id: sessionId,
-      exec_dir: execDir,
-      command,
-    });
+    try {
+      return await this.postToolResult('/api/shell/exec-command', {
+        session_id: sessionId,
+        exec_dir: execDir,
+        command,
+      }, signal);
+    } finally {
+      signal?.removeEventListener('abort', stopProcess);
+    }
   }
 
   /** 读取沙箱中 Shell 的输出。 */
-  async readShellOutput(sessionId: string, consoleOutput = false): Promise<ToolResult> {
+  async readShellOutput(
+    sessionId: string,
+    consoleOutput = false,
+    signal?: AbortSignal,
+  ): Promise<ToolResult> {
     // console=true 时沙箱侧会按控制台展示格式返回输出。
     return this.postToolResult('/api/shell/read-shell-output', {
       session_id: sessionId,
       console: consoleOutput,
-    });
+    }, signal);
   }
 
   /** 向沙箱的 Shell 进程写入数据。 */
@@ -452,33 +469,42 @@ export class DockerSandbox extends Sandbox {
     sessionId: string,
     inputText: string,
     pressEnter = true,
+    signal?: AbortSignal,
   ): Promise<ToolResult> {
     // pressEnter 控制是否在输入末尾追加回车，支持交互式命令。
     return this.postToolResult('/api/shell/write-shell-input', {
       session_id: sessionId,
       input_text: inputText,
       press_enter: pressEnter,
-    });
+    }, signal);
   }
 
   /** 等待沙箱中进程的执行。 */
-  async waitProcess(sessionId: string, seconds?: number): Promise<ToolResult> {
+  async waitProcess(
+    sessionId: string,
+    seconds?: number,
+    signal?: AbortSignal,
+  ): Promise<ToolResult> {
     // seconds 为空时使用沙箱服务默认等待时间。
     return this.postToolResult('/api/shell/wait-process', {
       session_id: sessionId,
       seconds,
-    });
+    }, signal);
   }
 
   /** 杀死沙箱中指定进程。 */
-  async killProcess(sessionId: string): Promise<ToolResult> {
+  async killProcess(sessionId: string, signal?: AbortSignal): Promise<ToolResult> {
     // 只结束指定 Shell 会话关联的进程。
     return this.postToolResult('/api/shell/kill-process', {
       session_id: sessionId,
-    });
+    }, signal);
   }
 
-  private async postToolResult(path: string, body: Record<string, unknown>): Promise<ToolResult> {
+  private async postToolResult(
+    path: string,
+    body: Record<string, unknown>,
+    signal?: AbortSignal,
+  ): Promise<ToolResult> {
     // 文件和 Shell JSON 接口都走统一 POST 入口，统一转换为 ToolResult。
     const response = await fetch(`${this.baseUrl}${path}`, {
       method: 'POST',
@@ -486,6 +512,7 @@ export class DockerSandbox extends Sandbox {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
+      signal,
     });
     return this.toToolResult(response);
   }

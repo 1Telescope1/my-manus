@@ -43,7 +43,7 @@ export class RuntimeRouterService {
   }
 
   /** 优先返回确定性规则结果，未命中时使用模型，失败则回退 Planner。 */
-  async route(input: RuntimeRouteRequest): Promise<RouteDecision> {
+  async route(input: RuntimeRouteRequest, signal?: AbortSignal): Promise<RouteDecision> {
     const request = RuntimeRouteRequestSchema.parse(input);
 
     // 确定性规则按注册顺序执行；首个命中结果结束路由，完全不调用模型。
@@ -79,8 +79,12 @@ export class RuntimeRouterService {
     // 规则均未命中时才调用受限路由模型；模型异常不能阻断用户请求。
     let candidate: unknown;
     try {
-      candidate = await this.model.decide(request);
-    } catch {
+      candidate = await this.model.decide(request, signal);
+    } catch (error) {
+      // 取消不能被安全回退吞掉，否则停止后仍会进入 Planned Agent。
+      if (signal?.aborted) {
+        throw error;
+      }
       return createPlannedAgentFallback(request, '路由模型调用失败');
     }
 

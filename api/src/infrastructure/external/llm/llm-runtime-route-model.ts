@@ -18,7 +18,10 @@ export class LLMRuntimeRouteModel extends RuntimeRouteModel {
   }
 
   /** 请求 JSON 路由结果并把消息内容解析为待校验对象。 */
-  async decide(request: NormalizedRuntimeRouteRequest): Promise<unknown> {
+  async decide(
+    request: NormalizedRuntimeRouteRequest,
+    signal?: AbortSignal,
+  ): Promise<unknown> {
     // 调用参数刻意不包含 tools 和 toolChoice，从边界上禁止模型触发副作用。
     const response = await this.llm.invoke({
       messages: [
@@ -33,6 +36,7 @@ export class LLMRuntimeRouteModel extends RuntimeRouteModel {
         },
       ],
       responseFormat: { type: 'json_object' },
+      signal,
     });
 
     return parseModelContent(response);

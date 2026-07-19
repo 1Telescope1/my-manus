@@ -34,6 +34,7 @@ export class OpenAILLM extends LLM {
     tools?: ToolDescriptor[];
     responseFormat?: Record<string, any> | null;
     toolChoice?: string | null;
+    signal?: AbortSignal;
   }): Promise<LLMMessage> {
     try {
       const common = {
@@ -42,7 +43,11 @@ export class OpenAILLM extends LLM {
         max_tokens: this.maxTokens,
         messages: input.messages as any,
         response_format: input.responseFormat as any,
+      };
+
+      const requestOptions = {
         timeout: this.timeout,
+        signal: input.signal,
       };
 
       const response = input.tools?.length
@@ -51,11 +56,14 @@ export class OpenAILLM extends LLM {
             tools: input.tools.map(toOpenAIToolSchema) as any,
             tool_choice: input.toolChoice as any,
             parallel_tool_calls: false,
-          } as any)
-        : await this.client.chat.completions.create(common as any);
+          } as any, requestOptions)
+        : await this.client.chat.completions.create(common as any, requestOptions);
 
       return response.choices[0]?.message as unknown as LLMMessage;
     } catch (error) {
+      if (input.signal?.aborted || (error instanceof Error && error.name === 'AbortError')) {
+        throw error;
+      }
       const err = error instanceof Error ? error : new Error(String(error));
       throw new ServerRequestsError(`调用OpenAI客户端向LLM发起请求出错: ${err.message}`);
     }

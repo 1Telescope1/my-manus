@@ -1,9 +1,11 @@
 import { Browser } from '../../external/browser';
 import { ToolResult } from '../../models/tool-result';
+import { ToolExecutionContext } from '../../models/tool';
 import { BaseTool, tool } from './base-tool';
 
 export class BrowserTool extends BaseTool {
   readonly name = 'browser';
+  protected override readonly supportsAbortSignal = true;
 
   constructor(private readonly browser: Browser) {
     super();
@@ -16,8 +18,8 @@ export class BrowserTool extends BaseTool {
     parameters: {},
     required: [],
   })
-  async browserView(): Promise<ToolResult> {
-    return this.browser.viewPage();
+  async browserView(context?: ToolExecutionContext): Promise<ToolResult> {
+    return this.browser.viewPage(context?.signal);
   }
 
   @tool({
@@ -33,8 +35,8 @@ export class BrowserTool extends BaseTool {
     },
     required: ['url'],
   })
-  async browserNavigate(url: string): Promise<ToolResult> {
-    return this.browser.navigate(url);
+  async browserNavigate(url: string, context?: ToolExecutionContext): Promise<ToolResult> {
+    return this.browser.navigate(url, context?.signal);
   }
 
   @tool({
@@ -50,8 +52,8 @@ export class BrowserTool extends BaseTool {
     },
     required: ['url'],
   })
-  async browserRestart(url: string): Promise<ToolResult> {
-    return this.browser.restart(url);
+  async browserRestart(url: string, context?: ToolExecutionContext): Promise<ToolResult> {
+    return this.browser.restart(url, context?.signal);
   }
 
   @tool({
@@ -79,8 +81,9 @@ export class BrowserTool extends BaseTool {
     index?: number,
     coordinateX?: number,
     coordinateY?: number,
+    context?: ToolExecutionContext,
   ): Promise<ToolResult> {
-    return this.browser.click(index, coordinateX, coordinateY);
+    return this.browser.click(index, coordinateX, coordinateY, context?.signal);
   }
 
   @tool({
@@ -118,8 +121,9 @@ export class BrowserTool extends BaseTool {
     index?: number,
     coordinateX?: number,
     coordinateY?: number,
+    context?: ToolExecutionContext,
   ): Promise<ToolResult> {
-    return this.browser.input(text, pressEnter, index, coordinateX, coordinateY);
+    return this.browser.input(text, pressEnter, index, coordinateX, coordinateY, context?.signal);
   }
 
   @tool({
@@ -138,8 +142,12 @@ export class BrowserTool extends BaseTool {
     },
     required: ['coordinate_x', 'coordinate_y'],
   })
-  async browserMoveMouse(coordinateX: number, coordinateY: number): Promise<ToolResult> {
-    return this.browser.moveMouse(coordinateX, coordinateY);
+  async browserMoveMouse(
+    coordinateX: number,
+    coordinateY: number,
+    context?: ToolExecutionContext,
+  ): Promise<ToolResult> {
+    return this.browser.moveMouse(coordinateX, coordinateY, context?.signal);
   }
 
   @tool({
@@ -155,8 +163,8 @@ export class BrowserTool extends BaseTool {
     },
     required: ['key'],
   })
-  async browserPressKey(key: string): Promise<ToolResult> {
-    return this.browser.pressKey(key);
+  async browserPressKey(key: string, context?: ToolExecutionContext): Promise<ToolResult> {
+    return this.browser.pressKey(key, context?.signal);
   }
 
   @tool({
@@ -176,8 +184,12 @@ export class BrowserTool extends BaseTool {
     },
     required: ['index', 'option'],
   })
-  async browserSelectOption(index: number, option: number): Promise<ToolResult> {
-    return this.browser.selectOption(index, option);
+  async browserSelectOption(
+    index: number,
+    option: number,
+    context?: ToolExecutionContext,
+  ): Promise<ToolResult> {
+    return this.browser.selectOption(index, option, context?.signal);
   }
 
   @tool({
@@ -192,8 +204,8 @@ export class BrowserTool extends BaseTool {
     },
     required: [],
   })
-  async browserScrollUp(toTop?: boolean): Promise<ToolResult> {
-    return this.browser.scrollUp(toTop);
+  async browserScrollUp(toTop?: boolean, context?: ToolExecutionContext): Promise<ToolResult> {
+    return this.browser.scrollUp(toTop, context?.signal);
   }
 
   @tool({
@@ -208,8 +220,11 @@ export class BrowserTool extends BaseTool {
     },
     required: [],
   })
-  async browserScrollDown(toBottom?: boolean): Promise<ToolResult> {
-    return this.browser.scrollDown(toBottom);
+  async browserScrollDown(
+    toBottom?: boolean,
+    context?: ToolExecutionContext,
+  ): Promise<ToolResult> {
+    return this.browser.scrollDown(toBottom, context?.signal);
   }
 
   @tool({
@@ -226,8 +241,11 @@ export class BrowserTool extends BaseTool {
     },
     required: ['javascript'],
   })
-  async browserConsoleExec(javascript: string): Promise<ToolResult> {
-    return this.browser.consoleExec(javascript);
+  async browserConsoleExec(
+    javascript: string,
+    context?: ToolExecutionContext,
+  ): Promise<ToolResult> {
+    return this.browser.consoleExec(javascript, context?.signal);
   }
 
   @tool({
@@ -242,7 +260,10 @@ export class BrowserTool extends BaseTool {
     },
     required: [],
   })
-  async browserConsoleView(maxLines?: number): Promise<ToolResult> {
-    return this.browser.consoleView(maxLines);
+  async browserConsoleView(
+    maxLines?: number,
+    context?: ToolExecutionContext,
+  ): Promise<ToolResult> {
+    return this.browser.consoleView(maxLines, context?.signal);
   }
 }

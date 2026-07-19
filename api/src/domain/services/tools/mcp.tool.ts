@@ -4,7 +4,7 @@ import {
   MCPServerConfig,
   MCPTransport,
 } from '../../models/app-config';
-import { ToolDescriptor, ToolRegistration } from '../../models/tool';
+import { ToolDescriptor, ToolExecutionContext, ToolRegistration } from '../../models/tool';
 import { ToolResult } from '../../models/tool-result';
 import { BaseTool } from './base-tool';
 
@@ -17,11 +17,14 @@ export type MCPToolSchema = {
 /** MCP manager 实际依赖的最小客户端能力，便于隔离 SDK 与契约测试。 */
 export type MCPClientConnection = {
   client: {
-    listTools: () => Promise<{ tools?: MCPToolSchema[] }>;
+    listTools: (
+      params?: Record<string, never>,
+      options?: { signal?: AbortSignal },
+    ) => Promise<{ tools?: MCPToolSchema[] }>;
     callTool: (input: {
       name: string;
       arguments: Record<string, any>;
-    }) => Promise<{ content?: any[] }>;
+    }, resultSchema?: undefined, options?: { signal?: AbortSignal }) => Promise<{ content?: any[] }>;
     close?: () => Promise<void>;
   };
   transport?: { close?: () => Promise<void> };
@@ -79,12 +82,13 @@ export class MCPClientManager {
   }
 
   /** 只初始化 enabled 服务；每个服务连接失败均被独立隔离。 */
-  async initialize(): Promise<void> {
+  async initialize(signal?: AbortSignal): Promise<void> {
     if (this.initialized) {
       return;
     }
 
-    await this.connectMcpServers();
+    signal?.throwIfAborted();
+    await this.connectMcpServers(signal);
     const enabledCount = Object.values(this.mcpConfig.mcpServers)
       .filter((config) => config.enabled).length;
     this.logger.log(`已连接${Object.keys(this.clients).length}/${enabledCount}个已启用MCP服务器`);
@@ -117,17 +121,21 @@ export class MCPClientManager {
   }
 
   /** 主动刷新一个或全部已连接服务，单服务失败保留其最后成功快照。 */
-  async refreshTools(serverName?: string): Promise<MCPToolRefreshResult[]> {
+  async refreshTools(
+    serverName?: string,
+    signal?: AbortSignal,
+  ): Promise<MCPToolRefreshResult[]> {
     const serverNames = serverName ? [serverName] : Object.keys(this.clients);
     const results: MCPToolRefreshResult[] = [];
 
     for (const target of serverNames) {
+      signal?.throwIfAborted();
       const record = this.clients[target];
       if (!record) {
         results.push({ serverName: target, outcome: 'not_connected' });
         continue;
       }
-      const refreshed = await this.fetchAndCacheTools(target, record.client, false);
+      const refreshed = await this.fetchAndCacheTools(target, record.client, false, signal);
       results.push(refreshed.ok
         ? { serverName: target, outcome: 'refreshed' }
         : { serverName: target, outcome: 'failed', error: refreshed.error });
@@ -136,7 +144,11 @@ export class MCPClientManager {
   }
 
   /** 只解析当前已连接且仍存在于最新缓存的命名空间工具。 */
-  async invoke(toolName: string, arguments_: Record<string, any>): Promise<ToolResult> {
+  async invoke(
+    toolName: string,
+    arguments_: Record<string, any>,
+    signal?: AbortSignal,
+  ): Promise<ToolResult> {
     try {
       let originalServerName: string | undefined;
       let originalToolName: string | undefined;
@@ -163,13 +175,16 @@ export class MCPClientManager {
       const result = await record.client.callTool({
         name: originalToolName,
         arguments: arguments_,
-      });
+      }, undefined, { signal });
       const content = Array.isArray(result?.content)
         ? result.content.map((item: any) => item.text ?? String(item)).join('\n')
         : undefined;
 
       return { success: true, data: content || '工具执行成功' };
     } catch (error) {
+      if (signal?.aborted) {
+        throw error;
+      }
       const err = error instanceof Error ? error : new Error(String(error));
       this.logger.error(`调用MCP工具[${toolName}]失败: ${err.message}`);
       return {
@@ -190,8 +205,9 @@ export class MCPClientManager {
   }
 
   /** 按配置顺序连接 enabled 服务，disabled 服务不创建任何连接资源。 */
-  private async connectMcpServers(): Promise<void> {
+  private async connectMcpServers(signal?: AbortSignal): Promise<void> {
     for (const [serverName, serverConfig] of Object.entries(this.mcpConfig.mcpServers)) {
+      signal?.throwIfAborted();
       if (!serverConfig.enabled) {
         continue;
       }
@@ -202,8 +218,11 @@ export class MCPClientManager {
           (error, tools) => this.handleToolsChanged(serverName, error, tools),
         );
         this.clients[serverName] = record;
-        await this.fetchAndCacheTools(serverName, record.client, true);
+        await this.fetchAndCacheTools(serverName, record.client, true, signal);
       } catch (error) {
+        if (signal?.aborted) {
+          throw error;
+        }
         const err = error instanceof Error ? error : new Error(String(error));
         this.logger.error(`连接MCP服务器[${serverName}]出错: ${err.message}`);
         continue;
@@ -344,13 +363,17 @@ export class MCPClientManager {
     serverName: string,
     client: MCPClientConnection['client'],
     clearOnFailure: boolean,
+    signal?: AbortSignal,
   ): Promise<{ ok: true } | { ok: false; error: string }> {
     try {
-      const toolsResponse = await client.listTools();
+      const toolsResponse = await client.listTools(undefined, { signal });
       this.cachedTools[serverName] = (toolsResponse?.tools ?? []).map(cloneMcpToolSchema);
       this.logger.log(`MCP服务器[${serverName}]提供了${this.cachedTools[serverName].length}个工具`);
       return { ok: true };
     } catch (error) {
+      if (signal?.aborted) {
+        throw error;
+      }
       const err = error instanceof Error ? error : new Error(String(error));
       this.logger.error(`获取MCP服务器[${serverName}]工具列表失败: ${err.message}`);
       if (clearOnFailure) {
@@ -392,12 +415,12 @@ export class MCPTool extends BaseTool {
   }
 
   /** 初始化 MCP manager；重复初始化保持同一连接集合。 */
-  async initialize(mcpConfig: MCPConfig): Promise<void> {
+  async initialize(mcpConfig: MCPConfig, signal?: AbortSignal): Promise<void> {
     if (this.initialized) {
       return;
     }
     this.manager = this.managerFactory(mcpConfig);
-    await this.manager.initialize();
+    await this.manager.initialize(signal);
     this.initialized = true;
   }
 
@@ -410,7 +433,8 @@ export class MCPTool extends BaseTool {
         capabilities: [...descriptor.capabilities],
       },
       groupName: this.name,
-      invoke: (arguments_) => this.invoke(descriptor.name, arguments_),
+      invoke: (arguments_, context) => this.invoke(descriptor.name, arguments_, context),
+      supportsAbortSignal: true,
     }));
   }
 
@@ -421,21 +445,28 @@ export class MCPTool extends BaseTool {
   }
 
   /** 把命名空间工具调用交给 manager；未初始化时返回兼容失败结果。 */
-  override async invoke(toolName: string, kwargs: Record<string, any> = {}): Promise<ToolResult> {
+  override async invoke(
+    toolName: string,
+    kwargs: Record<string, any> = {},
+    context?: ToolExecutionContext,
+  ): Promise<ToolResult> {
     if (!this.manager) {
       return { success: false, message: 'MCP工具包尚未初始化' };
     }
-    return this.manager.invoke(toolName, kwargs);
+    return this.manager.invoke(toolName, kwargs, context?.signal);
   }
 
   /** 主动刷新一个或全部 MCP 服务，供不支持 list changed 的服务按需调用。 */
-  async refreshTools(serverName?: string): Promise<MCPToolRefreshResult[]> {
+  async refreshTools(
+    serverName?: string,
+    signal?: AbortSignal,
+  ): Promise<MCPToolRefreshResult[]> {
     if (!this.manager) {
       return serverName
         ? [{ serverName, outcome: 'not_connected' }]
         : [];
     }
-    return this.manager.refreshTools(serverName);
+    return this.manager.refreshTools(serverName, signal);
   }
 
   /** 释放全部 MCP 资源并清除实时工具快照。 */

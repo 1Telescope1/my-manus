@@ -15,6 +15,9 @@ export abstract class TaskRunner {
 
   /** 任务完成后的回调入口。 */
   abstract onDone(task: Task): Promise<void>;
+
+  /** 在根 Signal 触发前持久化当前 Run 的取消请求；无活动 Run 时可直接返回。 */
+  async requestCancellation(): Promise<void> {}
 }
 
 /**
@@ -28,6 +31,14 @@ export abstract class Task {
 
   /** 取消当前任务。 */
   abstract cancel(): boolean;
+
+  /** 当前一次执行使用的根取消信号；旧实现可不提供。 */
+  get signal(): AbortSignal | undefined {
+    return undefined;
+  }
+
+  /** 等待当前执行确认结束；旧实现可不提供。 */
+  async waitForCompletion(): Promise<void> {}
 
   /** 当前任务的输入消息流。 */
   abstract readonly inputStream: MessageQueue;
@@ -53,4 +64,3 @@ export abstract class TaskManager {
   /** 停止并释放当前进程中仍被管理的全部任务。 */
   abstract destroy(): Promise<void>;
 }
-

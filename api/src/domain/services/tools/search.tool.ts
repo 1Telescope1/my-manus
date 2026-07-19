@@ -1,10 +1,12 @@
 import { SearchEngine } from '../../external/search-engine';
 import { SearchResults } from '../../models/search';
 import { ToolResult } from '../../models/tool-result';
+import { ToolExecutionContext } from '../../models/tool';
 import { BaseTool, tool } from './base-tool';
 
 export class SearchTool extends BaseTool {
   readonly name = 'search';
+  protected override readonly supportsAbortSignal = true;
 
   constructor(private readonly searchEngine: SearchEngine) {
     super();
@@ -29,7 +31,11 @@ export class SearchTool extends BaseTool {
     },
     required: ['query'],
   })
-  async searchWeb(query: string, dateRange?: string): Promise<ToolResult<SearchResults>> {
-    return this.searchEngine.invoke(query, dateRange);
+  async searchWeb(
+    query: string,
+    dateRange?: string,
+    context?: ToolExecutionContext,
+  ): Promise<ToolResult<SearchResults>> {
+    return this.searchEngine.invoke(query, dateRange, context?.signal);
   }
 }

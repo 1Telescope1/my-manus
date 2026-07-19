@@ -60,6 +60,7 @@ export class LLMDirectResponseProvider implements DirectResponseProvider {
           }),
         },
       ],
+      signal: context.signal,
     });
     return messageToText(response.content);
   }
@@ -98,6 +99,7 @@ export class LLMSingleToolProvider implements SingleToolSelector, SingleToolResp
       tools: availableTools,
       // 当前兼容的部分思考模型不支持 required；由提示词要求一次调用，无调用则明确失败。
       toolChoice: 'auto',
+      signal: context.signal,
     });
     const toolCall = response.tool_calls?.[0];
     const functionName = toolCall?.function?.name;
@@ -138,6 +140,7 @@ export class LLMSingleToolProvider implements SingleToolSelector, SingleToolResp
         },
       ],
       toolChoice: 'none',
+      signal: input.context.signal,
     });
     return messageToText(response.content);
   }

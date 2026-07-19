@@ -1,9 +1,11 @@
 ﻿import { Sandbox } from '../../external/sandbox';
 import { ToolResult } from '../../models/tool-result';
+import { ToolExecutionContext } from '../../models/tool';
 import { BaseTool, tool } from './base-tool';
 
 export class ShellTool extends BaseTool {
   readonly name = 'shell';
+  protected override readonly supportsAbortSignal = true;
 
   constructor(private readonly sandbox: Sandbox) {
     super();
@@ -31,8 +33,13 @@ export class ShellTool extends BaseTool {
     },
     required: ['session_id', 'exec_dir', 'command'],
   })
-  async shellExecute(sessionId: string, execDir: string, command: string): Promise<ToolResult> {
-    return this.sandbox.execCommand(sessionId, execDir, command);
+  async shellExecute(
+    sessionId: string,
+    execDir: string,
+    command: string,
+    context?: ToolExecutionContext,
+  ): Promise<ToolResult> {
+    return this.sandbox.execCommand(sessionId, execDir, command, context?.signal);
   }
 
   @tool({
@@ -47,8 +54,11 @@ export class ShellTool extends BaseTool {
     },
     required: ['session_id'],
   })
-  async shellReadOutput(sessionId: string): Promise<ToolResult> {
-    return this.sandbox.readShellOutput(sessionId);
+  async shellReadOutput(
+    sessionId: string,
+    context?: ToolExecutionContext,
+  ): Promise<ToolResult> {
+    return this.sandbox.readShellOutput(sessionId, false, context?.signal);
   }
 
   @tool({
@@ -67,8 +77,12 @@ export class ShellTool extends BaseTool {
     },
     required: ['session_id'],
   })
-  async shellWaitProcess(sessionId: string, seconds?: number): Promise<ToolResult> {
-    return this.sandbox.waitProcess(sessionId, seconds);
+  async shellWaitProcess(
+    sessionId: string,
+    seconds?: number,
+    context?: ToolExecutionContext,
+  ): Promise<ToolResult> {
+    return this.sandbox.waitProcess(sessionId, seconds, context?.signal);
   }
 
   @tool({
@@ -96,8 +110,9 @@ export class ShellTool extends BaseTool {
     sessionId: string,
     inputText: string,
     pressEnter: boolean,
+    context?: ToolExecutionContext,
   ): Promise<ToolResult> {
-    return this.sandbox.writeShellInput(sessionId, inputText, pressEnter);
+    return this.sandbox.writeShellInput(sessionId, inputText, pressEnter, context?.signal);
   }
 
   @tool({
@@ -114,7 +129,10 @@ export class ShellTool extends BaseTool {
     },
     required: ['session_id'],
   })
-  async shellKillProcess(sessionId: string): Promise<ToolResult> {
-    return this.sandbox.killProcess(sessionId);
+  async shellKillProcess(
+    sessionId: string,
+    context?: ToolExecutionContext,
+  ): Promise<ToolResult> {
+    return this.sandbox.killProcess(sessionId, context?.signal);
   }
 }

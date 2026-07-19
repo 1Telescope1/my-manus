@@ -36,6 +36,7 @@ export class RedisStreamTaskManager extends TaskManager {
 
     for (const { task, runner } of managedTasks) {
       task.cancel();
+      await task.waitForCompletion();
       await runner.destroy();
     }
   }

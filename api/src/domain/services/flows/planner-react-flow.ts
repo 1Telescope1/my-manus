@@ -17,6 +17,7 @@ import { A2ATool } from '../tools/a2a.tool';
 import { createAgentToolset } from '../tools/agent-toolset';
 import { MCPTool } from '../tools/mcp.tool';
 import { BaseFlow, FlowStatus } from './base-flow';
+import { throwIfAborted } from '../runtime/cancellation';
 
 export class PlannerReActFlow extends BaseFlow {
   private readonly logger = new Logger(PlannerReActFlow.name);
@@ -116,6 +117,7 @@ export class PlannerReActFlow extends BaseFlow {
 
     // 8. 创建循环执行任务，根据流的不同状态执行不同的操作。
     while (true) {
+      throwIfAborted(toolInvocation?.signal);
       if (this.status === FlowStatus.IDLE) {
         // 9. 如果流的状态为空闲，则只需要将状态修改为规划中。
         this.logger.log(`Planner&ReAct流状态从${FlowStatus.IDLE}变成${FlowStatus.PLANNING}`);
@@ -123,7 +125,7 @@ export class PlannerReActFlow extends BaseFlow {
       } else if (this.status === FlowStatus.PLANNING) {
         // 10. 流状态为规划中，则调用规划 Agent。
         this.logger.log('Planner&ReAct流开始创建计划/Plan');
-        for await (const event of this.planner.createPlan(message)) {
+        for await (const event of this.planner.createPlan(message, toolInvocation)) {
           // 11. 判断规划 Agent 是否返回规划事件。
           if (event.type === 'plan' && event.status === PlanEventStatus.CREATED) {
             // 12. 创建计划成功时需要更新计划。
@@ -183,7 +185,7 @@ export class PlannerReActFlow extends BaseFlow {
       } else if (this.status === FlowStatus.UPDATING) {
         // 23. 流状态为更新，表示需要更新计划。
         this.logger.log('Planner&ReAct流开始更新计划');
-        for await (const event of this.planner.updatePlan(this.plan!, step!)) {
+        for await (const event of this.planner.updatePlan(this.plan!, step!, toolInvocation)) {
           yield event;
         }
 
@@ -193,7 +195,7 @@ export class PlannerReActFlow extends BaseFlow {
       } else if (this.status === FlowStatus.SUMMARIZING) {
         // 25. 流状态为总结中，则意味着所有子步骤都执行完成。
         this.logger.log('Planner&ReAct流开始总结');
-        for await (const event of this.react.summarize(this.plan!)) {
+        for await (const event of this.react.summarize(this.plan!, toolInvocation)) {
           yield event;
         }
 
