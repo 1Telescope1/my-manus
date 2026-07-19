@@ -254,6 +254,11 @@ test('路由模型适配器不应携带工具或执行任何副作用', async ()
 
   const result = await router.route({
     message: '你好',
+    availableSkills: [{
+      id: 'project:document-review',
+      name: 'document-review',
+      description: '审阅文档。',
+    }],
     availableCapabilities: ['search', 'web.search'],
   });
 
@@ -264,6 +269,12 @@ test('路由模型适配器不应携带工具或执行任何副作用', async ()
   assert.deepEqual(llm.calls[0].responseFormat, { type: 'json_object' });
   const userPayload = JSON.parse(String(llm.calls[0].messages[1].content));
   assert.deepEqual(userPayload.availableCapabilities, ['search', 'web.search']);
+  assert.deepEqual(userPayload.availableSkills, [{
+    id: 'project:document-review',
+    name: 'document-review',
+    description: '审阅文档。',
+  }]);
+  assert.doesNotMatch(String(llm.calls[0].messages[1].content), /SKILL\.md|instruction/);
 });
 
 // 错误阈值应在服务创建时立即暴露，不能静默改变全部路由结果。

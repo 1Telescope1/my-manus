@@ -13,6 +13,11 @@ import { RouteDecision } from '../../models/route-decision';
 import { RuntimeEvent } from '../../models/runtime-event';
 import { SessionStatus } from '../../models/session';
 import { ToolSelectionConstraints } from '../../models/tool-selection';
+import {
+  SkillDisclosure,
+  SkillProgressiveDisclosure,
+  skillToolSelectionScopes,
+} from '../../models/skill-disclosure';
 import { UnitOfWork } from '../../repositories/unit-of-work';
 import {
   RuntimeCheckpointBoundary,
@@ -25,6 +30,7 @@ import { RuntimeRouterService } from './router.service';
 export type RuntimeRequest = {
   sessionId: string;
   message: Message;
+  requestedSkills?: readonly string[];
   toolSelection?: ToolSelectionConstraints;
   signal?: AbortSignal;
 };
@@ -33,6 +39,7 @@ export type RuntimeRequest = {
 export type RuntimeServiceOptions = {
   clock?: () => Date;
   availableToolCapabilities?: () => readonly string[];
+  skillDisclosure?: SkillProgressiveDisclosure;
 };
 
 /** 串联 Router、AgentRun/Checkpoint 和多路径执行器的运行协调器。 */
@@ -40,6 +47,7 @@ export class RuntimeService {
   private readonly checkpointService: RuntimeCheckpointService;
   private readonly clock: () => Date;
   private readonly availableToolCapabilities: () => readonly string[];
+  private readonly skillDisclosure?: SkillProgressiveDisclosure;
   private activeRun?: AgentRun;
 
   /** 注入事务边界、路由器、执行器集合和可测试时钟。 */
@@ -54,15 +62,28 @@ export class RuntimeService {
     this.checkpointService = new RuntimeCheckpointService(this.uowFactory);
     this.clock = normalizedOptions.clock ?? (() => new Date());
     this.availableToolCapabilities = normalizedOptions.availableToolCapabilities ?? (() => []);
+    this.skillDisclosure = normalizedOptions.skillDisclosure;
   }
 
   /** 为一条用户消息创建持久化 Run，并流式返回统一 Runtime Event。 */
   async *execute(request: RuntimeRequest): AsyncIterable<RuntimeEvent> {
+    const skillRun = await this.skillDisclosure?.initialize({
+      message: request.message.message,
+      requestedSkills: request.requestedSkills,
+    });
     const routed = await this.router.route({
       message: request.message.message,
+      requestedSkills: skillRun ? [...skillRun.explicitSkillIds] : [],
+      availableSkills: skillRun?.catalog.map((skill) => ({ ...skill })) ?? [],
       availableCapabilities: [...this.availableToolCapabilities()],
     }, request.signal);
-    const decision = executableDecision(routed);
+    const disclosedSkills = await skillRun?.activate(routed.requestedSkills);
+    const decision = executableDecision(disclosedSkills
+      ? {
+        ...routed,
+        requestedSkills: disclosedSkills.activated.map((skill) => skill.descriptor.id),
+      }
+      : routed);
     let run = createAgentRun({
       sessionId: request.sessionId,
       route: decision.route,
@@ -102,8 +123,13 @@ export class RuntimeService {
         decision,
         message: request.message.message,
         nextEventSequence: routeCheckpoint.checkpoint.nextEventSequence,
-        privateContext: { attachments: [...request.message.attachments] },
-        toolSelection: request.toolSelection,
+        privateContext: {
+          attachments: [...request.message.attachments],
+          ...(disclosedSkills
+            ? { skillDisclosure: disclosedSkills }
+            : {}),
+        },
+        toolSelection: mergeSkillToolSelection(request.toolSelection, disclosedSkills),
         signal: request.signal,
       })) {
         if (runtimeEvent.type === 'run.cancelled') {
@@ -242,6 +268,21 @@ export class RuntimeService {
     }
     return result.run;
   }
+}
+
+/** 把激活 Skill 的 allow scope 追加到现有约束，且不改写调用方对象。 */
+function mergeSkillToolSelection(
+  selection: ToolSelectionConstraints | undefined,
+  skills: SkillDisclosure | undefined,
+): ToolSelectionConstraints | undefined {
+  if (!skills) {
+    return selection;
+  }
+  const skillScopes = [...(selection?.skills ?? []), ...skillToolSelectionScopes(skills)];
+  return {
+    ...selection,
+    ...(skillScopes.length > 0 ? { skills: skillScopes } : {}),
+  };
 }
 
 /** Workflow Registry 尚未接入时将 Workflow 决策降级到可工作的 Planned Agent。 */

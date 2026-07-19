@@ -20,6 +20,9 @@ import { createDefaultRuntimeRouteRules } from '../../domain/services/runtime/ro
 import { RuntimeRouterService } from '../../domain/services/runtime/router.service';
 import { LLMRuntimeRouteModel } from '../../infrastructure/external/llm/llm-runtime-route-model';
 import { FileAppConfigRepository } from '../../infrastructure/repositories/file-app-config.repository';
+import { FileSystemSkillCatalog } from '../../infrastructure/skills/file-system-skill-catalog';
+import { FileSystemSkillContentLoader } from '../../infrastructure/skills/file-system-skill-content-loader';
+import { SkillProgressiveDisclosureService } from '../../domain/services/skills/skill-progressive-disclosure.service';
 
 export type ChatOptions = {
   message?: string;
@@ -102,6 +105,10 @@ export class AgentService {
           rules: createDefaultRuntimeRouteRules(),
         }),
         eventAdapter: new RuntimeEventAdapter(),
+        skillDisclosure: new SkillProgressiveDisclosureService(
+          new FileSystemSkillCatalog(process.cwd()),
+          new FileSystemSkillContentLoader(process.cwd()),
+        ),
       },
     );
 

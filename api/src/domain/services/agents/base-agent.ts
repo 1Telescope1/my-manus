@@ -46,6 +46,8 @@ type AgentInvokeOptions = {
   toolSelection?: ToolSelectionRequest;
   /** 当前 Run 的可靠调用作用域与可选取消信号。 */
   toolInvocation?: { scopeId: string; signal?: AbortSignal };
+  /** 仅当前 Run 的模型请求可见、不得写入 Session Memory 的系统上下文。 */
+  protectedSystemContext?: string;
 };
 
 export abstract class BaseAgent {
@@ -124,6 +126,7 @@ export abstract class BaseAgent {
       new Set(),
       options.toolSelection,
       options.toolInvocation?.signal,
+      options.protectedSystemContext,
     );
 
     // 部分思考模型不支持 tool_choice="required"。保持 tool_choice=auto，并在模型
@@ -147,6 +150,7 @@ export abstract class BaseAgent {
           new Set(),
           options.toolSelection,
           options.toolInvocation?.signal,
+          options.protectedSystemContext,
         );
       }
 
@@ -284,6 +288,7 @@ export abstract class BaseAgent {
           excludedToolNames,
           options.toolSelection,
           options.toolInvocation?.signal,
+          options.protectedSystemContext,
         );
         break;
       }
@@ -295,6 +300,7 @@ export abstract class BaseAgent {
         excludedToolNames,
         options.toolSelection,
         options.toolInvocation?.signal,
+        options.protectedSystemContext,
       );
     }
 
@@ -351,6 +357,7 @@ export abstract class BaseAgent {
     excludedToolNames: ReadonlySet<string> = new Set(),
     selection?: ToolSelectionRequest,
     signal?: AbortSignal,
+    protectedSystemContext?: string,
   ): Promise<LLMMessage> {
     throwIfAborted(signal);
     await this.addToMemory(messages);
@@ -365,7 +372,10 @@ export abstract class BaseAgent {
     for (let i = 0; i < this.agentConfig.max_retries; i += 1) {
       try {
         const message = await this.llm.invoke({
-          messages: this.memory?.getMessages() ?? [],
+          messages: modelMessages(
+            this.memory?.getMessages() ?? [],
+            protectedSystemContext,
+          ),
           // 空集合时省略 tools，确保 Planner、总结和无授权场景不会产生全量回退。
           ...(availableTools.length > 0 ? { tools: availableTools } : {}),
           responseFormat,
@@ -442,4 +452,20 @@ export abstract class BaseAgent {
       await active.session.saveMemory(this.sessionId, this.name, this.memory as Memory);
     });
   }
+}
+
+/** 把 Run 级系统上下文插在持久 system prompt 后，且不修改原 Memory。 */
+function modelMessages(
+  persistedMessages: LLMMessage[],
+  protectedSystemContext?: string,
+): LLMMessage[] {
+  if (!protectedSystemContext) {
+    return persistedMessages;
+  }
+  const [systemPrompt, ...conversation] = persistedMessages;
+  return [
+    ...(systemPrompt ? [systemPrompt] : []),
+    { role: 'system', content: protectedSystemContext },
+    ...conversation,
+  ];
 }

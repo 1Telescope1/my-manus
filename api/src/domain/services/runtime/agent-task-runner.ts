@@ -43,6 +43,7 @@ import {
   WorkflowRuntimeExecutor,
 } from './executor.service';
 import { RuntimeRouterService } from './router.service';
+import type { SkillProgressiveDisclosure } from '../../models/skill-disclosure';
 import { RuntimeService } from './runtime.service';
 import { PersistentToolIdempotencyStore } from './persistent-tool-idempotency.store';
 import { A2ATool } from '../tools/a2a.tool';
@@ -64,6 +65,7 @@ export interface RuntimeEventAdapterPort {
 export type AgentTaskRunnerOptions = {
   router: RuntimeRouterService;
   eventAdapter: RuntimeEventAdapterPort;
+  skillDisclosure?: SkillProgressiveDisclosure;
 };
 
 export class AgentTaskRunner extends TaskRunner {
@@ -145,6 +147,7 @@ export class AgentTaskRunner extends TaskRunner {
             toolRegistry.list().flatMap((descriptor) => descriptor.capabilities),
           )];
         },
+        skillDisclosure: runtimeOptions.skillDisclosure,
       },
     );
   }

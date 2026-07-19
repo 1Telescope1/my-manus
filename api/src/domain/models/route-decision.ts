@@ -4,10 +4,18 @@ import { RouteKind } from './agent-run';
 const routeTextSchema = z.string().trim().min(1).max(512);
 const routeNameSchema = z.string().trim().min(1).max(128);
 
+/** Router 可见的最小 Skill Catalog 项；不允许携带正文或文件路径。 */
+export const RuntimeRouteSkillSchema = z.object({
+  id: routeNameSchema,
+  name: routeNameSchema,
+  description: z.string().trim().min(1),
+}).strict();
+
 /** 路由服务接收的最小用户请求上下文。 */
 export const RuntimeRouteRequestSchema = z.object({
   message: z.string().trim().min(1).max(100_000),
   requestedSkills: z.array(routeNameSchema).max(32).default([]),
+  availableSkills: z.array(RuntimeRouteSkillSchema).default([]),
   availableCapabilities: z.array(routeNameSchema).max(512).default([]),
 }).strict();
 

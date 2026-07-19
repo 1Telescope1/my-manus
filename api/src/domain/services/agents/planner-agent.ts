@@ -41,13 +41,17 @@ export class PlannerAgent extends BaseAgent {
   async *createPlan(
     message: Message,
     toolInvocation?: { scopeId: string; signal?: AbortSignal },
+    protectedSystemContext?: string,
   ): AsyncGenerator<Event> {
     const query = formatTemplate(CREATE_PLAN_PROMPT, {
       message: message.message,
       attachments: message.attachments.join('\n'),
     });
 
-    for await (const event of this.invoke(query, undefined, { toolInvocation })) {
+    for await (const event of this.invoke(query, undefined, {
+      toolInvocation,
+      protectedSystemContext,
+    })) {
       if (event.type === 'message') {
         const parsed = await this.jsonParser.invoke<Partial<Plan>>(event.message);
         yield events.plan(createPlan(parsed), PlanEventStatus.CREATED);
@@ -61,13 +65,17 @@ export class PlannerAgent extends BaseAgent {
     plan: Plan,
     step: Step,
     toolInvocation?: { scopeId: string; signal?: AbortSignal },
+    protectedSystemContext?: string,
   ): AsyncGenerator<Event> {
     const query = formatTemplate(UPDATE_PLAN_PROMPT, {
       plan: JSON.stringify(plan),
       step: JSON.stringify(step),
     });
 
-    for await (const event of this.invoke(query, undefined, { toolInvocation })) {
+    for await (const event of this.invoke(query, undefined, {
+      toolInvocation,
+      protectedSystemContext,
+    })) {
       if (event.type === 'message') {
         const parsed = await this.jsonParser.invoke<Partial<Plan>>(event.message);
         const updatedPlan = createPlan(parsed);

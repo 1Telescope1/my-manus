@@ -46,7 +46,7 @@
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | [SKILL-101](./tasks/SKILL-101/README.md) | `done` | — | 发现和描述项目 Skills | 扫描 `.agents/skills/`，解析 Frontmatter，生成只含元数据的 Catalog | 合法 Skill 可发现；重名、超限、名称不匹配被隔离并诊断 | [验收证据](./tasks/SKILL-101/evidence.md) | 2026-07-19：按可信内置 Skill 边界精简发现校验 |
 | [SKILL-102](./tasks/SKILL-102/README.md) | `done` | SKILL-101 | 安全读取 Skill 指令和资源 | 实现真实路径校验、大小限制和资源清单 | 路径逃逸、符号链接逃逸、缺失资源和超限测试通过 | [验收证据](./tasks/SKILL-102/evidence.md) | 2026-07-19：完成真实路径安全、资源清单与有界读取 |
-| SKILL-103 | `ready` | SKILL-101, SKILL-102 | 实现渐进披露 | 目录常驻上下文；显式或模型驱动激活完整 SKILL.md；Run 内去重 | 未激活 Skill 正文不进入模型；显式激活稳定；重复激活不重复注入 | — | 2026-07-19：前置任务已完成 |
+| [SKILL-103](./tasks/SKILL-103/README.md) | `done` | SKILL-101, SKILL-102 | 实现渐进披露 | 目录常驻上下文；显式或模型驱动激活完整 SKILL.md；Run 内去重 | 未激活 Skill 正文不进入模型；显式激活稳定；重复激活不重复注入 | [验收证据](./tasks/SKILL-103/evidence.md) | 2026-07-19：完成全模型路径渐进披露与 Run 内去重 |
 | SKILL-104 | `proposed` | SKILL-103, MEMORY-102 | 防止 Skill 在压缩中丢失 | 将激活版本和受保护指令写入 Run State/Context | 多次压缩后 Skill 约束仍存在；恢复后使用原激活版本 | — | 2026-07-16：初始化 |
 | SKILL-105 | `ready` | SKILL-102, TOOL-103 | 安全使用脚本和资产 | scripts 经 Sandbox Tool 执行，资源通过 Artifact/Context 读取 | 不存在自动宿主机执行路径；执行事件和输出可追踪 | — | 2026-07-19：前置任务已完成 |
 | SKILL-106 | `proposed` | SKILL-103, EVAL-101 | 用真实用例验证 Skills | 增加研究、文件处理等示例 Skill 和触发数据集 | 示例符合规范；触发 Precision/Recall 达到任务约定门槛 | — | 2026-07-16：初始化 |

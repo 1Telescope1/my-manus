@@ -33,6 +33,10 @@ import {
 } from '../tools/agent-toolset';
 import { ToolSelectionService } from '../tools/tool-selection.service';
 import { ToolInvocationService } from '../tools/tool-invocation.service';
+import {
+  formatRuntimeSkillContext,
+  SkillDisclosure,
+} from '../../models/skill-disclosure';
 
 const DIRECT_SYSTEM_PROMPT =
   '你负责直接回答用户请求。不得声称调用了工具或访问了未提供的外部信息；请给出简洁、完整的最终回答。';
@@ -53,6 +57,7 @@ export class LLMDirectResponseProvider implements DirectResponseProvider {
     const response = await this.llm.invoke({
       messages: [
         { role: 'system', content: DIRECT_SYSTEM_PROMPT },
+        ...runtimeSkillSystemMessages(context),
         {
           role: 'user',
           content: JSON.stringify({
@@ -88,6 +93,7 @@ export class LLMSingleToolProvider implements SingleToolSelector, SingleToolResp
     const response = await this.llm.invoke({
       messages: [
         { role: 'system', content: SINGLE_TOOL_SYSTEM_PROMPT },
+        ...runtimeSkillSystemMessages(context),
         {
           role: 'user',
           content: JSON.stringify({
@@ -130,6 +136,7 @@ export class LLMSingleToolProvider implements SingleToolSelector, SingleToolResp
     const response = await this.llm.invoke({
       messages: [
         { role: 'system', content: SINGLE_TOOL_SUMMARY_PROMPT },
+        ...runtimeSkillSystemMessages(input.context),
         {
           role: 'user',
           content: JSON.stringify({
@@ -220,6 +227,7 @@ export class PlannerFlowRuntimeRunner implements PlannedAgentRunner {
       message,
       toolSelectionRequest(context),
       { scopeId: context.run.id, signal: context.signal },
+      runtimeSkillSystemContext(context),
     )) {
       const payload = flowEventToRuntimePayload(event);
       if (payload) {
@@ -227,6 +235,18 @@ export class PlannerFlowRuntimeRunner implements PlannedAgentRunner {
       }
     }
   }
+}
+
+/** 从 Runtime 私有上下文提取并格式化当前 Run 的 Skill system context。 */
+function runtimeSkillSystemContext(context: RuntimeExecutionContext): string | undefined {
+  const disclosure = context.privateContext.skillDisclosure as SkillDisclosure | undefined;
+  return disclosure ? formatRuntimeSkillContext(disclosure) : undefined;
+}
+
+/** 为直接 LLM 适配器生成零个或一个受保护 system message。 */
+function runtimeSkillSystemMessages(context: RuntimeExecutionContext) {
+  const content = runtimeSkillSystemContext(context);
+  return content ? [{ role: 'system' as const, content }] : [];
 }
 
 /** 把 Runtime 路由能力和外部约束组合成一次完整工具选择请求。 */

@@ -62,6 +62,7 @@ export class ReActAgent extends BaseAgent {
     message: Message,
     toolSelection?: ToolSelectionRequest,
     toolInvocation?: { scopeId: string; signal?: AbortSignal },
+    protectedSystemContext?: string,
   ): AsyncGenerator<Event> {
     const query = formatTemplate(EXECUTION_PROMPT, {
       message: message.message,
@@ -83,6 +84,7 @@ export class ReActAgent extends BaseAgent {
       },
       toolSelection,
       toolInvocation,
+      protectedSystemContext,
     })) {
       if (event.type === 'tool' && event.function_name === 'message_ask_user') {
         if (event.status === ToolEventStatus.CALLING) {
@@ -139,13 +141,17 @@ export class ReActAgent extends BaseAgent {
   async *summarize(
     plan: Plan,
     toolInvocation?: { scopeId: string; signal?: AbortSignal },
+    protectedSystemContext?: string,
   ): AsyncGenerator<Event> {
     // 把最终计划（包含每一步的 success/result/error）显式交给总结阶段，
     // 避免总结模型只根据对话记忆复述开场白或把失败任务描述成已完成。
     const query = formatTemplate(SUMMARIZE_PROMPT, {
       plan: JSON.stringify(plan),
     });
-    for await (const event of this.invoke(query, undefined, { toolInvocation })) {
+    for await (const event of this.invoke(query, undefined, {
+      toolInvocation,
+      protectedSystemContext,
+    })) {
       if (event.type === 'message') {
         const parsed = await this.jsonParser.invoke<Partial<Message> & Record<string, unknown>>(
           event.message,

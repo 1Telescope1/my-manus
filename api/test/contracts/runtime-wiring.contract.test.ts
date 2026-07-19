@@ -20,6 +20,8 @@ import {
 } from '../../src/domain/models/agent-run';
 import { Event, events } from '../../src/domain/models/event';
 import { createSession, SessionStatus } from '../../src/domain/models/session';
+import type { SkillProgressiveDisclosure } from '../../src/domain/models/skill-disclosure';
+import { SkillResourceKind } from '../../src/domain/models/skill-content';
 import {
   AgentRunRepository,
   CheckpointAppendResult,
@@ -333,6 +335,7 @@ function createRunner(
   store: RuntimeWiringStore,
   llm: LLM,
   searchEngine: SearchEngine = {} as SearchEngine,
+  skillDisclosure?: SkillProgressiveDisclosure,
 ): AgentTaskRunner {
   return new AgentTaskRunner(
     () => store.createUnitOfWork(),
@@ -351,8 +354,47 @@ function createRunner(
         rules: createDefaultRuntimeRouteRules(),
       }),
       eventAdapter: new RuntimeEventAdapter(),
+      skillDisclosure,
     },
   );
+}
+
+/** 创建只包含 document-review 的单 Run 渐进披露测试端口。 */
+function createDocumentReviewDisclosure(
+  onActivate?: (requestedSkills: readonly string[]) => void,
+): SkillProgressiveDisclosure {
+  const descriptor = {
+    id: 'project:document-review',
+    name: 'document-review',
+    description: '审阅用户文档。',
+  };
+  return {
+    /** 每次返回独立激活状态，模拟真实服务的 Run 隔离。 */
+    async initialize() {
+      return {
+        catalog: [descriptor],
+        explicitSkillIds: [],
+        /** 返回固定完整正文和工具上界。 */
+        async activate(requestedSkills: readonly string[]) {
+          onActivate?.(requestedSkills);
+          return {
+            catalog: [descriptor],
+            activated: [{
+              descriptor,
+              content: 'DOCUMENT-REVIEW-SKILL-BODY',
+              contentDigest: 'digest-document-review',
+              allowedTools: ['search_web'],
+              resources: [{
+                path: 'references/rules.md',
+                kind: SkillResourceKind.REFERENCE,
+                sizeBytes: 12,
+              }],
+            }],
+          };
+        },
+      };
+    },
+  };
 }
 
 /** 把用户消息放入 Task 输入流并执行 Runner。 */
@@ -449,6 +491,139 @@ test('Runtime 应在同一历史 Session 中完成请求并保留历史事件', 
   assert.equal(llm.calls.length, 2);
   assert.equal(Object.hasOwn(llm.calls[0], 'tools'), false);
   assert.equal(Object.hasOwn(llm.calls[1], 'tools'), false);
+});
+
+test('Runtime 应先向 Router 披露 Catalog 再向执行模型披露激活正文', async () => {
+  const store = new RuntimeWiringStore([]);
+  let activations = 0;
+  const skillDisclosure = createDocumentReviewDisclosure((requestedSkills) => {
+    assert.deepEqual(requestedSkills, ['project:document-review']);
+    activations += 1;
+  });
+  const llm = new SequenceLLM([
+    {
+      content: JSON.stringify({
+        route: RouteKind.DIRECT,
+        reason: '使用文档审阅 Skill 回答',
+        requiredCapabilities: [],
+        requestedSkills: ['project:document-review'],
+        confidence: 0.99,
+      }),
+    },
+    { role: 'assistant', content: '已按 Skill 回答' },
+  ]);
+  const runner = createRunner(store, llm, {} as SearchEngine, skillDisclosure);
+
+  const task = await invokeRunner(runner, '审阅这段内容');
+  const output = outputEvents(task);
+  const routerPayload = String(llm.calls[0].messages[1].content);
+  const executionMessages = JSON.stringify(llm.calls[1].messages);
+
+  assert.deepEqual(output.map((event) => event.type), ['message', 'done']);
+  assert.equal(activations, 1);
+  assert.match(routerPayload, /审阅用户文档/);
+  assert.doesNotMatch(routerPayload, /DOCUMENT-REVIEW-SKILL-BODY/);
+  assert.match(executionMessages, /DOCUMENT-REVIEW-SKILL-BODY/);
+  assert.equal(executionMessages.match(/DOCUMENT-REVIEW-SKILL-BODY/g)?.length, 1);
+  assert.doesNotMatch(executionMessages, /references\/rules\.md/);
+  assert.deepEqual([...store.runs.values()][0].metadata.requestedSkills, [
+    'project:document-review',
+  ]);
+});
+
+test('Single Tool 的选择和总结模型都应接收同一激活正文', async () => {
+  const store = new RuntimeWiringStore([]);
+  const searchEngine = new RecordingSearchEngine();
+  const llm = new SequenceLLM([
+    {
+      content: JSON.stringify({
+        route: RouteKind.SINGLE_TOOL,
+        reason: '需要检索后审阅',
+        requiredCapabilities: ['search'],
+        requestedSkills: ['project:document-review'],
+        confidence: 0.99,
+      }),
+    },
+    {
+      role: 'assistant',
+      tool_calls: [{
+        id: 'call-skill-search',
+        function: {
+          name: 'search_web',
+          arguments: JSON.stringify({ query: '文档规则' }),
+        },
+      }],
+    },
+    { role: 'assistant', content: '已完成检索审阅' },
+  ]);
+  const runner = createRunner(
+    store,
+    llm,
+    searchEngine,
+    createDocumentReviewDisclosure(),
+  );
+
+  await invokeRunner(runner, '检索并审阅文档规则');
+
+  assert.equal(searchEngine.queries.length, 1);
+  assert.doesNotMatch(JSON.stringify(llm.calls[0].messages), /DOCUMENT-REVIEW-SKILL-BODY/);
+  assert.equal(
+    JSON.stringify(llm.calls[1].messages).match(/DOCUMENT-REVIEW-SKILL-BODY/g)?.length,
+    1,
+  );
+  assert.equal(
+    JSON.stringify(llm.calls[2].messages).match(/DOCUMENT-REVIEW-SKILL-BODY/g)?.length,
+    1,
+  );
+  assert.deepEqual(llm.calls[1].tools?.map((tool) => tool.name), ['search_web']);
+});
+
+test('Planned Agent 桥接应把激活正文作为受保护上下文传给 Flow', async () => {
+  const store = new RuntimeWiringStore([]);
+  const llm = new SequenceLLM([{
+    content: JSON.stringify({
+      route: RouteKind.PLANNED_AGENT,
+      reason: '需要规划审阅',
+      requiredCapabilities: [],
+      requestedSkills: ['project:document-review'],
+      confidence: 0.99,
+    }),
+  }]);
+  const runner = createRunner(
+    store,
+    llm,
+    {} as SearchEngine,
+    createDocumentReviewDisclosure(),
+  );
+  let protectedContext = '';
+  const runnerFlow = runner as unknown as {
+    flow: {
+      invoke: (
+        message: unknown,
+        toolSelection: unknown,
+        toolInvocation: unknown,
+        currentProtectedContext?: string,
+      ) => AsyncGenerator<Event>;
+    };
+  };
+  Object.assign(runnerFlow.flow, {
+    /** 记录 Runtime 传入的 Run 级上下文并立即完成。 */
+    async *invoke(
+      _message: unknown,
+      _toolSelection: unknown,
+      _toolInvocation: unknown,
+      currentProtectedContext?: string,
+    ): AsyncGenerator<Event> {
+      protectedContext = currentProtectedContext ?? '';
+      yield events.message({ role: 'assistant', message: '规划审阅完成' });
+      yield events.done();
+    },
+  });
+
+  await invokeRunner(runner, '规划并审阅文档');
+
+  assert.equal(protectedContext.match(/DOCUMENT-REVIEW-SKILL-BODY/g)?.length, 1);
+  assert.doesNotMatch(protectedContext, /references\/rules\.md/);
 });
 
 // Single Tool 必须只调用一次真实工具，并继续输出 UI 可消费的事件。
