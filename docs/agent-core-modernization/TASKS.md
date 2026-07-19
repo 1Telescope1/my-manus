@@ -44,12 +44,13 @@
 
 | ID | Status | Dependencies | Intent | Design | Acceptance | Evidence | Last Updated |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| SKILL-101 | `ready` | — | 发现和描述项目 Skills | 扫描 `.agents/skills/`，解析 Frontmatter，生成只含元数据的 Catalog | 合法 Skill 可发现；重名、超限、名称不匹配被隔离并诊断 | — | 2026-07-16：初始化 |
-| SKILL-102 | `proposed` | SKILL-101 | 安全读取 Skill 指令和资源 | 实现真实路径校验、大小限制和资源清单 | 路径逃逸、符号链接逃逸、缺失资源和超限测试通过 | — | 2026-07-16：初始化 |
+| [SKILL-101](./tasks/SKILL-101/README.md) | `done` | — | 发现和描述项目 Skills | 扫描 `.agents/skills/`，解析 Frontmatter，生成只含元数据的 Catalog | 合法 Skill 可发现；重名、超限、名称不匹配被隔离并诊断 | [验收证据](./tasks/SKILL-101/evidence.md) | 2026-07-19：完成项目 Skill Catalog 与隔离诊断 |
+| SKILL-102 | `ready` | SKILL-101 | 安全读取 Skill 指令和资源 | 实现真实路径校验、大小限制和资源清单 | 路径逃逸、符号链接逃逸、缺失资源和超限测试通过 | — | 2026-07-19：前置任务已完成 |
 | SKILL-103 | `proposed` | SKILL-101, SKILL-102 | 实现渐进披露 | 目录常驻上下文；显式或模型驱动激活完整 SKILL.md；Run 内去重 | 未激活 Skill 正文不进入模型；显式激活稳定；重复激活不重复注入 | — | 2026-07-16：初始化 |
 | SKILL-104 | `proposed` | SKILL-103, MEMORY-102 | 防止 Skill 在压缩中丢失 | 将激活版本和受保护指令写入 Run State/Context | 多次压缩后 Skill 约束仍存在；恢复后使用原激活版本 | — | 2026-07-16：初始化 |
 | SKILL-105 | `proposed` | SKILL-102, TOOL-103 | 安全使用脚本和资产 | scripts 经 Sandbox Tool 执行，资源通过 Artifact/Context 读取 | 不存在自动宿主机执行路径；执行事件和输出可追踪 | — | 2026-07-16：初始化 |
 | SKILL-106 | `proposed` | SKILL-103, EVAL-101 | 用真实用例验证 Skills | 增加研究、文件处理等示例 Skill 和触发数据集 | 示例符合规范；触发 Precision/Recall 达到任务约定门槛 | — | 2026-07-16：初始化 |
+| SKILL-107 | `proposed` | SKILL-103, EVAL-101 | 将已验证的会话过程沉淀为用户私有 Skill | 仅在用户显式请求后，从选定会话证据生成可溯源的结构化 Draft；经脱敏、权限、Schema 和触发验证及用户预览确认后，以不可变版本发布到用户级 Registry | 未确认时零发布；草稿不固化 secret、临时标识或未经确认的推断；重名不静默覆盖；正例、负例和边界触发测试通过；发布后仅创建者可发现并可创建新版本 | — | 2026-07-19：记录对话沉淀 Skill 需求 |
 
 ## Tool 与 MCP
 
