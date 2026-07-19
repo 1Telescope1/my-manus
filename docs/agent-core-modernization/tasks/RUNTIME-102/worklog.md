@@ -49,3 +49,11 @@
 ### Next
 
 - RUNTIME-102 已完成；RUNTIME-103 可直接使用最新 Checkpoint、未完成 ToolCall 和待处理 Interruption 查询实现恢复解析。
+
+## 2026-07-19 — 持久化实现精简
+
+- Mapper 从 Prisma 生成类型派生普通字段，仅对 JSON 边界保留 `unknown`。
+- Repository 直接依赖最小 Prisma 客户端接口，删除 union、getter 和双重断言。
+- UnitOfWork 删除“记录日志后原样抛出”的重复异常层，事务回滚继续由 Prisma 保证。
+- Checkpoint 完全相同重试改为完整快照深比较，不再手工逐字段维护。
+- 持久化专项、全量契约 159/159、测试类型检查和生产构建通过。

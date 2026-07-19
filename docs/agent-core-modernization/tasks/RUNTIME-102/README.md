@@ -85,6 +85,14 @@ Run.version = 3
 
 数据库结构、仓储和事务能力已经可用，但 legacy `AgentTaskRunner` 还没有自动创建这些运行记录。Checkpoint 写入和恢复判断由 RUNTIME-103 完成，真正接入用户请求仍需要 RUNTIME-108。
 
+### 后续精简
+
+持久化能力接入完整 Runtime 后又进行了一次实现审查：Mapper 的普通数据库字段改为从 Prisma 生成类型派生，只有需要验证脏数据的 JSON 字段继续保留 `unknown`；Repository 直接依赖根连接和事务连接共同具备的最小客户端接口，不再通过 union、getter 和双重断言收窄。
+
+UnitOfWork 原先捕获所有事务异常、写一条日志后再原样抛出，没有恢复、转换或补充上下文，调用链上层还会再次记录错误。因此该层现在直接返回 Prisma 事务 Promise，由真正能处理异常的边界决定日志和响应。Checkpoint 的“完全相同重试”也改为对完整持久化快照做深比较，语义仍然包括 ID、Run、序号、恢复节点、事件水位、状态和时间。
+
+这些精简没有删除数据库边界保护：未知枚举和非法 JSON 仍被 Mapper 拒绝，Run CAS、子状态条件更新、工具唯一键、Checkpoint 连续序号与事件水位检查全部保留。
+
 ## Scope
 
 ### In scope
@@ -146,6 +154,8 @@ Run.version = 3
 - Run CAS 与子记录写入的真正原子组合由 UnitOfWork 事务保证。
 - nullable JSON 使用 SQL `NULL` 表示领域 `null`，非空 JSON 进入数据库前必须可序列化。
 - 工具幂等占用与 Checkpoint 追加使用唯一索引加 `createMany(skipDuplicates)`，避免唯一冲突使 PostgreSQL 事务进入失败状态。
+- UnitOfWork 不重复记录并原样抛出异常；日志由具备请求或任务上下文的上层边界负责。
+- Checkpoint 幂等比较覆盖完整持久化快照，不单独维护一份易遗漏的字段比较清单。
 - 本任务不改变当前 legacy Session/SSE 执行路径。
 
 ## Latest Session State

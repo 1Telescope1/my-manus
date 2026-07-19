@@ -207,32 +207,20 @@ export class AgentTaskRunner extends TaskRunner {
 
   /** 将消息事件中的附件同步到沙箱中。 */
   private async syncMessageAttachmentsToSandbox(event: MessageEvent): Promise<void> {
-    // 1. 定义附件列表。
     const attachments: FileModel[] = [];
 
-    try {
-      // 2. 判断消息中是否存在附件。
-      if (event.attachments.length) {
-        // 3. 循环遍历所有消息附件。
-        for (const attachment of event.attachments) {
-          // 4. 根据文件 id 将数据同步到沙箱中。
-          const file = await this.syncFileToSandbox(attachment.id);
-
-          // 5. 文件同步成功则加入会话文件列表。
-          if (file) {
-            attachments.push(file);
-            await this.uow.run(async (active) => {
-              await active.session.addFile(this.sessionId, file);
-            });
-          }
-        }
+    for (const attachment of event.attachments) {
+      const file = await this.syncFileToSandbox(attachment.id);
+      if (file) {
+        attachments.push(file);
+        await this.uow.run(async (active) => {
+          await active.session.addFile(this.sessionId, file);
+        });
       }
-
-      // 6. 更新消息事件中的 attachments。
-      event.attachments = attachments;
-    } catch (error) {
-      this.logger.error(`AgentTaskRunner同步消息附件到沙箱失败: ${errorMessage(error)}`);
     }
+
+    // 只保留已同步的附件，避免把不可访问的文件路径传给执行器。
+    event.attachments = attachments;
   }
 
   /** 将沙箱中的指定文件同步到文件存储中。 */
@@ -278,29 +266,18 @@ export class AgentTaskRunner extends TaskRunner {
 
   /** 将消息事件的附件同步到文件存储中。 */
   private async syncMessageAttachmentsToStorage(event: MessageEvent): Promise<void> {
-    // 1. 定义附件列表存储数据。
     const attachments: FileModel[] = [];
 
-    try {
-      // 2. 判断消息中是否存在附件。
-      if (event.attachments.length) {
-        // 3. 循环遍历所有附件。
-        for (const attachment of event.attachments) {
-          // 4. 根据文件路径将数据同步到文件存储。
-          const file = this.syncedGeneratedFiles.get(attachment.filepath)
-            ?? await this.syncFileToStorage(attachment.filepath);
-          if (file) {
-            attachments.push(file);
-            this.attachedGeneratedFilePaths.add(attachment.filepath);
-          }
-        }
+    for (const attachment of event.attachments) {
+      const file = this.syncedGeneratedFiles.get(attachment.filepath)
+        ?? await this.syncFileToStorage(attachment.filepath);
+      if (file) {
+        attachments.push(file);
+        this.attachedGeneratedFilePaths.add(attachment.filepath);
       }
-
-      // 5. 更新事件中的附件列表资源。
-      event.attachments = attachments;
-    } catch (error) {
-      this.logger.error(`AgentTaskRunner同步消息附件到存储失败: ${errorMessage(error)}`);
     }
+
+    event.attachments = attachments;
   }
 
   /** 将本轮工具生成但尚未返回给用户的文件补充到消息附件中。 */
@@ -355,66 +332,62 @@ export class AgentTaskRunner extends TaskRunner {
 
   /** 额外处理工具消息，补充前端展示所需的工具扩展内容。 */
   private async handleToolEvent(event: ToolEvent): Promise<void> {
+    if (event.status !== ToolEventStatus.CALLED) {
+      return;
+    }
+
     try {
-      // 1. 如果事件状态为已调用，则执行以下逻辑。
-      if (event.status === ToolEventStatus.CALLED) {
-        // 2. 工具为浏览器则补全浏览器工具内容。
-        if (event.tool_name === 'browser') {
-          event.tool_content = {
-            screenshot: await this.getBrowserScreenshot(),
-          };
-        } else if (event.tool_name === 'search') {
-          // 3. 工具为搜索则添加搜索工具内容。
-          const searchResults = event.function_result as ToolResult<SearchResults>;
-          this.logger.log(`搜索工具结果: ${JSON.stringify(searchResults)}`);
-          event.tool_content = {
-            results: searchResults.data!.results,
-          };
-        } else if (event.tool_name === 'shell') {
-          // 4. 工具为 shell 则生成 shell 工具内容。
-          if ('session_id' in event.function_args) {
-            const shellResult = await this.sandbox.readShellOutput(
-              String(event.function_args.session_id),
-              true,
-            );
-            event.tool_content = {
-              console: this.recordData(shellResult).console_records ?? [],
-            };
-          } else {
-            event.tool_content = { console: '(No console)' };
-          }
-        } else if (event.tool_name === 'file') {
-          // 5. 工具为 file 则将文件同步到对象存储。
-          if ('filepath' in event.function_args) {
-            const filepath = event.function_args.filepath as string;
-            const fileReadResult = await this.sandbox.readFile(filepath);
-            event.tool_content = {
-              content: String(this.recordData(fileReadResult).content ?? ''),
-            };
-            const result = event.function_result as ToolResult | undefined;
-            const generatedFile =
-              result?.success === true &&
-              ['write_file', 'replace_in_file'].includes(event.function_name);
-
-            if (generatedFile) {
-              this.generatedFilePaths.add(filepath);
-              this.attachedGeneratedFilePaths.delete(filepath);
-            }
-
-            const file = await this.syncFileToStorage(filepath);
-            if (generatedFile && file) {
-              this.syncedGeneratedFiles.set(filepath, file);
-            }
-          } else {
-            event.tool_content = { content: '(No Content)' };
-          }
-        } else if (event.tool_name === 'mcp' || event.tool_name === 'a2a') {
-          // 6. 工具为 mcp/a2a 则处理调用结果。
-          this.logger.log(
-            `处理MCP/A2A工具事件, function_result: ${JSON.stringify(event.function_result)}`,
+      if (event.tool_name === 'browser') {
+        event.tool_content = {
+          screenshot: await this.getBrowserScreenshot(),
+        };
+      } else if (event.tool_name === 'search') {
+        const searchResults = event.function_result as ToolResult<SearchResults>;
+        this.logger.log(`搜索工具结果: ${JSON.stringify(searchResults)}`);
+        event.tool_content = {
+          results: searchResults.data!.results,
+        };
+      } else if (event.tool_name === 'shell') {
+        if ('session_id' in event.function_args) {
+          const shellResult = await this.sandbox.readShellOutput(
+            String(event.function_args.session_id),
+            true,
           );
-          event.tool_content = this.buildAgentToolContent(event.tool_name, event.function_result);
+          event.tool_content = {
+            console: this.recordData(shellResult).console_records ?? [],
+          };
+        } else {
+          event.tool_content = { console: '(No console)' };
         }
+      } else if (event.tool_name === 'file') {
+        if ('filepath' in event.function_args) {
+          const filepath = event.function_args.filepath as string;
+          const fileReadResult = await this.sandbox.readFile(filepath);
+          event.tool_content = {
+            content: String(this.recordData(fileReadResult).content ?? ''),
+          };
+          const result = event.function_result as ToolResult | undefined;
+          const generatedFile =
+            result?.success === true &&
+            ['write_file', 'replace_in_file'].includes(event.function_name);
+
+          if (generatedFile) {
+            this.generatedFilePaths.add(filepath);
+            this.attachedGeneratedFilePaths.delete(filepath);
+          }
+
+          const file = await this.syncFileToStorage(filepath);
+          if (generatedFile && file) {
+            this.syncedGeneratedFiles.set(filepath, file);
+          }
+        } else {
+          event.tool_content = { content: '(No Content)' };
+        }
+      } else if (event.tool_name === 'mcp' || event.tool_name === 'a2a') {
+        this.logger.log(
+          `处理MCP/A2A工具事件, function_result: ${JSON.stringify(event.function_result)}`,
+        );
+        event.tool_content = this.buildAgentToolContent(event.tool_name, event.function_result);
       }
     } catch (error) {
       this.logger.error(`AgentTaskRunner生成工具内容失败: ${errorMessage(error)}`);
@@ -474,6 +447,13 @@ export class AgentTaskRunner extends TaskRunner {
         this.logger.warn(`清理${toolName}工具资源时出错: ${errorMessage(result.reason)}`);
       }
     }
+  }
+
+  /** 将当前 Session 收敛到兼容层约定的完成状态。 */
+  private completeSession(): Promise<void> {
+    return this.uow.run(async (active) => {
+      await active.session.updateStatus(this.sessionId, SessionStatus.COMPLETED);
+    });
   }
 
   /** 根据传递的任务处理 agent 消息队列并运行 agent 流。 */
@@ -543,9 +523,7 @@ export class AgentTaskRunner extends TaskRunner {
       }
 
       // 12. 更新会话状态为已完成。
-      await this.uow.run(async (active) => {
-        await active.session.updateStatus(this.sessionId, SessionStatus.COMPLETED);
-      });
+      await this.completeSession();
     } catch (error) {
       if (isCancellationError(error, task.signal)) {
         // 13. 异步任务被取消，推送结束事件并更新状态。
@@ -553,18 +531,14 @@ export class AgentTaskRunner extends TaskRunner {
         const doneEvent = events.done();
         doneEvent.metadata = { terminal_status: 'cancelled' };
         await this.putAndAddEvent(task, doneEvent);
-        await this.uow.run(async (active) => {
-          await active.session.updateStatus(this.sessionId, SessionStatus.COMPLETED);
-        });
+        await this.completeSession();
         return;
       }
 
       // 14. 记录日志并往任务队列/消息队列中写入异常事件。
       this.logger.error(`AgentTaskRunner运行出错: ${errorMessage(error)}`);
       await this.putAndAddEvent(task, events.error(`AgentTaskRunner出错: ${errorMessage(error)}`));
-      await this.uow.run(async (active) => {
-        await active.session.updateStatus(this.sessionId, SessionStatus.COMPLETED);
-      });
+      await this.completeSession();
     } finally {
       // 15. 在同一个任务上下文中清理 MCP/A2A 工具资源。
       await this.cleanupTools();
@@ -588,6 +562,7 @@ export class AgentTaskRunner extends TaskRunner {
     this.logger.log('AgentTaskRunner任务执行结束');
   }
 
+  /** 将队列载荷恢复为当前 Session Event，并补齐时间与附件模型。 */
   private parseEvent(payload: unknown): Event {
     const value = typeof payload === 'string' ? JSON.parse(payload) : payload;
     const event = value as Event;
@@ -600,6 +575,7 @@ export class AgentTaskRunner extends TaskRunner {
     return event;
   }
 
+  /** 将 Sandbox 返回的 Buffer 或流统一收集为上传所需 Buffer。 */
   private async toBuffer(data: SandboxFileData): Promise<Buffer> {
     if (Buffer.isBuffer(data)) {
       return data;
@@ -613,6 +589,7 @@ export class AgentTaskRunner extends TaskRunner {
     return Buffer.concat(chunks);
   }
 
+  /** 将工具结果中的对象数据收窄为展示层可读取的记录。 */
   private recordData(result: ToolResult): Record<string, any> {
     const data = result.data;
     return data && typeof data === 'object' && !Array.isArray(data)
@@ -620,6 +597,7 @@ export class AgentTaskRunner extends TaskRunner {
       : {};
   }
 
+  /** 按 MCP/A2A 公开事件结构包装工具结果。 */
   private buildAgentToolContent(
     toolName: 'mcp' | 'a2a',
     result?: ToolResult,
@@ -633,6 +611,7 @@ export class AgentTaskRunner extends TaskRunner {
     return toolName === 'mcp' ? { result: data } : { a2a_result: data };
   }
 
+  /** 尽力把失败工具结果转换成可展示文本。 */
   private stringifyToolResult(result: ToolResult): string {
     try {
       return JSON.stringify(result);
@@ -642,6 +621,7 @@ export class AgentTaskRunner extends TaskRunner {
   }
 }
 
+/** 将未知异常转换为日志可读文本。 */
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }

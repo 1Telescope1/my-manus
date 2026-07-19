@@ -4,6 +4,7 @@ import { Browser } from '../../src/domain/external/browser';
 import { LLM, LLMMessage } from '../../src/domain/external/llm';
 import { RuntimeRouteModel } from '../../src/domain/external/runtime-route-model';
 import { Sandbox } from '../../src/domain/external/sandbox';
+import { Task, TaskRunner } from '../../src/domain/external/task';
 import {
   AgentRun,
   Checkpoint,
@@ -41,6 +42,7 @@ import { ToolInvocationService } from '../../src/domain/services/tools/tool-invo
 import { InMemoryToolRegistry } from '../../src/domain/services/tools/tool-registry';
 import { A2AClientManager } from '../../src/domain/services/tools/a2a.tool';
 import { OpenAILLM } from '../../src/infrastructure/external/llm/openai-llm';
+import { RedisStreamTask } from '../../src/infrastructure/external/task/redis-stream-task';
 
 /** 创建可由测试显式完成或拒绝的 Promise。 */
 function deferred<T>() {
@@ -77,6 +79,54 @@ test('SDK 包装取消异常后应以根 Signal 的终止状态为准', () => {
   assert.equal(wrapped.name, 'Error');
   assert.equal(isCancellationError(wrapped), false);
   assert.equal(isCancellationError(wrapped, controller.signal), true);
+});
+
+/** 记录 Redis Task 的取消顺序，并让执行保持到根 Signal 终止。 */
+class CancellationOrderRunner extends TaskRunner {
+  readonly order: string[] = [];
+  readonly started = deferred<void>();
+
+  /** 启动后等待根 Signal，确认取消不会继续执行活动任务。 */
+  async invoke(task: Task): Promise<void> {
+    this.order.push('invoke');
+    this.started.resolve();
+    await new Promise<void>((resolve) => {
+      task.signal?.addEventListener('abort', () => {
+        this.order.push('abort');
+        resolve();
+      }, { once: true });
+    });
+  }
+
+  /** 本测试没有额外资源需要销毁。 */
+  async destroy(): Promise<void> {}
+
+  /** 记录任务完成发生在根 Signal 终止之后。 */
+  async onDone(): Promise<void> {
+    this.order.push('done');
+  }
+
+  /** 记录取消请求必须先于根 Signal。 */
+  override async requestCancellation(): Promise<void> {
+    this.order.push('request');
+  }
+}
+
+test('Redis Task 重复取消应共用一次取消流程并保持请求先于根 Signal', async () => {
+  const runner = new CancellationOrderRunner();
+  const task = new RedisStreamTask(
+    runner,
+    {} as never,
+    () => runner.order.push('release'),
+  );
+
+  await task.invoke();
+  await runner.started.promise;
+  assert.equal(task.cancel(), true);
+  assert.equal(task.cancel(), true);
+  await task.waitForCompletion();
+
+  assert.deepEqual(runner.order, ['invoke', 'request', 'abort', 'done', 'release']);
 });
 
 class AbortableLLM extends LLM {

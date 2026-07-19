@@ -1,4 +1,11 @@
 import { Prisma } from '@prisma/client';
+import type {
+  AgentRun as PrismaAgentRun,
+  Checkpoint as PrismaCheckpoint,
+  Interruption as PrismaInterruption,
+  RunStep as PrismaRunStep,
+  ToolCallRecord as PrismaToolCallRecord,
+} from '@prisma/client';
 import {
   AgentRun,
   Checkpoint,
@@ -15,70 +22,24 @@ import {
   ToolRisk,
 } from '../../domain/models/agent-run';
 
-/** Prisma 查询返回的 AgentRun 数据形状；仅包含恢复领域快照所需字段。 */
-export type AgentRunPersistenceRecord = {
-  id: string;
-  sessionId: string;
-  route: string;
-  status: string;
-  currentNode: string | null;
-  version: number;
-  cancelRequestedAt: Date | null;
-  startedAt: Date | null;
-  completedAt: Date | null;
-  error: string | null;
-  metadata: unknown;
-};
-
-/** Prisma 查询返回的 RunStep 数据形状。 */
-export type RunStepPersistenceRecord = {
-  id: string;
-  runId: string;
-  key: string;
-  kind: string;
-  status: string;
-  attempt: number;
-  input: unknown;
-  output: unknown;
-  error: string | null;
-};
-
-/** Prisma 查询返回的 ToolCallRecord 数据形状。 */
-export type ToolCallPersistenceRecord = {
-  id: string;
-  runId: string;
-  stepId: string;
-  toolName: string;
-  arguments: unknown;
-  result: unknown;
-  status: string;
-  risk: string;
-  idempotencyKey: string;
-  requestFingerprint: string;
-  startedAt: Date | null;
-  completedAt: Date | null;
-};
-
-/** Prisma 查询返回的 Checkpoint 数据形状。 */
-export type CheckpointPersistenceRecord = {
-  id: string;
-  runId: string;
-  sequence: number;
-  resumeNode: string;
-  nextEventSequence: number;
-  state: unknown;
-  createdAt: Date;
-};
-
-/** Prisma 查询返回的 Interruption 数据形状。 */
-export type InterruptionPersistenceRecord = {
-  id: string;
-  runId: string;
-  kind: string;
-  status: string;
-  payload: unknown;
-  resolution: unknown;
-};
+/** Mapper 只依赖 Prisma 记录中的领域字段，避免手写并重复维护数据库字段类型。 */
+type AgentRunPersistenceRecord = Omit<
+  PrismaAgentRun,
+  'createdAt' | 'updatedAt' | 'metadata'
+> & { metadata: unknown };
+type RunStepPersistenceRecord = Omit<
+  PrismaRunStep,
+  'createdAt' | 'updatedAt' | 'input' | 'output'
+> & { input: unknown; output: unknown };
+type ToolCallPersistenceRecord = Omit<
+  PrismaToolCallRecord,
+  'createdAt' | 'updatedAt' | 'arguments' | 'result'
+> & { arguments: unknown; result: unknown };
+type CheckpointPersistenceRecord = Omit<PrismaCheckpoint, 'state'> & { state: unknown };
+type InterruptionPersistenceRecord = Omit<
+  PrismaInterruption,
+  'createdAt' | 'updatedAt' | 'payload' | 'resolution'
+> & { payload: unknown; resolution: unknown };
 
 /** 持久化记录不能安全恢复为领域模型时抛出。 */
 export class RuntimePersistenceMappingError extends Error {

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AgentRunRepository } from '../../domain/repositories/agent-run.repository';
@@ -12,8 +12,6 @@ import { DbSessionRepository } from './db-session.repository';
 /** 使用 Prisma 交互式事务实现跨仓储 UnitOfWork。 */
 @Injectable()
 export class DbUnitOfWork extends UnitOfWork {
-  private static readonly logger = new Logger(DbUnitOfWork.name);
-
   readonly agentRun: AgentRunRepository;
   readonly file: FileRepository;
   readonly session: SessionRepository;
@@ -28,15 +26,10 @@ export class DbUnitOfWork extends UnitOfWork {
 
   /** 进入 UoW 操作上下文，所有仓储共享同一个事务客户端。 */
   async run<T>(fn: (uow: UnitOfWork) => Promise<T>): Promise<T> {
-    try {
-      // 回调收到的新 UoW 只持有 transactionClient，确保写入落在同一事务。
-      return await this.prisma.$transaction(async (transactionClient) => {
-        return fn(new TransactionUnitOfWork(transactionClient));
-      });
-    } catch (error) {
-      DbUnitOfWork.logger.warn(`UoW 操作失败: ${(error as Error).message}`);
-      throw error;
-    }
+    // 回调收到的新 UoW 只持有 transactionClient，确保写入落在同一事务。
+    return this.prisma.$transaction((transactionClient) =>
+      fn(new TransactionUnitOfWork(transactionClient)),
+    );
   }
 }
 

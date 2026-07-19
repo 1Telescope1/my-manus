@@ -229,7 +229,7 @@ abstract class BaseRuntimeExecutor implements RuntimeExecutor {
       throwIfAborted(normalized.context.signal);
       yield eventFactory.create({ type: 'run.completed' });
     } catch (error) {
-      if (normalized.context.signal?.aborted || isCancellationError(error)) {
+      if (isCancellationError(error, normalized.context.signal)) {
         yield eventFactory.create({ type: 'run.cancelled' });
         return;
       }

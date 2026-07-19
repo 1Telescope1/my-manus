@@ -49,14 +49,9 @@ export class DbAgentRunRepository extends AgentRunRepository {
   /** 接受根 PrismaService 或 UnitOfWork 内的事务客户端。 */
   constructor(
     @Inject(PrismaService)
-    private readonly prisma: PrismaService | Prisma.TransactionClient,
+    private readonly client: RuntimePrismaClient,
   ) {
     super();
-  }
-
-  /** 将两种客户端收窄为仓储实际使用的运行表接口。 */
-  private get client(): RuntimePrismaClient {
-    return this.prisma as unknown as RuntimePrismaClient;
   }
 
   /** 创建初始 AgentRun；重复主键或不存在的 Session 由数据库拒绝。 */
@@ -417,11 +412,5 @@ export class DbAgentRunRepository extends AgentRunRepository {
 
 /** 比较 Checkpoint 的全部持久化字段，判断是否为完全相同的重试。 */
 function checkpointsEqual(left: Checkpoint, right: Checkpoint): boolean {
-  return left.id === right.id
-    && left.runId === right.runId
-    && left.sequence === right.sequence
-    && left.resumeNode === right.resumeNode
-    && left.nextEventSequence === right.nextEventSequence
-    && left.createdAt.getTime() === right.createdAt.getTime()
-    && isDeepStrictEqual(left.state, right.state);
+  return isDeepStrictEqual(left, right);
 }

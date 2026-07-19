@@ -112,9 +112,6 @@ function findUnavailableCapabilities(
 /** 提取首个 Schema 问题写入回退原因，避免诊断时只能看到笼统的无效结果。 */
 function routeValidationCause(prefix: string, error: ZodError): string {
   const issue = error.issues[0];
-  if (!issue) {
-    return prefix;
-  }
   const path = issue.path.length > 0 ? issue.path.join('.') : 'decision';
   return `${prefix}（${path}: ${issue.message}）`;
 }

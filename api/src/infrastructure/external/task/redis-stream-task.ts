@@ -4,15 +4,16 @@ import { Task, TaskRunner } from '../../../domain/external/task';
 import { RedisClient } from '../../storage/redis.client';
 import { RedisStreamMessageQueue } from '../message-queue/redis-stream-message-queue';
 
+/** 使用 Redis Stream 承载消息，并以一个根 Signal 管理单次执行生命周期。 */
 export class RedisStreamTask extends Task {
   private readonly taskId = randomUUID();
   private execution?: Promise<void>;
-  private cancelled = false;
   private abortController = new AbortController();
   private cancellation?: Promise<void>;
   private readonly input: RedisStreamMessageQueue;
   private readonly output: RedisStreamMessageQueue;
 
+  /** 创建当前 Task 独享的输入、输出 Stream。 */
   constructor(
     private readonly taskRunner: TaskRunner,
     redis: RedisClient,
@@ -23,11 +24,11 @@ export class RedisStreamTask extends Task {
     this.output = new RedisStreamMessageQueue(`task:output:${this.taskId}`, redis);
   }
 
+  /** 当前没有活动执行时创建新的根 Signal 并启动 Runner。 */
   async invoke(): Promise<void> {
     if (!this.done) {
       return;
     }
-    this.cancelled = false;
     this.abortController = new AbortController();
     this.cancellation = undefined;
     this.execution = this.executeTask();
@@ -35,14 +36,13 @@ export class RedisStreamTask extends Task {
 
   /** 先等待 Runner 记录取消请求，再触发根 Signal 并等待活动执行退出。 */
   cancel(): boolean {
-    if (this.cancelled) {
-      return true;
+    if (!this.cancellation) {
+      this.cancellation = this.cancelAndWait();
     }
-    this.cancelled = true;
-    this.cancellation = this.cancelAndWait();
     return true;
   }
 
+  /** 返回当前一次执行使用的根取消 Signal。 */
   get signal(): AbortSignal {
     return this.abortController.signal;
   }
@@ -52,27 +52,30 @@ export class RedisStreamTask extends Task {
     await (this.cancellation ?? this.execution);
   }
 
+  /** 返回任务输入消息流。 */
   get inputStream(): MessageQueue {
     return this.input;
   }
 
+  /** 返回任务输出消息流。 */
   get outputStream(): MessageQueue {
     return this.output;
   }
 
+  /** 返回进程内稳定的任务 ID。 */
   get id(): string {
     return this.taskId;
   }
 
+  /** 判断当前是否没有活动执行。 */
   get done(): boolean {
     return !this.execution;
   }
 
+  /** 执行 Runner，并在成功、失败或取消后统一释放任务。 */
   private async executeTask(): Promise<void> {
     try {
-      if (!this.cancelled) {
-        await this.taskRunner.invoke(this);
-      }
+      await this.taskRunner.invoke(this);
     } finally {
       await this.taskRunner.onDone(this);
       this.release();
@@ -87,6 +90,7 @@ export class RedisStreamTask extends Task {
     await this.execution;
   }
 
+  /** 通知 TaskManager 移除当前任务注册。 */
   private release(): void {
     this.onRelease(this.taskId);
   }

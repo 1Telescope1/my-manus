@@ -10,6 +10,7 @@
 | 子记录与恢复查询 | Pass | Step 状态 CAS、ToolCall reserve-or-get/未完成查询、最新 Checkpoint、待处理 Interruption 均在真实数据库通过。 |
 | UnitOfWork 事务 | Pass | 事务内创建 Run 后故意抛错；回调退出后该 Run 不存在。 |
 | 迁移回滚 | Pass | `rollback.sql` 在真实数据库执行成功；五张运行表消失，既有 `sessions` 表保留。 |
+| 后续实现精简 | Pass | UoW 删除无行为的日志转抛；Checkpoint 使用完整快照深比较；Mapper/Repository 删除重复类型和断言，核心持久化契约保持通过。 |
 
 ## Verification Commands
 
@@ -24,6 +25,7 @@
 | `prisma migrate deploy`（一次性 PostgreSQL 16） | Pass | 初始迁移与 RUNTIME-102 迁移均成功应用。 |
 | `npm run test:integration:runtime`（一次性 PostgreSQL 16） | Pass | 1 test passed；覆盖真实 CRUD、并发、UoW 回滚、级联删除和迁移回滚。 |
 | `git diff --check` | Pass | 无空白或补丁格式错误。 |
+| `npm run test:contract`（2026-07-19 精简回归） | Pass | 159 tests passed，0 failed。 |
 
 ## Compatibility and Failure Cases
 

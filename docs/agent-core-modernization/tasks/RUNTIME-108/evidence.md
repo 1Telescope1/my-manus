@@ -12,8 +12,9 @@
 | UI 事件边界 | 通过 | Runtime 输出映射为 `tool/message/wait/done` 等 Session Event，并附加可选运行字段 |
 | 首条消息标题 | 通过 | 默认会话产生 `message → title`；已命名会话不覆盖，Unicode 标题安全截断 |
 | 附件隐私边界 | 通过 | `privateContext` 只供执行器读取；附件路径不进入 Runtime Event metadata |
+| 实现精简 | 通过 | 删除重复 Prisma 字段类型、客户端双重断言、附件外层异常吞噬和不可达状态分支；保留 JSON、CAS、Checkpoint 与副作用恢复校验 |
 | 过渡命名清理 | 通过 | `api/src`、`api/test` 无内核运行模式、版本化 Runtime 或旧入口命名残留 |
-| 全量验证 | 通过 | 128 项契约测试、测试类型检查、API 生产构建和 Diff 检查通过 |
+| 全量验证 | 通过 | 159 项契约测试、测试类型检查、API 生产构建和 Diff 检查通过 |
 
 ## 验证命令
 
@@ -23,7 +24,7 @@
 | --- | --- |
 | `npm run test:contract:typecheck` | 通过 |
 | `node --import tsx --test test/contracts/runtime-router.contract.test.ts test/contracts/runtime-event-adapter.contract.test.ts test/contracts/runtime-wiring.contract.test.ts test/contracts/planner-event-order.contract.test.ts` | 通过，24/24 |
-| `npm run test:contract` | 通过，128/128 |
+| `npm run test:contract` | 通过，159/159 |
 | `npm run typecheck` | 通过 |
 | `npm run build` | 通过 |
 | `node --import tsx --test test/contracts/agent-service-session-title.contract.test.ts` | 通过，3/3 |
@@ -38,8 +39,11 @@
 - `api/src/domain/services/runtime/runtime.service.ts`：Run 创建、状态转换、路由及停止 Checkpoint。
 - `api/src/domain/services/runtime/route-rules.ts`：生产默认 Direct 概念解释规则和外部上下文排除条件。
 - `api/src/domain/services/runtime/router.service.ts`：规则优先级、模型回退和 Schema 错误详情。
+- `api/src/domain/services/runtime/persistent-tool-idempotency.store.ts`：持久化工具占用、终态复用和不确定副作用处理。
 - `api/src/domain/services/runtime/adapters.ts`：现有 LLM、工具和 Planner 能力适配。
 - `api/src/domain/services/tools/agent-toolset.ts`：正式 Runtime 共用工具集合。
+- `api/src/infrastructure/prisma/agent-run.mapper.ts`：从 Prisma 类型派生持久化字段，并在 JSON 边界保留必要校验。
+- `api/src/infrastructure/repositories/db-agent-run.repository.ts`：以最小 Prisma 客户端接口同时支持根连接和事务连接。
 - `api/test/contracts/runtime-wiring.contract.test.ts`：历史 Session、Direct、Single Tool、Workflow 回退和 waiting 验证。
 - `api/test/contracts/agent-service-session-title.contract.test.ts`：路由无关的首消息标题、不覆盖和 Unicode 截断验证。
 

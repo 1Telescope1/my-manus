@@ -14,6 +14,57 @@
 
 在保持 Session API、SSE 和 UI 行为不变的前提下，以 `RuntimeService` 作为消息执行的唯一入口，串联 Router、AgentRun/Checkpoint、四路径执行器和 Runtime Event Adapter。
 
+## 本任务做了什么
+
+### 一句话说明
+
+> 把真实会话消息统一交给 Runtime 执行，并在不削弱状态机、并发控制和恢复安全的前提下，删除接入链路中重复的类型、分支和异常吞噬。
+
+### 改造前的问题
+
+RUNTIME-101～107 已分别提供运行模型、持久化、Checkpoint、Router、执行器、取消和工具幂等，但这些能力如果没有进入真实 `AgentTaskRunner`，仍然只是彼此独立的组件。会话请求可能继续绕过 AgentRun、Checkpoint 或四路径路由，API 与 UI 也无法消费新的 Runtime Event。
+
+接入完成后的维护审查还发现三类低收益复杂度：Mapper 手写数据库字段类型、Repository 为两种 Prisma 客户端增加双重断言，以及附件批处理在单文件 I/O 已处理失败后再次捕获所有异常。这些代码没有增加业务安全，反而会重复维护字段、形成两层失败策略或增加阅读分支。
+
+### 一条消息怎样执行
+
+```text
+AgentTaskRunner 收到用户消息并同步附件
+  ↓
+RuntimeService 披露 Skill Catalog 并请求 Router 决策
+  ↓
+创建 AgentRun，写入 route_completed Checkpoint
+  ↓
+Dispatcher 选择 Direct / Single Tool / Workflow / Planned Agent
+  ↓
+执行器产生统一 Runtime Event
+  ↓
+Runtime 在等待或终态事件前持久化停止边界
+  ↓
+Event Adapter 转换为 Session Event，继续供 API、SSE 和 UI 使用
+```
+
+### 精简了什么，保留了什么
+
+| 类别 | 本次处理 | 原因 |
+| --- | --- | --- |
+| Prisma Mapper 类型 | 从 Prisma 生成类型派生普通字段，JSON 字段继续以 `unknown` 进入边界校验 | 删除五份重复字段声明，同时保留脏 JSON 测试能力 |
+| Repository 客户端 | 直接依赖仓储实际使用的最小 Prisma 接口 | 根客户端和事务客户端结构相同，不需要 union、getter 和 `as unknown as` |
+| 附件批处理 | 删除空数组特判和重复的外层 `try/catch` | 单文件同步已定义失败降级，批处理层不需要再次捕获同一异常 |
+| 工具幂等终态 | 删除已被前序状态分支穷尽的二次判断 | `pending/running/unknown` 处理后只剩三种终态，但持久化结果结构检查仍保留 |
+| Router 诊断 | 直接读取 Zod 失败的首个 issue | `safeParse` 失败时 Zod 保证至少存在一个 issue |
+| 核心安全规则 | 不删除 | Run 状态机、CAS、Checkpoint 连续序号和事件水位、工具指纹及 unknown 副作用暂停都直接保护正确性 |
+
+### 失败、安全和兼容边界
+
+- Runtime 内部失败转换为 `run.failed`，等待和取消使用各自的停止事件，不伪造成功终态。
+- AgentRun 更新继续使用 `expectedVersion`；Checkpoint 继续要求序号连续且事件水位不倒退。
+- 已提交但结果不确定的副作用工具调用继续进入 `unknown/paused`，不能因代码精简而自动重放。
+- 附件的外部 I/O 失败仍按既有单文件边界降级；批处理层不再增加第二层全捕获和重复日志。
+- Runtime Event 仍通过 Adapter 转为既有 Session Event，API、SSE 和 UI 字段不变。
+
+当前生产入口已经收敛到 `RuntimeService`；完整 Workflow Registry、waiting 后同一 Run 恢复和启动时自动恢复调度仍属于后续能力。
+
 ## 证据表
 
 | 确定结论 | 证据路径 | 不确定项 | 改动范围 |
@@ -119,4 +170,5 @@ RuntimeEventAdapter 转成 Session Event
 - 不删除 Event Adapter，因为领域 Runtime Event 与公开 Session Event 的职责不同。
 - 当前没有 Workflow Registry；未知 Workflow 回退 Planned Agent，避免宣称不存在的能力。
 - Direct 规则保持保守；不明确或需要外部数据的请求仍由路由模型判断。
+- 只删除由类型、前序分支或下层边界已经保证的重复保护；数据库脏值、CAS、Checkpoint 和副作用恢复校验继续保留。
 - 回滚依赖部署版本，不在正式代码中维护第二套消息执行入口。

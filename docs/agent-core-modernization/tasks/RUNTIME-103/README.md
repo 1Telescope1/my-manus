@@ -104,6 +104,12 @@ state.modelOutput = 已保存的模型结果
 
 Checkpoint 边界、原子提交和恢复解析器已经实现并通过故障注入测试，但当前 legacy `AgentTaskRunner` 还没有调用它们。新执行路径由 RUNTIME-105 使用这些能力，实际请求接线属于 RUNTIME-108；外部副作用确认属于 RUNTIME-107。
 
+### 后续精简
+
+恢复解析器原先在审批、用户输入、Run 暂停、Run 等待、缺少 Checkpoint、未知副作用和正常恢复七个分支中，重复展开相同的 Checkpoint、工具分类、中断集合和 Run。现在这些共享现场只组装一次，局部计划工厂只接收 `disposition` 和 `reason`，使每个分支只表达自己的恢复决策。
+
+这不是把恢复规则合并成模糊的默认行为：未知副作用仍然具有最高优先级，之后依次处理审批、用户输入、持久化 PAUSED/WAITING、缺少 Checkpoint，最后才允许 RESUME。Run 从 RUNNING 转为 PAUSED 的 CAS 更新也保持原样。
+
 ## Scope
 
 ### In scope
@@ -165,6 +171,7 @@ Checkpoint 边界、原子提交和恢复解析器已经实现并通过故障注
 - 对无法确认结果的副作用调用只返回 PAUSE；外部状态查询留给 RUNTIME-107。
 - pending 工具尚未提交，可安全重试；running/unknown 的只读工具也可重试；只有有副作用的 running/unknown 调用要求外部解析。
 - Checkpoint 状态暂按不透明 JSON 快照返回；完整上下文语义由 MEMORY-104 扩展。
+- 恢复现场统一组装，但动作优先级继续由显式分支表达，不使用会掩盖安全顺序的通用规则表。
 
 ## Latest Session State
 

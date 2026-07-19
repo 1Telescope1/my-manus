@@ -10,6 +10,7 @@
 | 工具状态分类 | Pass | completed 可复用；pending 和只读 running/unknown 可重试；有副作用 running/unknown 进入 unresolved 并 PAUSE。 |
 | 中断和运行状态 | Pass | 用户输入→WAIT，审批/PAUSED→PAUSE，终态→TERMINAL，无快照→NO_CHECKPOINT。 |
 | 故障注入 | Pass | 模型前、模型后、工具结果持久化后重建新服务实例，均从预期精确节点恢复。 |
+| 恢复计划精简 | Pass | 七个决策分支共用一次恢复现场组装；专项测试继续覆盖 RESUME、WAIT、PAUSE、TERMINAL 和 NO_CHECKPOINT。 |
 
 ## Verification Commands
 
@@ -22,6 +23,7 @@
 | `npm run build`（`api/`） | Pass | NestJS 生产构建成功。 |
 | `npm run test:integration:runtime`（一次性 PostgreSQL 16） | Pass | 真实事务 Checkpoint 提交、恢复分类及 RUNTIME-102 数据库验收通过。 |
 | `git diff --check` | Pass | 无空白或补丁格式错误。 |
+| `npm run test:contract`（2026-07-19 精简回归） | Pass | 159 tests passed，0 failed。 |
 
 ## Compatibility and Failure Cases
 

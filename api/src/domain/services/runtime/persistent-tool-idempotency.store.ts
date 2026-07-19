@@ -91,13 +91,11 @@ export class PersistentToolIdempotencyStore implements ToolIdempotencyStore {
     if (interrupted) {
       return { outcome: 'unresolved' };
     }
-    if (isReplayable(existing.status)) {
-      const result = asToolResult(existing.result);
-      return result
-        ? { outcome: 'existing', result }
-        : { outcome: 'unresolved' };
-    }
-    return { outcome: 'in_progress' };
+    // pending、running 和 unknown 已在上方处理，剩余枚举值均为可复用终态。
+    const result = asToolResult(existing.result);
+    return result
+      ? { outcome: 'existing', result }
+      : { outcome: 'unresolved' };
   }
 
   /** 在外部请求提交前把 pending 记录推进到 running。 */
@@ -268,15 +266,6 @@ function finishStep(
 /** 将 Registry 风险联合类型转换为运行聚合枚举。 */
 function toRunToolRisk(risk: ToolRisk): RunToolRisk {
   return risk as unknown as RunToolRisk;
-}
-
-/** 判断持久化终态是否可直接复用其完整 ToolResult。 */
-function isReplayable(status: ToolCallStatus): boolean {
-  return [
-    ToolCallStatus.COMPLETED,
-    ToolCallStatus.FAILED,
-    ToolCallStatus.CANCELLED,
-  ].includes(status);
 }
 
 /** 校验 JSON 结果仍符合 ToolResult 的最小结构。 */

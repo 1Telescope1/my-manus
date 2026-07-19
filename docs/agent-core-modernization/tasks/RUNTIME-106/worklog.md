@@ -13,3 +13,10 @@
 - 取消分支不再继续抛出预期异常，只写入 `done(metadata.terminal_status=cancelled)` 并完成 Session 收敛。
 - 新增 SDK 包装异常和 Runner 启动阶段取消契约；完整契约 128/128、API 生产构建通过。
 - 只重建并重启 API 容器；`manus-api-1` 健康检查通过，Nginx 继续在 `8088` 对外提供服务。
+
+## 2026-07-19 — 取消状态精简
+
+- 删除与 `cancellation` Promise 重复的 `cancelled` 布尔值。
+- 重复 `cancel()` 复用同一个取消流程，执行器统一通过 `isCancellationError(error, signal)` 识别根取消。
+- 新增 Redis Task 重复取消顺序契约，确认只持久化一次请求并保持 `request → abort → done → release`。
+- RUNTIME-106 专项 9/9、全量契约 159/159、测试类型检查和生产构建通过。

@@ -60,10 +60,11 @@ export class RuntimeRecoveryService {
   async resolve(runId: string): Promise<RuntimeRecoveryPlan | null> {
     return this.uowFactory().run(async (uow) => {
       // 先确认聚合根仍然存在；不存在的 Run 没有可恢复的运行现场。
-      let run = await uow.agentRun.getById(runId);
-      if (!run) {
+      const persistedRun = await uow.agentRun.getById(runId);
+      if (!persistedRun) {
         return null;
       }
+      let run: AgentRun = persistedRun;
 
       // 终态必须最先短路，防止后续 Checkpoint 或工具记录让它重新进入调度。
       if (isTerminalRunStatus(run.status)) {
@@ -114,6 +115,16 @@ export class RuntimeRecoveryService {
         unresolvedToolCalls,
         pendingInterruptions,
       };
+      // 后续分支只决定动作和原因，共用同一份恢复现场与当前 Run。
+      const plan = (
+        disposition: RuntimeRecoveryDisposition,
+        reason: RuntimeRecoveryReason,
+      ): RuntimeRecoveryPlan => createPlan({
+        ...recoveryState,
+        disposition,
+        reason,
+        run,
+      });
 
       // 不确定副作用的风险最高，必须优先于审批、等待和普通 Checkpoint 恢复。
       if (unresolvedToolCalls.length > 0) {
@@ -128,74 +139,42 @@ export class RuntimeRecoveryService {
           }
           run = update.run;
         }
-        return createPlan({
-          ...recoveryState,
-          disposition: RuntimeRecoveryDisposition.PAUSE,
-          reason: RuntimeRecoveryReason.UNCERTAIN_SIDE_EFFECT,
-          run,
-        });
+        return plan(RuntimeRecoveryDisposition.PAUSE, RuntimeRecoveryReason.UNCERTAIN_SIDE_EFFECT);
       }
 
       // 明确的中断记录比 Run 状态提供更具体的原因，审批优先进入受控暂停。
       if (pendingInterruptions.some(
         (interruption) => interruption.kind === InterruptionKind.APPROVAL,
       )) {
-        return createPlan({
-          ...recoveryState,
-          disposition: RuntimeRecoveryDisposition.PAUSE,
-          reason: RuntimeRecoveryReason.APPROVAL_PENDING,
-          run,
-        });
+        return plan(RuntimeRecoveryDisposition.PAUSE, RuntimeRecoveryReason.APPROVAL_PENDING);
       }
 
       // 用户输入尚未补齐时保持等待，不能越过中断继续执行后续节点。
       if (pendingInterruptions.some(
         (interruption) => interruption.kind === InterruptionKind.USER_INPUT,
       )) {
-        return createPlan({
-          ...recoveryState,
-          disposition: RuntimeRecoveryDisposition.WAIT,
-          reason: RuntimeRecoveryReason.USER_INPUT_PENDING,
-          run,
-        });
+        return plan(RuntimeRecoveryDisposition.WAIT, RuntimeRecoveryReason.USER_INPUT_PENDING);
       }
 
       // 没有待处理中断时，仍需尊重 Run 自身已持久化的暂停或等待状态。
       if (run.status === RunStatus.PAUSED) {
-        return createPlan({
-          ...recoveryState,
-          disposition: RuntimeRecoveryDisposition.PAUSE,
-          reason: RuntimeRecoveryReason.RUN_PAUSED,
-          run,
-        });
+        return plan(RuntimeRecoveryDisposition.PAUSE, RuntimeRecoveryReason.RUN_PAUSED);
       }
 
       if (run.status === RunStatus.WAITING) {
-        return createPlan({
-          ...recoveryState,
-          disposition: RuntimeRecoveryDisposition.WAIT,
-          reason: RuntimeRecoveryReason.RUN_WAITING,
-          run,
-        });
+        return plan(RuntimeRecoveryDisposition.WAIT, RuntimeRecoveryReason.RUN_WAITING);
       }
 
       // 可运行的 Run 如果没有 Checkpoint，就没有可信的恢复节点，不能猜测执行位置。
       if (!checkpoint) {
-        return createPlan({
-          ...recoveryState,
-          disposition: RuntimeRecoveryDisposition.NO_CHECKPOINT,
-          reason: RuntimeRecoveryReason.CHECKPOINT_MISSING,
-          run,
-        });
+        return plan(
+          RuntimeRecoveryDisposition.NO_CHECKPOINT,
+          RuntimeRecoveryReason.CHECKPOINT_MISSING,
+        );
       }
 
       // 通过全部安全检查后，才允许从最新 Checkpoint 的精确下一节点恢复。
-      return createPlan({
-        ...recoveryState,
-        disposition: RuntimeRecoveryDisposition.RESUME,
-        reason: RuntimeRecoveryReason.CHECKPOINT_AVAILABLE,
-        run,
-      });
+      return plan(RuntimeRecoveryDisposition.RESUME, RuntimeRecoveryReason.CHECKPOINT_AVAILABLE);
     });
   }
 }
