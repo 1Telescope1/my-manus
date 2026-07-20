@@ -2,7 +2,6 @@ import { Inject, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { BaseEvent } from '../../domain/models/event';
 import { FileModel } from '../../domain/models/file';
-import { Memory } from '../../domain/models/memory';
 import { Session, SessionStatus } from '../../domain/models/session';
 import { SessionRepository } from '../../domain/repositories/session.repository';
 import { PrismaService } from '../prisma/prisma.service';
@@ -242,41 +241,6 @@ export class DbSessionRepository extends SessionRepository {
       where: { id: sessionId },
       data: { unreadMessageCount: nextCount },
     });
-  }
-
-  /** 存储或者更新会话中的记忆。 */
-  async saveMemory(sessionId: string, agentName: string, memory: Memory): Promise<void> {
-    // 1. 查询会话记忆信息。
-    const record = await this.getRequiredRecord(sessionId);
-
-    // 2. 构建要打补丁的字典。
-    const memories = this.objectJson(record.memories);
-    memories[agentName] = { messages: memory.getMessages() };
-
-    // 3. 执行合并更新。
-    await this.sessionClient.update({
-      where: { id: sessionId },
-      data: { memories: memories as Prisma.InputJsonObject },
-    });
-  }
-
-  /** 获取指定会话的 agent 记忆信息。 */
-  async getMemory(sessionId: string, agentName: string): Promise<Memory> {
-    // 1. 查询会话记忆信息。
-    const record = await this.sessionClient.findUnique({
-      where: { id: sessionId },
-      select: { memories: true },
-    });
-
-    // 2. 如果存在记忆则直接返回。
-    const memories = this.objectJson(record?.memories);
-    const memoryData = memories[agentName];
-    if (memoryData) {
-      return Memory.from(memoryData as { messages?: Record<string, any>[] });
-    }
-
-    // 3. 如果记忆不存在，则构建一个空记忆后返回。
-    return new Memory([]);
   }
 
   private async getRequiredRecord(sessionId: string): Promise<SessionPersistenceRecord> {

@@ -19,6 +19,7 @@ import {
   canTransitionRunStatus,
 } from '../../src/domain/models/agent-run';
 import { Event, events } from '../../src/domain/models/event';
+import { ConversationMemory } from '../../src/domain/models/conversation-memory';
 import { createSession, SessionStatus } from '../../src/domain/models/session';
 import type { SkillProgressiveDisclosure } from '../../src/domain/models/skill-disclosure';
 import { SkillResourceKind } from '../../src/domain/models/skill-content';
@@ -53,6 +54,12 @@ class RuntimeWiringStore {
     const agentRun = this.createAgentRunRepository();
     const unit = {
       agentRun,
+      conversationMemory: {
+        get: async () => new ConversationMemory(),
+        save: async () => {
+          this.savedMemories += 1;
+        },
+      },
       file: {},
       session: {
         addEvent: async (_sessionId: string, event: Event) => {
@@ -70,9 +77,6 @@ class RuntimeWiringStore {
         },
         updateStatus: async (_sessionId: string, status: SessionStatus) => {
           this.session.status = status;
-        },
-        saveMemory: async () => {
-          this.savedMemories += 1;
         },
       },
       run: async <T>(handler: (active: UnitOfWork) => Promise<T>): Promise<T> =>

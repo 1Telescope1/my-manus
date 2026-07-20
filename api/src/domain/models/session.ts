@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { BaseEvent, Event } from './event';
 import { createFileModel, FileModel } from './file';
-import { Memory } from './memory';
+import { ConversationMemory } from './conversation-memory';
 import { Plan } from './plan';
 
 export const DEFAULT_SESSION_TITLE = '新对话';
@@ -24,7 +24,7 @@ export type Session = {
   latest_message_at?: Date | null;
   events: Event[];
   files: FileModel[];
-  memories: Record<string, Memory>;
+  memories: Record<string, ConversationMemory>;
   status: SessionStatus;
   updated_at: Date;
   created_at: Date;
@@ -78,10 +78,13 @@ export function getLatestPlan(session: Session): Plan | undefined {
   return undefined;
 }
 
-function normalizeMemories(memories?: Record<string, Memory>): Record<string, Memory> {
-  const normalized: Record<string, Memory> = {};
+/** 将旧 JSON 或领域实例统一恢复为 Conversation Memory。 */
+function normalizeMemories(
+  memories?: Record<string, ConversationMemory>,
+): Record<string, ConversationMemory> {
+  const normalized: Record<string, ConversationMemory> = {};
   for (const [agentName, memory] of Object.entries(memories ?? {})) {
-    normalized[agentName] = Memory.from(memory);
+    normalized[agentName] = ConversationMemory.from(memory);
   }
   return normalized;
 }

@@ -67,10 +67,10 @@
 
 | ID | Status | Dependencies | Intent | Design | Acceptance | Evidence | Last Updated |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| MEMORY-101 | `ready` | — | 分离执行状态和对话上下文 | 定义 Run State、Conversation Memory、Working Context、Artifact 边界 | 类型和仓储职责评审通过；执行游标不依赖聊天消息 | — | 2026-07-16：初始化 |
-| MEMORY-102 | `proposed` | MEMORY-101 | 主动控制上下文窗口 | 建立模型窗口预算、受保护内容和 Context Selector | 输入不超过 75% 窗口；关键约束、用户目标和活跃 Skill 不丢失 | — | 2026-07-16：初始化 |
-| MEMORY-103 | `proposed` | MEMORY-101 | 替代当前轻量删除式压缩 | 生成结构化摘要并保留来源、Artifact 和待办 | 长会话评测中事实不被错误升级，Pending Work 可继续执行 | — | 2026-07-16：初始化 |
-| MEMORY-104 | `proposed` | MEMORY-101, RUNTIME-102 | 在恢复时重建正确上下文 | Checkpoint 保存摘要版本、激活 Skill 和 Artifact 引用 | 进程重启后 Working Context 与崩溃前语义一致 | — | 2026-07-16：初始化 |
+| [MEMORY-101](./tasks/MEMORY-101/README.md) | `done` | — | 分离执行状态和对话上下文 | 定义 Run State、Conversation Memory、Working Context、Artifact 边界 | 类型和仓储职责评审通过；执行游标不依赖聊天消息 | [验收证据](./tasks/MEMORY-101/evidence.md) | 2026-07-20：完成四类数据边界与会话记忆仓储拆分 |
+| MEMORY-102 | `ready` | MEMORY-101 | 主动控制上下文窗口 | 建立模型窗口预算、受保护内容和 Context Selector | 输入不超过 75% 窗口；关键约束、用户目标和活跃 Skill 不丢失 | — | 2026-07-20：前置任务已完成 |
+| MEMORY-103 | `ready` | MEMORY-101 | 替代当前轻量删除式压缩 | 生成结构化摘要并保留来源、Artifact 和待办 | 长会话评测中事实不被错误升级，Pending Work 可继续执行 | — | 2026-07-20：前置任务已完成 |
+| MEMORY-104 | `ready` | MEMORY-101, RUNTIME-102 | 在恢复时重建正确上下文 | Checkpoint 保存摘要版本、激活 Skill 和 Artifact 引用 | 进程重启后 Working Context 与崩溃前语义一致 | — | 2026-07-20：前置任务已完成 |
 
 ## Multi-Agent 与 A2A
 

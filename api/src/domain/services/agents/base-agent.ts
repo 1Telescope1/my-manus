@@ -3,7 +3,8 @@ import { JSONParser } from '../../external/json-parser';
 import { LLM, LLMMessage } from '../../external/llm';
 import { AgentConfig } from '../../models/app-config';
 import { Event, events, ToolEventStatus } from '../../models/event';
-import { Memory } from '../../models/memory';
+import { ConversationMemory } from '../../models/conversation-memory';
+import { toWorkingContextMessages } from '../../models/working-context';
 import { Message } from '../../models/message';
 import { ToolResult } from '../../models/tool-result';
 import { ToolIdempotencyStore } from '../../models/tool-invocation';
@@ -56,7 +57,7 @@ export abstract class BaseAgent {
   protected format?: string;
   protected retryIntervalMs = 1000;
   protected toolChoice?: string | null;
-  protected memory?: Memory;
+  protected memory?: ConversationMemory;
   protected readonly toolRegistry: ToolRegistry;
   protected readonly toolSelector: ToolSelectionService;
   protected readonly toolInvoker: ToolInvocationService;
@@ -80,7 +81,11 @@ export abstract class BaseAgent {
     this.memory?.compact();
     const uow = this.uowFactory();
     await uow.run(async (active) => {
-      await active.session.saveMemory(this.sessionId, this.name, this.memory as Memory);
+      await active.conversationMemory.save(
+        this.sessionId,
+        this.name,
+        this.memory as ConversationMemory,
+      );
     });
   }
 
@@ -108,7 +113,11 @@ export abstract class BaseAgent {
 
     const uow = this.uowFactory();
     await uow.run(async (active) => {
-      await active.session.saveMemory(this.sessionId, this.name, this.memory as Memory);
+      await active.conversationMemory.save(
+        this.sessionId,
+        this.name,
+        this.memory as ConversationMemory,
+      );
     });
   }
 
@@ -320,7 +329,7 @@ export abstract class BaseAgent {
     if (!this.memory) {
       const uow = this.uowFactory();
       await uow.run(async (active) => {
-        this.memory = await active.session.getMemory(this.sessionId, this.name);
+        this.memory = await active.conversationMemory.get(this.sessionId, this.name);
       });
     }
   }
@@ -371,10 +380,7 @@ export abstract class BaseAgent {
     for (let i = 0; i < this.agentConfig.max_retries; i += 1) {
       try {
         const message = await this.llm.invoke({
-          messages: modelMessages(
-            this.memory?.getMessages() ?? [],
-            protectedSystemContext,
-          ),
+          messages: modelMessages(this.memory?.getMessages() ?? [], protectedSystemContext),
           // 空集合时省略 tools，确保 Planner、总结和无授权场景不会产生全量回退。
           ...(availableTools.length > 0 ? { tools: availableTools } : {}),
           responseFormat,
@@ -448,23 +454,22 @@ export abstract class BaseAgent {
 
     const uow = this.uowFactory();
     await uow.run(async (active) => {
-      await active.session.saveMemory(this.sessionId, this.name, this.memory as Memory);
+      await active.conversationMemory.save(
+        this.sessionId,
+        this.name,
+        this.memory as ConversationMemory,
+      );
     });
   }
 }
 
-/** 把 Run 级系统上下文插在持久 system prompt 后，且不修改原 Memory。 */
+/** 把 Run 级系统上下文组装成单次 Working Context，且不修改 Conversation Memory。 */
 function modelMessages(
   persistedMessages: LLMMessage[],
   protectedSystemContext?: string,
 ): LLMMessage[] {
-  if (!protectedSystemContext) {
-    return persistedMessages;
-  }
-  const [systemPrompt, ...conversation] = persistedMessages;
-  return [
-    ...(systemPrompt ? [systemPrompt] : []),
-    { role: 'system', content: protectedSystemContext },
-    ...conversation,
-  ];
+  return toWorkingContextMessages({
+    conversationMessages: persistedMessages,
+    protectedInstructions: protectedSystemContext ? [protectedSystemContext] : [],
+  });
 }

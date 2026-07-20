@@ -1,4 +1,5 @@
 import { AgentRunRepository } from './agent-run.repository';
+import { ConversationMemoryRepository } from './conversation-memory.repository';
 import { FileRepository } from './file.repository';
 import { SessionRepository } from './session.repository';
 
@@ -6,6 +7,8 @@ import { SessionRepository } from './session.repository';
 export abstract class UnitOfWork {
   /** 访问运行聚合仓储。 */
   abstract readonly agentRun: AgentRunRepository;
+  /** 访问 Session 级模型语义历史仓储。 */
+  abstract readonly conversationMemory: ConversationMemoryRepository;
   /** 访问文件仓储。 */
   abstract readonly file: FileRepository;
   /** 访问会话仓储。 */

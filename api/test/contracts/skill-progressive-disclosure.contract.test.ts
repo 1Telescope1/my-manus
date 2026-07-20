@@ -91,26 +91,31 @@ class RecordingLLM extends LLM {
   }
 }
 
-/** 只实现 BaseAgent 当前测试会访问的 Memory 仓储。 */
+/** 只实现 BaseAgent 当前测试会访问的 Conversation Memory 仓储。 */
 function createMemoryUnitOfWork() {
-  const memories = new Map<string, import('../../src/domain/models/memory').Memory>();
-  const session = {
-    /** 返回 Agent 自己的持久 Memory。 */
-    async getMemory(_sessionId: string, agentName: string) {
-      const { Memory } = await import('../../src/domain/models/memory');
-      return memories.get(agentName) ?? new Memory();
+  const memories = new Map<
+    string,
+    import('../../src/domain/models/conversation-memory').ConversationMemory
+  >();
+  const conversationMemory = {
+    /** 返回 Agent 自己的持久 Conversation Memory。 */
+    async get(_sessionId: string, agentName: string) {
+      const { ConversationMemory } = await import(
+        '../../src/domain/models/conversation-memory'
+      );
+      return memories.get(agentName) ?? new ConversationMemory();
     },
-    /** 保存 Memory 的当前对象。 */
-    async saveMemory(
+    /** 保存 Conversation Memory 的当前对象。 */
+    async save(
       _sessionId: string,
       agentName: string,
-      memory: import('../../src/domain/models/memory').Memory,
+      memory: import('../../src/domain/models/conversation-memory').ConversationMemory,
     ) {
       memories.set(agentName, memory);
     },
   };
   const uow = {
-    session,
+    conversationMemory,
     /** 测试不访问其他仓储。 */
     async run<T>(handler: (active: UnitOfWork) => Promise<T>): Promise<T> {
       return handler(uow as unknown as UnitOfWork);

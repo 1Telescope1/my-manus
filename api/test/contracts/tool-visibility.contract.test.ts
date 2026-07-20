@@ -5,7 +5,7 @@ import { LLM, LLMMessage } from '../../src/domain/external/llm';
 import { SearchEngine } from '../../src/domain/external/search-engine';
 import { createAgentRun, RouteKind } from '../../src/domain/models/agent-run';
 import { Event } from '../../src/domain/models/event';
-import { Memory } from '../../src/domain/models/memory';
+import { ConversationMemory } from '../../src/domain/models/conversation-memory';
 import { createPlan } from '../../src/domain/models/plan';
 import { createMessage } from '../../src/domain/models/message';
 import { RouteDecision } from '../../src/domain/models/route-decision';
@@ -69,17 +69,21 @@ class RecordingSearchEngine extends SearchEngine {
   }
 }
 
-/** 创建只支持 Agent Memory 的最小 UnitOfWork。 */
+/** 创建只支持 Conversation Memory 的最小 UnitOfWork。 */
 function createMemoryUow(): UnitOfWork {
-  const memories = new Map<string, Memory>();
+  const memories = new Map<string, ConversationMemory>();
   const uow = {
-    session: {
-      getMemory: async (_sessionId: string, agentName: string) => {
-        const memory = memories.get(agentName) ?? new Memory();
+    conversationMemory: {
+      get: async (_sessionId: string, agentName: string) => {
+        const memory = memories.get(agentName) ?? new ConversationMemory();
         memories.set(agentName, memory);
         return memory;
       },
-      saveMemory: async (_sessionId: string, agentName: string, memory: Memory) => {
+      save: async (
+        _sessionId: string,
+        agentName: string,
+        memory: ConversationMemory,
+      ) => {
         memories.set(agentName, memory);
       },
     },

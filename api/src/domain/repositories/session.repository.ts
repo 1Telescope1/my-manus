@@ -1,6 +1,5 @@
 import { BaseEvent } from '../models/event';
 import { FileModel } from '../models/file';
-import { Memory } from '../models/memory';
 import { Session, SessionStatus } from '../models/session';
 
 export abstract class SessionRepository {
@@ -22,6 +21,4 @@ export abstract class SessionRepository {
   abstract addFile(sessionId: string, file: FileModel): Promise<void>;
   abstract removeFile(sessionId: string, fileId: string): Promise<void>;
   abstract getFileByPath(sessionId: string, filepath: string): Promise<FileModel | null>;
-  abstract saveMemory(sessionId: string, agentName: string, memory: Memory): Promise<void>;
-  abstract getMemory(sessionId: string, agentName: string): Promise<Memory>;
 }

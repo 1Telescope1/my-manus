@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { Event } from '../../domain/models/event';
 import { createFileModel, FileModel } from '../../domain/models/file';
-import { Memory } from '../../domain/models/memory';
+import { ConversationMemory } from '../../domain/models/conversation-memory';
 import { createSession, Session, SessionStatus } from '../../domain/models/session';
 
 export type SessionPersistenceRecord = {
@@ -62,7 +62,10 @@ export function sessionUpdateToPersistence(session: Session): Prisma.SessionUpda
   return data;
 }
 
-function serializeMemories(memories: Record<string, Memory>): Record<string, unknown> {
+/** 保持既有 Session.memories JSON 结构序列化 Conversation Memory。 */
+function serializeMemories(
+  memories: Record<string, ConversationMemory>,
+): Record<string, unknown> {
   const serialized: Record<string, unknown> = {};
   for (const [agentName, memory] of Object.entries(memories)) {
     serialized[agentName] = {
@@ -94,14 +97,17 @@ function normalizeFiles(files: unknown): FileModel[] {
   return files.map((file) => createFileModel(file as Partial<FileModel>));
 }
 
-function normalizeMemories(memories: unknown): Record<string, Memory> {
+/** 从既有 Session.memories JSON 恢复 Conversation Memory。 */
+function normalizeMemories(memories: unknown): Record<string, ConversationMemory> {
   if (!memories || typeof memories !== 'object' || Array.isArray(memories)) {
     return {};
   }
 
-  const normalized: Record<string, Memory> = {};
+  const normalized: Record<string, ConversationMemory> = {};
   for (const [agentName, memory] of Object.entries(memories as Record<string, unknown>)) {
-    normalized[agentName] = Memory.from(memory as { messages?: Record<string, any>[] });
+    normalized[agentName] = ConversationMemory.from(
+      memory as { messages?: Record<string, any>[] },
+    );
   }
   return normalized;
 }
