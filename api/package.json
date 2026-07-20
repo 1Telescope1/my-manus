@@ -13,6 +13,7 @@
     "test:contract:typecheck": "tsc --noEmit -p tsconfig.test.json",
     "test:integration:runtime": "node --import tsx --test test/integration/agent-run-persistence.integration.test.ts",
     "eval:durable-runtime": "node --import tsx test/evaluation/run-durable-runtime.evaluation.ts",
+    "eval:agent-quality": "node --import tsx test/evaluation/run-agent-quality.evaluation.ts",
     "typecheck": "tsc --noEmit",
     "prisma:generate": "prisma generate"
   },

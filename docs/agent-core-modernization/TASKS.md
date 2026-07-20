@@ -49,8 +49,8 @@
 | [SKILL-103](./tasks/SKILL-103/README.md) | `done` | SKILL-101, SKILL-102 | 实现渐进披露 | 目录常驻上下文；显式或模型驱动激活完整 SKILL.md；Run 内去重 | 未激活 Skill 正文不进入模型；显式激活稳定；重复激活不重复注入 | [验收证据](./tasks/SKILL-103/evidence.md) | 2026-07-19：完成全模型路径渐进披露与 Run 内去重 |
 | SKILL-104 | `proposed` | SKILL-103, MEMORY-102 | 防止 Skill 在压缩中丢失 | 将激活版本和受保护指令写入 Run State/Context | 多次压缩后 Skill 约束仍存在；恢复后使用原激活版本 | — | 2026-07-16：初始化 |
 | SKILL-105 | `ready` | SKILL-102, TOOL-103 | 安全使用脚本和资产 | scripts 经 Sandbox Tool 执行，资源通过 Artifact/Context 读取 | 不存在自动宿主机执行路径；执行事件和输出可追踪 | — | 2026-07-19：前置任务已完成 |
-| SKILL-106 | `proposed` | SKILL-103, EVAL-101 | 用真实用例验证 Skills | 增加研究、文件处理等示例 Skill 和触发数据集 | 示例符合规范；触发 Precision/Recall 达到任务约定门槛 | — | 2026-07-16：初始化 |
-| SKILL-107 | `proposed` | SKILL-103, EVAL-101 | 将已验证的会话过程沉淀为用户私有 Skill | 仅在用户显式请求后，从选定会话证据生成可溯源的结构化 Draft；经脱敏、权限、Schema 和触发验证及用户预览确认后，以不可变版本发布到用户级 Registry | 未确认时零发布；草稿不固化 secret、临时标识或未经确认的推断；重名不静默覆盖；正例、负例和边界触发测试通过；发布后仅创建者可发现并可创建新版本 | — | 2026-07-19：记录对话沉淀 Skill 需求 |
+| SKILL-106 | `ready` | SKILL-103, EVAL-101 | 用真实用例验证 Skills | 增加研究、文件处理等示例 Skill 和触发数据集 | 示例符合规范；触发 Precision/Recall 达到任务约定门槛 | — | 2026-07-20：前置任务已完成 |
+| SKILL-107 | `ready` | SKILL-103, EVAL-101 | 将已验证的会话过程沉淀为用户私有 Skill | 仅在用户显式请求后，从选定会话证据生成可溯源的结构化 Draft；经脱敏、权限、Schema 和触发验证及用户预览确认后，以不可变版本发布到用户级 Registry | 未确认时零发布；草稿不固化 secret、临时标识或未经确认的推断；重名不静默覆盖；正例、负例和边界触发测试通过；发布后仅创建者可发现并可创建新版本 | — | 2026-07-20：前置任务已完成 |
 
 ## Tool 与 MCP
 
@@ -96,9 +96,9 @@
 
 | ID | Status | Dependencies | Intent | Design | Acceptance | Evidence | Last Updated |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| EVAL-101 | `ready` | — | 建立可重复的 Agent 质量基线 | 建立版本化任务集、期望结果和统一运行器 | 数据集覆盖 SDD 约定场景；结果可机器读取和重复运行 | — | 2026-07-16：初始化 |
+| [EVAL-101](./tasks/EVAL-101/README.md) | `done` | — | 建立可重复的 Agent 质量基线 | 建立版本化任务集、期望结果和统一运行器 | 数据集覆盖 SDD 约定场景；结果可机器读取和重复运行 | [验收证据](./tasks/EVAL-101/evidence.md) | 2026-07-20：完成版本化任务集、统一运行器和首份基线 |
 | [EVAL-102](./tasks/EVAL-102/README.md) | `done` | — | 固化现有 API/Event 行为 | 为 Session、SSE、Plan、Step、Tool、Wait、Done 建契约测试 | 当前发布行为有基线；事件顺序和必填字段被验证 | [验收证据](./tasks/EVAL-102/evidence.md) | 2026-07-18：补充任务说明 |
 | [EVAL-103](./tasks/EVAL-103/README.md) | `done` | RUNTIME-103, RUNTIME-106, RUNTIME-107 | 验证耐久执行而非只测正常路径 | 注入进程崩溃、超时、取消和不确定副作用 | 所有恢复门槛满足；重复副作用为 0 | [验收证据](./tasks/EVAL-103/evidence.md) | 2026-07-19：完成六场景耐久评测与发布门槛 |
 | EVAL-104 | `proposed` | SKILL-103, TOOL-102 | 量化 Skill 和工具选择 | 构建正例、负例和近似场景，记录 Precision/Recall | 无关 Skill/Tool 不过度披露；指标写入报告 | — | 2026-07-16：初始化 |
 | EVAL-105 | `proposed` | AGENT-103, AGENT-105 | 验证多 Agent 边界 | 覆盖 Agent-as-Tool、Handoff、A2A 流、输入恢复和取消 | 所有权、上下文过滤、Artifact 和终态符合设计 | — | 2026-07-16：初始化 |
-| EVAL-106 | `proposed` | EVAL-101, EVAL-102 | 形成统一比较报告 | 汇总完成率、Token、调用、延迟、恢复和事件契约 | 可按 runtime/version/task 过滤；作为完成证据被任务表引用 | — | 2026-07-16：初始化 |
+| EVAL-106 | `ready` | EVAL-101, EVAL-102 | 形成统一比较报告 | 汇总完成率、Token、调用、延迟、恢复和事件契约 | 可按 runtime/version/task 过滤；作为完成证据被任务表引用 | — | 2026-07-20：前置任务已完成 |

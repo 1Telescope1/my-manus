@@ -1,0 +1,211 @@
+{
+  "schemaVersion": 1,
+  "datasetId": "manus-agent-quality",
+  "datasetVersion": "1.0.0",
+  "description": "Agent 核心现代化固定质量任务集",
+  "tasks": [
+    {
+      "id": "core.simple_question",
+      "sddScenario": "simple_question",
+      "description": "不使用工具解释一个稳定概念",
+      "input": { "message": "用一句话解释什么是乐观锁" },
+      "expected": {
+        "outcome": "completed",
+        "route": "direct",
+        "responseIncludes": ["乐观锁"],
+        "toolCalls": []
+      },
+      "execution": { "evaluatorId": "runtime_core", "scenarioId": "simple_question", "enabled": true }
+    },
+    {
+      "id": "core.single_tool_query",
+      "sddScenario": "single_tool_query",
+      "description": "使用一次搜索工具回答实时查询",
+      "input": { "message": "搜索 Runtime 最新资料" },
+      "expected": {
+        "outcome": "completed",
+        "route": "single_tool",
+        "responseIncludes": ["Runtime"],
+        "toolCalls": ["search_web"]
+      },
+      "execution": { "evaluatorId": "runtime_core", "scenarioId": "single_tool_query", "enabled": true }
+    },
+    {
+      "id": "core.complex_research",
+      "sddScenario": "complex_research",
+      "description": "从两个来源完成复杂研究并综合回答",
+      "input": { "message": "研究 Agent Runtime 并交叉验证两个来源" },
+      "expected": {
+        "outcome": "completed",
+        "route": "planned_agent",
+        "responseIncludes": ["两个来源"],
+        "toolCalls": ["search_web", "search_web"]
+      },
+      "execution": { "evaluatorId": "runtime_core", "scenarioId": "complex_research", "enabled": true }
+    },
+    {
+      "id": "artifact.file_generation",
+      "sddScenario": "file_artifact",
+      "description": "读取输入文件、生成输出文件并返回 Artifact 引用",
+      "input": { "message": "读取附件并生成报告" },
+      "expected": {
+        "outcome": "completed",
+        "route": "planned_agent",
+        "artifactKinds": ["file"]
+      },
+      "execution": { "evaluatorId": "artifact_runtime", "scenarioId": "file_generation", "enabled": false }
+    },
+    {
+      "id": "interaction.user_input_resume",
+      "sddScenario": "user_input_resume",
+      "description": "请求用户补充信息并在同一 Run 恢复",
+      "input": { "message": "生成报告，但未提供报告日期" },
+      "expected": { "outcome": "completed", "route": "planned_agent" },
+      "execution": { "evaluatorId": "runtime_resume", "scenarioId": "user_input_resume", "enabled": false }
+    },
+    {
+      "id": "reliability.llm_timeout",
+      "sddScenario": "reliability_failures",
+      "description": "LLM 超时后返回稳定失败且不产生副作用",
+      "input": { "message": "执行会触发模型超时的请求" },
+      "expected": { "outcome": "failed", "maxDuplicateSideEffects": 0 },
+      "execution": { "evaluatorId": "adapter_reliability", "scenarioId": "llm_timeout", "enabled": false }
+    },
+    {
+      "id": "reliability.tool_timeout",
+      "sddScenario": "reliability_failures",
+      "description": "副作用工具超时后暂停且禁止重复提交",
+      "input": { "message": "执行会超时的写工具" },
+      "expected": { "outcome": "waiting", "recoverySucceeded": true, "maxDuplicateSideEffects": 0 },
+      "execution": { "evaluatorId": "eval_103", "scenarioId": "side_effect_timeout_pause", "enabled": true }
+    },
+    {
+      "id": "reliability.mcp_disconnect",
+      "sddScenario": "reliability_failures",
+      "description": "MCP 断连被隔离并返回稳定工具错误",
+      "input": { "message": "调用断连的 MCP 工具" },
+      "expected": { "outcome": "failed", "maxDuplicateSideEffects": 0 },
+      "execution": { "evaluatorId": "adapter_reliability", "scenarioId": "mcp_disconnect", "enabled": false }
+    },
+    {
+      "id": "durability.before_model_crash",
+      "sddScenario": "process_crashes",
+      "description": "模型调用前崩溃后从精确节点恢复",
+      "input": { "message": "在模型调用前注入崩溃" },
+      "expected": { "outcome": "completed", "recoverySucceeded": true, "maxDuplicateSideEffects": 0 },
+      "execution": { "evaluatorId": "eval_103", "scenarioId": "checkpoint_before_model_crash", "enabled": true }
+    },
+    {
+      "id": "durability.tool_submitted_crash",
+      "sddScenario": "process_crashes",
+      "description": "副作用已提交但结果未持久化时暂停",
+      "input": { "message": "在工具提交后注入崩溃" },
+      "expected": { "outcome": "waiting", "recoverySucceeded": true, "maxDuplicateSideEffects": 0 },
+      "execution": { "evaluatorId": "eval_103", "scenarioId": "side_effect_result_persistence_crash", "enabled": true }
+    },
+    {
+      "id": "durability.tool_result_persisted_crash",
+      "sddScenario": "process_crashes",
+      "description": "工具结果持久化后恢复并复用结果",
+      "input": { "message": "在工具结果持久化后注入崩溃" },
+      "expected": { "outcome": "completed", "recoverySucceeded": true, "maxDuplicateSideEffects": 0 },
+      "execution": { "evaluatorId": "eval_103", "scenarioId": "completed_side_effect_replay", "enabled": true }
+    },
+    {
+      "id": "cancellation.llm",
+      "sddScenario": "cancellation_surfaces",
+      "description": "LLM 执行中根取消收敛为 cancelled",
+      "input": { "message": "在 LLM 执行中取消" },
+      "expected": { "outcome": "cancelled", "maxToolCallsAfterCancellation": 0 },
+      "execution": { "evaluatorId": "eval_103", "scenarioId": "root_cancellation", "enabled": true }
+    },
+    {
+      "id": "cancellation.late_tool",
+      "sddScenario": "cancellation_surfaces",
+      "description": "取消后阻止 Planned Agent 的晚到工具调用",
+      "input": { "message": "取消后尝试调度工具" },
+      "expected": { "outcome": "cancelled", "maxToolCallsAfterCancellation": 0 },
+      "execution": { "evaluatorId": "eval_103", "scenarioId": "cancellation_blocks_late_tool_call", "enabled": true }
+    },
+    {
+      "id": "cancellation.shell",
+      "sddScenario": "cancellation_surfaces",
+      "description": "Shell 执行中取消并终止结果消费",
+      "input": { "message": "在 Shell 执行中取消" },
+      "expected": { "outcome": "cancelled", "maxToolCallsAfterCancellation": 0 },
+      "execution": { "evaluatorId": "adapter_reliability", "scenarioId": "shell_cancellation", "enabled": false }
+    },
+    {
+      "id": "cancellation.browser",
+      "sddScenario": "cancellation_surfaces",
+      "description": "Browser 执行中取消并停止页面操作",
+      "input": { "message": "在 Browser 执行中取消" },
+      "expected": { "outcome": "cancelled", "maxToolCallsAfterCancellation": 0 },
+      "execution": { "evaluatorId": "adapter_reliability", "scenarioId": "browser_cancellation", "enabled": false }
+    },
+    {
+      "id": "cancellation.a2a",
+      "sddScenario": "cancellation_surfaces",
+      "description": "A2A 执行中取消远程请求",
+      "input": { "message": "在 A2A 执行中取消" },
+      "expected": { "outcome": "cancelled", "maxToolCallsAfterCancellation": 0 },
+      "execution": { "evaluatorId": "adapter_reliability", "scenarioId": "a2a_cancellation", "enabled": false }
+    },
+    {
+      "id": "skill.correct_activation",
+      "sddScenario": "skill_boundaries",
+      "description": "相关 Skill 被正确激活",
+      "input": { "message": "执行需要研究 Skill 的任务" },
+      "expected": { "outcome": "completed", "activatedSkills": ["project:research"] },
+      "execution": { "evaluatorId": "eval_104", "scenarioId": "skill_true_positive", "enabled": false }
+    },
+    {
+      "id": "skill.false_activation",
+      "sddScenario": "skill_boundaries",
+      "description": "无关 Skill 不应被激活",
+      "input": { "message": "回答一个无需 Skill 的问题" },
+      "expected": { "outcome": "completed", "activatedSkills": [] },
+      "execution": { "evaluatorId": "eval_104", "scenarioId": "skill_false_positive", "enabled": false }
+    },
+    {
+      "id": "skill.missing_resource",
+      "sddScenario": "skill_boundaries",
+      "description": "Skill 缺少资源时返回稳定错误",
+      "input": { "message": "执行引用缺失资源的 Skill" },
+      "expected": { "outcome": "failed" },
+      "execution": { "evaluatorId": "eval_104", "scenarioId": "skill_missing_resource", "enabled": false }
+    },
+    {
+      "id": "skill.permission_denied",
+      "sddScenario": "skill_boundaries",
+      "description": "Skill 请求未授权工具时被拒绝",
+      "input": { "message": "执行请求未授权工具的 Skill" },
+      "expected": { "outcome": "failed" },
+      "execution": { "evaluatorId": "eval_104", "scenarioId": "skill_permission_denied", "enabled": false }
+    },
+    {
+      "id": "agent.specialist_tool",
+      "sddScenario": "multi_agent_boundaries",
+      "description": "Manager 调用 Specialist 并组合结构化结果",
+      "input": { "message": "调用研究 Specialist 完成子任务" },
+      "expected": { "outcome": "completed" },
+      "execution": { "evaluatorId": "eval_105", "scenarioId": "agent_as_tool", "enabled": false }
+    },
+    {
+      "id": "agent.handoff",
+      "sddScenario": "multi_agent_boundaries",
+      "description": "Handoff 转移所有权并过滤上下文",
+      "input": { "message": "把会话转交给支持 Agent" },
+      "expected": { "outcome": "completed" },
+      "execution": { "evaluatorId": "eval_105", "scenarioId": "handoff", "enabled": false }
+    },
+    {
+      "id": "agent.remote_a2a_multiturn",
+      "sddScenario": "multi_agent_boundaries",
+      "description": "远程 A2A 多轮任务断线后恢复",
+      "input": { "message": "启动远程多轮 Agent 任务" },
+      "expected": { "outcome": "completed", "recoverySucceeded": true },
+      "execution": { "evaluatorId": "eval_105", "scenarioId": "remote_a2a_multiturn", "enabled": false }
+    }
+  ]
+}
