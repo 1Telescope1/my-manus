@@ -37,6 +37,21 @@
 
 旧 `ConversationMemory.compact()` 无法解决这个根因：它发生在执行步骤之后，只删除少量 reasoning 和浏览器结果，既不知道目标模型的窗口，也不能在每次调用前证明输入已受控。本任务因此把控制点放到 LLM 调用之前，并保持持久化 Memory 不变。
 
+### 与 MEMORY-103 的关系
+
+MEMORY-102 是单次模型调用前的硬预算边界，[MEMORY-103](../MEMORY-103/README.md) 是长期会话的语义压缩层。两者解决的问题不同，执行顺序如下：
+
+```text
+持久化 Conversation Memory
+  -> MEMORY-103：把早期原文替换为结构化摘要，保留最近原文
+  -> MEMORY-102：从摘要、最近原文和当前 Run 上下文中选择本次可安全发送的内容
+  -> LLM
+```
+
+MEMORY-102 的选择结果只服务当前一次调用，不删除或改写持久化历史。没有 MEMORY-103 时，MEMORY-102 仍能阻止窗口超限，但放不下的早期消息会在本次调用中直接不可见；MEMORY-103 用摘要补回这部分语义。
+
+MEMORY-103 也不能替代 MEMORY-102。摘要、当前请求、Skill 指令和 Tool Schema 合并后仍可能超过目标模型窗口，因此每次 LLM 调用最终都必须经过 MEMORY-102 的统一选择和超限检查。
+
 ### 核心对象或能力
 
 | 对象或能力 | 职责 | 例子 |
@@ -86,7 +101,7 @@ Planned Agent 在 `BaseAgent` 内执行这条流程，并持续保护本次 `inv
 - Conversation Memory 的 Session JSON 结构没有变化；选择只生成单次调用快照，不删除持久消息。
 - 活跃 Skill 继续以 Run 级临时 system message 注入，既受保护也不会写回 Session Memory。
 - Tool Schema 和 response format 计入输入估算；固定输入过大时同样调用前失败。
-- 结构化摘要尚未生成，放不下的早期原文当前直接省略；由 MEMORY-103 补齐语义摘要。
+- MEMORY-102 本身不生成结构化摘要；已完成的 MEMORY-103 负责把早期原文转换为摘要，再交回本任务的 Context Selector 统一控制。
 - Checkpoint 恢复后的 Working Context 重建属于 MEMORY-104；大型 Tool Result 转 Artifact 属于 TOOL-106。
 - Browser 工具内部的网页抽取 LLM 不是 Agent Working Context，本任务未改变该工具内部边界。
 
@@ -138,7 +153,7 @@ Planned Agent 在 `BaseAgent` 内执行这条流程，并持续保护本次 `inv
 
 - 当前进展：实现、接线、专项契约、全量契约、API/UI 构建和 EVAL-101 回归已完成。
 - 当前阻塞：无。
-- 下一步：执行 MEMORY-103，用结构化摘要替代当前“放不下即省略”的早期历史处理。
+- 下一步：MEMORY-103 已补齐结构化摘要；继续 MEMORY-104，恢复时重建完整 Working Context。
 
 ## Task Files
 
@@ -157,4 +172,4 @@ Planned Agent 在 `BaseAgent` 内执行这条流程，并持续保护本次 `inv
 - Current state: `done`，7 项专项与 174 项全量契约通过。
 - Remaining work: 无 MEMORY-102 范围内工作。
 - Blockers: 无。
-- Recommended next action: 开始 MEMORY-103。
+- Recommended next action: 开始 MEMORY-104。
