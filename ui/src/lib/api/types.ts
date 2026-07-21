@@ -39,6 +39,7 @@ export type LLMConfig = {
   model_name?: string;
   temperature?: number;
   max_tokens?: number;
+  context_window_tokens?: number;
   [key: string]: unknown;
 };
 

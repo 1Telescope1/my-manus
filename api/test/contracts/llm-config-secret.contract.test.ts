@@ -49,6 +49,7 @@ test('更新 LLM 配置时未传或传空密钥应沿用原密钥', async () => 
 
   const missingKeyResponse = await service.updateLlmConfig(editableConfig);
   assert.equal(getStoredConfig().llm_config.api_key, 'secret-key');
+  assert.equal(getStoredConfig().llm_config.context_window_tokens, 32768);
   assert.equal(missingKeyResponse.has_api_key, true);
   assert.equal('api_key' in missingKeyResponse, false);
 

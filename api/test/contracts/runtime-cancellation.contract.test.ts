@@ -187,6 +187,7 @@ test('OpenAI 适配器应使用请求 Signal 中止厂商 HTTP 调用', async ()
     model_name: 'test-model',
     temperature: 0,
     max_tokens: 128,
+    context_window_tokens: 1024,
   }, {
     /** 模拟进行中的厂商 HTTP 请求，并观察 SDK 传入的 Signal。 */
     fetch: async (_input, init) => {

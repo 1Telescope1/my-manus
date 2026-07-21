@@ -32,6 +32,10 @@ export class SettingsService {
   readonly llmModelName = optionalString(process.env.LLM_MODEL_NAME);
   readonly llmTemperature = optionalNumber(process.env.LLM_TEMPERATURE, 0.7);
   readonly llmMaxTokens = optionalNumber(process.env.LLM_MAX_TOKENS, 8192);
+  readonly llmContextWindowTokens = optionalNumber(
+    process.env.LLM_CONTEXT_WINDOW_TOKENS,
+    32768,
+  );
 
   readonly databaseUrl = normalizeDatabaseUrl(
     process.env.DATABASE_URL ?? process.env.SQLALCHEMY_DATABASE_URI,

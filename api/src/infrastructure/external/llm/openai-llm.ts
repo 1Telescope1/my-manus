@@ -29,6 +29,11 @@ export class OpenAILLM extends LLM {
     return this.llmConfig.max_tokens;
   }
 
+  /** 返回独立配置的模型总上下文窗口，不与最大输出长度混用。 */
+  override get contextWindowTokens(): number {
+    return this.llmConfig.context_window_tokens;
+  }
+
   async invoke(input: {
     messages: LLMMessage[];
     tools?: ToolDescriptor[];

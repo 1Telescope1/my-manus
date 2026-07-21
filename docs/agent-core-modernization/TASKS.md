@@ -47,7 +47,7 @@
 | [SKILL-101](./tasks/SKILL-101/README.md) | `done` | — | 发现和描述项目 Skills | 扫描 `.agents/skills/`，解析 Frontmatter，生成只含元数据的 Catalog | 合法 Skill 可发现；重名、超限、名称不匹配被隔离并诊断 | [验收证据](./tasks/SKILL-101/evidence.md) | 2026-07-19：按可信内置 Skill 边界精简发现校验 |
 | [SKILL-102](./tasks/SKILL-102/README.md) | `done` | SKILL-101 | 安全读取 Skill 指令和资源 | 实现真实路径校验、大小限制和资源清单 | 路径逃逸、符号链接逃逸、缺失资源和超限测试通过 | [验收证据](./tasks/SKILL-102/evidence.md) | 2026-07-19：完成真实路径安全、资源清单与有界读取 |
 | [SKILL-103](./tasks/SKILL-103/README.md) | `done` | SKILL-101, SKILL-102 | 实现渐进披露 | 目录常驻上下文；显式或模型驱动激活完整 SKILL.md；Run 内去重 | 未激活 Skill 正文不进入模型；显式激活稳定；重复激活不重复注入 | [验收证据](./tasks/SKILL-103/evidence.md) | 2026-07-19：完成全模型路径渐进披露与 Run 内去重 |
-| SKILL-104 | `proposed` | SKILL-103, MEMORY-102 | 防止 Skill 在压缩中丢失 | 将激活版本和受保护指令写入 Run State/Context | 多次压缩后 Skill 约束仍存在；恢复后使用原激活版本 | — | 2026-07-16：初始化 |
+| SKILL-104 | `ready` | SKILL-103, MEMORY-102 | 防止 Skill 在压缩中丢失 | 将激活版本和受保护指令写入 Run State/Context | 多次压缩后 Skill 约束仍存在；恢复后使用原激活版本 | — | 2026-07-20：前置任务已完成 |
 | SKILL-105 | `ready` | SKILL-102, TOOL-103 | 安全使用脚本和资产 | scripts 经 Sandbox Tool 执行，资源通过 Artifact/Context 读取 | 不存在自动宿主机执行路径；执行事件和输出可追踪 | — | 2026-07-19：前置任务已完成 |
 | SKILL-106 | `ready` | SKILL-103, EVAL-101 | 用真实用例验证 Skills | 增加研究、文件处理等示例 Skill 和触发数据集 | 示例符合规范；触发 Precision/Recall 达到任务约定门槛 | — | 2026-07-20：前置任务已完成 |
 | SKILL-107 | `ready` | SKILL-103, EVAL-101 | 将已验证的会话过程沉淀为用户私有 Skill | 仅在用户显式请求后，从选定会话证据生成可溯源的结构化 Draft；经脱敏、权限、Schema 和触发验证及用户预览确认后，以不可变版本发布到用户级 Registry | 未确认时零发布；草稿不固化 secret、临时标识或未经确认的推断；重名不静默覆盖；正例、负例和边界触发测试通过；发布后仅创建者可发现并可创建新版本 | — | 2026-07-20：前置任务已完成 |
@@ -60,7 +60,7 @@
 | [TOOL-102](./tasks/TOOL-102/README.md) | `done` | TOOL-101 | 减少模型可见工具 | 根据 Router、Workflow、Agent、Skill 和 Policy 计算最终工具集合 | 工具选择测试证明未授权/无关工具不进入模型请求 | [验收证据](./tasks/TOOL-102/evidence.md) | 2026-07-18：完成最小工具选择与真实模型入口接入 |
 | [TOOL-103](./tasks/TOOL-103/README.md) | `done` | TOOL-101 | 统一调用可靠性和错误语义 | Tool 调用支持 Signal、Timeout、Risk、Approval、Idempotency 和统一结果 | 超时、取消、校验错误、重试和副作用策略测试通过 | [验收证据](./tasks/TOOL-103/evidence.md) | 2026-07-19：删除无消费者的防御性抽象 |
 | [TOOL-104](./tasks/TOOL-104/README.md) | `done` | TOOL-101 | 修复 MCP 动态管理 | 只连接 enabled 服务，保留命名空间，隔离连接故障并刷新工具列表 | disabled 服务不连接/不暴露；单服务故障不影响其他工具 | [验收证据](./tasks/TOOL-104/evidence.md) | 2026-07-18：完成 MCP enabled、故障隔离与动态刷新 |
-| TOOL-105 | `proposed` | TOOL-104, MEMORY-102 | 使用完整 MCP 上下文能力 | Resources 接入 Context Manager，Prompts 作为模板，处理 Notifications | Tools/Resources/Prompts 类型边界清晰；动态变化可被刷新 | — | 2026-07-16：初始化 |
+| TOOL-105 | `ready` | TOOL-104, MEMORY-102 | 使用完整 MCP 上下文能力 | Resources 接入 Context Manager，Prompts 作为模板，处理 Notifications | Tools/Resources/Prompts 类型边界清晰；动态变化可被刷新 | — | 2026-07-20：前置任务已完成 |
 | TOOL-106 | `proposed` | TOOL-103, MEMORY-103 | 防止大型工具结果污染上下文 | 超过阈值的结果保存为 Artifact，只返回摘要和引用 | 128 KiB 以上结果不直接进入 LLM；Artifact 可按需读取 | — | 2026-07-16：初始化 |
 
 ## Memory 与 Context
@@ -68,7 +68,7 @@
 | ID | Status | Dependencies | Intent | Design | Acceptance | Evidence | Last Updated |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | [MEMORY-101](./tasks/MEMORY-101/README.md) | `done` | — | 分离执行状态和对话上下文 | 定义 Run State、Conversation Memory、Working Context、Artifact 边界 | 类型和仓储职责评审通过；执行游标不依赖聊天消息 | [验收证据](./tasks/MEMORY-101/evidence.md) | 2026-07-20：完成四类数据边界与会话记忆仓储拆分 |
-| MEMORY-102 | `ready` | MEMORY-101 | 主动控制上下文窗口 | 建立模型窗口预算、受保护内容和 Context Selector | 输入不超过 75% 窗口；关键约束、用户目标和活跃 Skill 不丢失 | — | 2026-07-20：前置任务已完成 |
+| [MEMORY-102](./tasks/MEMORY-102/README.md) | `done` | MEMORY-101 | 主动控制上下文窗口 | 建立模型窗口预算、受保护内容和 Context Selector | 输入不超过 75% 窗口；关键约束、用户目标和活跃 Skill 不丢失 | [验收证据](./tasks/MEMORY-102/evidence.md) | 2026-07-20：完成预算、选择器、全模型路径接入与回归验证 |
 | MEMORY-103 | `ready` | MEMORY-101 | 替代当前轻量删除式压缩 | 生成结构化摘要并保留来源、Artifact 和待办 | 长会话评测中事实不被错误升级，Pending Work 可继续执行 | — | 2026-07-20：前置任务已完成 |
 | MEMORY-104 | `ready` | MEMORY-101, RUNTIME-102 | 在恢复时重建正确上下文 | Checkpoint 保存摘要版本、激活 Skill 和 Artifact 引用 | 进程重启后 Working Context 与崩溃前语义一致 | — | 2026-07-20：前置任务已完成 |
 

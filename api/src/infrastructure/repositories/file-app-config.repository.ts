@@ -34,6 +34,7 @@ export class FileAppConfigRepository implements AppConfigRepository {
         ...(this.settings.llmModelName ? { model_name: this.settings.llmModelName } : {}),
         temperature: this.settings.llmTemperature,
         max_tokens: this.settings.llmMaxTokens,
+        context_window_tokens: this.settings.llmContextWindowTokens,
       };
       return AppConfigSchema.parse(config);
     } catch (error) {

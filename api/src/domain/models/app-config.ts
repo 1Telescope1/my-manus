@@ -13,6 +13,15 @@ export const LLMConfigSchema = z.object({
   model_name: z.string().default('deepseek-reasoner'),
   temperature: z.number().default(0.7),
   max_tokens: z.number().int().nonnegative().default(8192),
+  context_window_tokens: z.number().int().positive().default(32768),
+}).superRefine((config, ctx) => {
+  if (config.max_tokens >= config.context_window_tokens) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'max_tokens 必须小于 context_window_tokens',
+      path: ['max_tokens'],
+    });
+  }
 });
 
 export type LLMConfig = z.infer<typeof LLMConfigSchema>;

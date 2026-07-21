@@ -1,5 +1,5 @@
 import { JSONParser } from '../../external/json-parser';
-import { LLM } from '../../external/llm';
+import { LLM, LLMMessage } from '../../external/llm';
 import {
   Event,
   PlanEventStatus,
@@ -34,6 +34,11 @@ import {
 import { ToolSelectionService } from '../tools/tool-selection.service';
 import { ToolInvocationService } from '../tools/tool-invocation.service';
 import {
+  ContextSelector,
+  createModelContextBudget,
+  modelFixedInput,
+} from '../context/context-selector.service';
+import {
   formatRuntimeSkillContext,
   SkillDisclosure,
 } from '../../models/skill-disclosure';
@@ -47,6 +52,8 @@ const SINGLE_TOOL_SYSTEM_PROMPT =
 const SINGLE_TOOL_SUMMARY_PROMPT =
   '你负责根据一次工具调用结果回答用户。不得继续调用工具；结果失败时明确说明失败原因。';
 
+const runtimeContextSelector = new ContextSelector();
+
 /** 使用现有厂商无关的 LLM 端口实现 Direct 回答。 */
 export class LLMDirectResponseProvider implements DirectResponseProvider {
   /** 注入当前会话使用的 LLM 客户端。 */
@@ -54,18 +61,20 @@ export class LLMDirectResponseProvider implements DirectResponseProvider {
 
   /** 在不提供 tools 参数的情况下生成最终回答。 */
   async respond(context: RuntimeExecutionContext): Promise<string> {
+    const currentRequest = {
+      role: 'user',
+      content: JSON.stringify({
+        message: context.message,
+        attachments: runtimeAttachments(context),
+      }),
+    };
     const response = await this.llm.invoke({
-      messages: [
-        { role: 'system', content: DIRECT_SYSTEM_PROMPT },
-        ...runtimeSkillSystemMessages(context),
-        {
-          role: 'user',
-          content: JSON.stringify({
-            message: context.message,
-            attachments: runtimeAttachments(context),
-          }),
-        },
-      ],
+      messages: selectRuntimeContext(
+        this.llm,
+        DIRECT_SYSTEM_PROMPT,
+        currentRequest,
+        context,
+      ),
       signal: context.signal,
     });
     return messageToText(response.content);
@@ -90,19 +99,22 @@ export class LLMSingleToolProvider implements SingleToolSelector, SingleToolResp
   /** 要求模型从现有 Tool Schema 中选择且只选择一次调用。 */
   async select(context: RuntimeExecutionContext): Promise<RuntimeToolInvocation> {
     const availableTools = this.selectTools(context);
+    const currentRequest = {
+      role: 'user',
+      content: JSON.stringify({
+        message: context.message,
+        attachments: runtimeAttachments(context),
+        requiredCapabilities: context.decision.requiredCapabilities,
+      }),
+    };
     const response = await this.llm.invoke({
-      messages: [
-        { role: 'system', content: SINGLE_TOOL_SYSTEM_PROMPT },
-        ...runtimeSkillSystemMessages(context),
-        {
-          role: 'user',
-          content: JSON.stringify({
-            message: context.message,
-            attachments: runtimeAttachments(context),
-            requiredCapabilities: context.decision.requiredCapabilities,
-          }),
-        },
-      ],
+      messages: selectRuntimeContext(
+        this.llm,
+        SINGLE_TOOL_SYSTEM_PROMPT,
+        currentRequest,
+        context,
+        availableTools,
+      ),
       tools: availableTools,
       // 当前兼容的部分思考模型不支持 required；由提示词要求一次调用，无调用则明确失败。
       toolChoice: 'auto',
@@ -133,20 +145,22 @@ export class LLMSingleToolProvider implements SingleToolSelector, SingleToolResp
 
   /** 把唯一工具结果交给无工具模型生成最终回答。 */
   async respond(input: SingleToolResponseInput): Promise<string> {
+    const currentRequest = {
+      role: 'user',
+      content: JSON.stringify({
+        message: input.context.message,
+        tool: input.invocation.functionName,
+        arguments: input.invocation.arguments,
+        result: input.result,
+      }),
+    };
     const response = await this.llm.invoke({
-      messages: [
-        { role: 'system', content: SINGLE_TOOL_SUMMARY_PROMPT },
-        ...runtimeSkillSystemMessages(input.context),
-        {
-          role: 'user',
-          content: JSON.stringify({
-            message: input.context.message,
-            tool: input.invocation.functionName,
-            arguments: input.invocation.arguments,
-            result: input.result,
-          }),
-        },
-      ],
+      messages: selectRuntimeContext(
+        this.llm,
+        SINGLE_TOOL_SUMMARY_PROMPT,
+        currentRequest,
+        input.context,
+      ),
       toolChoice: 'none',
       signal: input.context.signal,
     });
@@ -243,10 +257,26 @@ function runtimeSkillSystemContext(context: RuntimeExecutionContext): string | u
   return disclosure ? formatRuntimeSkillContext(disclosure) : undefined;
 }
 
-/** 为直接 LLM 适配器生成零个或一个受保护 system message。 */
-function runtimeSkillSystemMessages(context: RuntimeExecutionContext) {
-  const content = runtimeSkillSystemContext(context);
-  return content ? [{ role: 'system' as const, content }] : [];
+/** 为 Runtime 模型路径选择受预算约束、包含当前请求和 Skill 的消息。 */
+function selectRuntimeContext(
+  llm: LLM,
+  systemPrompt: string,
+  currentRequest: LLMMessage,
+  context: RuntimeExecutionContext,
+  tools: readonly ToolDescriptor[] = [],
+): LLMMessage[] {
+  const skillContext = runtimeSkillSystemContext(context);
+  return runtimeContextSelector.select({
+    context: {
+      conversationMessages: [
+        { role: 'system', content: systemPrompt },
+        currentRequest,
+      ],
+      protectedInstructions: skillContext ? [skillContext] : [],
+    },
+    budget: createModelContextBudget(llm),
+    fixedInput: modelFixedInput(tools),
+  });
 }
 
 /** 把 Runtime 路由能力和外部约束组合成一次完整工具选择请求。 */

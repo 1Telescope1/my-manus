@@ -4,6 +4,7 @@ import {
   A2AConfig,
   AgentConfig,
   AppConfig,
+  LLMConfigSchema,
   LLMConfig,
   MCPConfig,
 } from '../../domain/models/app-config';
@@ -39,12 +40,15 @@ export class AppConfigService {
     const appConfig = await this.loadAppConfig();
 
     // 2. 判断 api_key 是否为空，空值表示沿用原 api_key。
-    const nextConfig: LLMConfig = {
+    const nextConfig: LLMConfig = LLMConfigSchema.parse({
       ...llmConfig,
       api_key: llmConfig.api_key?.trim()
         ? llmConfig.api_key
         : appConfig.llm_config.api_key,
-    };
+      // 旧版 UI 不认识窗口字段时沿用当前值，不能因一次设置保存退回默认值。
+      context_window_tokens:
+        llmConfig.context_window_tokens ?? appConfig.llm_config.context_window_tokens,
+    });
 
     // 3. 更新配置并写回配置仓库。
     appConfig.llm_config = nextConfig;

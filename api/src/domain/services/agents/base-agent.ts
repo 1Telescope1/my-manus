@@ -4,7 +4,6 @@ import { LLM, LLMMessage } from '../../external/llm';
 import { AgentConfig } from '../../models/app-config';
 import { Event, events, ToolEventStatus } from '../../models/event';
 import { ConversationMemory } from '../../models/conversation-memory';
-import { toWorkingContextMessages } from '../../models/working-context';
 import { Message } from '../../models/message';
 import { ToolResult } from '../../models/tool-result';
 import { ToolIdempotencyStore } from '../../models/tool-invocation';
@@ -19,6 +18,11 @@ import {
 import { ToolSelectionService } from '../tools/tool-selection.service';
 import { ToolInvocationService } from '../tools/tool-invocation.service';
 import { throwIfAborted } from '../runtime/cancellation';
+import {
+  ContextSelector,
+  createModelContextBudget,
+  modelFixedInput,
+} from '../context/context-selector.service';
 
 /** 等待模型重试间隔，并允许根取消立即打断等待。 */
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
@@ -61,6 +65,7 @@ export abstract class BaseAgent {
   protected readonly toolRegistry: ToolRegistry;
   protected readonly toolSelector: ToolSelectionService;
   protected readonly toolInvoker: ToolInvocationService;
+  protected readonly contextSelector = new ContextSelector();
 
   constructor(
     protected readonly uowFactory: () => UnitOfWork,
@@ -136,6 +141,7 @@ export abstract class BaseAgent {
       options.toolSelection,
       options.toolInvocation?.signal,
       options.protectedSystemContext,
+      query,
     );
 
     // 部分思考模型不支持 tool_choice="required"。保持 tool_choice=auto，并在模型
@@ -160,6 +166,7 @@ export abstract class BaseAgent {
           options.toolSelection,
           options.toolInvocation?.signal,
           options.protectedSystemContext,
+          query,
         );
       }
 
@@ -298,6 +305,7 @@ export abstract class BaseAgent {
           options.toolSelection,
           options.toolInvocation?.signal,
           options.protectedSystemContext,
+          query,
         );
         break;
       }
@@ -310,6 +318,7 @@ export abstract class BaseAgent {
         options.toolSelection,
         options.toolInvocation?.signal,
         options.protectedSystemContext,
+        query,
       );
     }
 
@@ -366,6 +375,7 @@ export abstract class BaseAgent {
     selection?: ToolSelectionRequest,
     signal?: AbortSignal,
     protectedSystemContext?: string,
+    currentUserRequest?: string,
   ): Promise<LLMMessage> {
     throwIfAborted(signal);
     await this.addToMemory(messages);
@@ -378,9 +388,23 @@ export abstract class BaseAgent {
     );
 
     for (let i = 0; i < this.agentConfig.max_retries; i += 1) {
+      // Context 选择错误是确定性的，必须在重试边界外失败；只有厂商请求故障可重试。
+      const persistedMessages = this.memory?.getMessages() ?? [];
+      const selectedMessages = this.contextSelector.select({
+        context: {
+          conversationMessages: persistedMessages,
+          protectedInstructions: protectedSystemContext ? [protectedSystemContext] : [],
+          protectedConversationMessageIndexes: findCurrentRequestIndexes(
+            persistedMessages,
+            currentUserRequest,
+          ),
+        },
+        budget: createModelContextBudget(this.llm),
+        fixedInput: modelFixedInput(availableTools, responseFormat),
+      });
       try {
         const message = await this.llm.invoke({
-          messages: modelMessages(this.memory?.getMessages() ?? [], protectedSystemContext),
+          messages: selectedMessages,
           // 空集合时省略 tools，确保 Planner、总结和无授权场景不会产生全量回退。
           ...(availableTools.length > 0 ? { tools: availableTools } : {}),
           responseFormat,
@@ -463,13 +487,19 @@ export abstract class BaseAgent {
   }
 }
 
-/** 把 Run 级系统上下文组装成单次 Working Context，且不修改 Conversation Memory。 */
-function modelMessages(
-  persistedMessages: LLMMessage[],
-  protectedSystemContext?: string,
-): LLMMessage[] {
-  return toWorkingContextMessages({
-    conversationMessages: persistedMessages,
-    protectedInstructions: protectedSystemContext ? [protectedSystemContext] : [],
-  });
+/** 找出当前 Run 原始用户请求在持久消息中的最后位置，供选择器持续保护。 */
+function findCurrentRequestIndexes(
+  messages: LLMMessage[],
+  currentUserRequest?: string,
+): number[] {
+  if (!currentUserRequest) {
+    return [];
+  }
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message.role === 'user' && message.content === currentUserRequest) {
+      return [index];
+    }
+  }
+  return [];
 }

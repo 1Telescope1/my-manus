@@ -1,6 +1,11 @@
 import { LLM, LLMMessage } from '../../../domain/external/llm';
 import { RuntimeRouteModel } from '../../../domain/external/runtime-route-model';
 import { NormalizedRuntimeRouteRequest } from '../../../domain/models/route-decision';
+import {
+  ContextSelector,
+  createModelContextBudget,
+  modelFixedInput,
+} from '../../../domain/services/context/context-selector.service';
 
 const ROUTER_SYSTEM_PROMPT = `你是请求路由器，只负责选择执行路径，不回答用户问题，也不调用工具。
 只返回一个 JSON 对象，不要使用 Markdown。
@@ -13,6 +18,8 @@ requestedSkills 必须保留输入中已有的 requestedSkills，并且只能追
 
 /** 通过现有厂商无关的 LLM 端口获取结构化路由候选。 */
 export class LLMRuntimeRouteModel extends RuntimeRouteModel {
+  private readonly contextSelector = new ContextSelector();
+
   /** 注入独立的轻量 LLM 客户端，不向适配器提供任何工具执行接口。 */
   constructor(private readonly llm: LLM) {
     super();
@@ -23,21 +30,32 @@ export class LLMRuntimeRouteModel extends RuntimeRouteModel {
     request: NormalizedRuntimeRouteRequest,
     signal?: AbortSignal,
   ): Promise<unknown> {
+    const responseFormat = { type: 'json_object' };
+    const currentRequest = {
+      role: 'user',
+      content: JSON.stringify({
+        message: request.message,
+        requestedSkills: request.requestedSkills,
+        availableSkills: request.availableSkills,
+        availableCapabilities: request.availableCapabilities,
+      }),
+    };
+    const selectedMessages = this.contextSelector.select({
+      context: {
+        conversationMessages: [
+          { role: 'system', content: ROUTER_SYSTEM_PROMPT },
+          currentRequest,
+        ],
+        protectedInstructions: [],
+      },
+      budget: createModelContextBudget(this.llm),
+      fixedInput: modelFixedInput([], responseFormat),
+    });
+
     // 调用参数刻意不包含 tools 和 toolChoice，从边界上禁止模型触发副作用。
     const response = await this.llm.invoke({
-      messages: [
-        { role: 'system', content: ROUTER_SYSTEM_PROMPT },
-        {
-          role: 'user',
-          content: JSON.stringify({
-            message: request.message,
-            requestedSkills: request.requestedSkills,
-            availableSkills: request.availableSkills,
-            availableCapabilities: request.availableCapabilities,
-          }),
-        },
-      ],
-      responseFormat: { type: 'json_object' },
+      messages: selectedMessages,
+      responseFormat,
       signal,
     });
 
