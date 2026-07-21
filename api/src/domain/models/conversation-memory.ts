@@ -1,5 +1,13 @@
+import { MemorySummary } from './memory-summary';
+
 /** 会话中可被后续模型调用复用的一条语义消息。 */
 export type ConversationMemoryMessage = Record<string, any>;
+
+/** Conversation Memory 在 Session JSON 中的兼容持久化结构。 */
+export type ConversationMemorySnapshot = {
+  readonly messages: ConversationMemoryMessage[];
+  readonly summary?: MemorySummary;
+};
 
 /**
  * Session 生命周期内的模型语义历史。
@@ -8,13 +16,14 @@ export type ConversationMemoryMessage = Record<string, any>;
  */
 export class ConversationMemory {
   /** 使用现有消息初始化会话记忆，保持旧 Session JSON 的兼容结构。 */
-  constructor(public messages: ConversationMemoryMessage[] = []) {}
+  constructor(
+    public messages: ConversationMemoryMessage[] = [],
+    private summary?: MemorySummary,
+  ) {}
 
-  /** 从持久化 JSON 或现有实例恢复 Conversation Memory。 */
-  static from(
-    input?: { messages?: ConversationMemoryMessage[] } | ConversationMemory,
-  ): ConversationMemory {
-    return new ConversationMemory(input?.messages ?? []);
+  /** 从 Session JSON 快照恢复 Conversation Memory。 */
+  static fromSnapshot(input: ConversationMemorySnapshot): ConversationMemory {
+    return new ConversationMemory(input.messages, input.summary);
   }
 
   /** 追加一条可跨 Run 复用的会话语义消息。 */
@@ -32,6 +41,19 @@ export class ConversationMemory {
     return this.messages;
   }
 
+  /** 返回早期历史摘要；调用方只能通过原子替换方法更新。 */
+  getSummary(): MemorySummary | undefined {
+    return this.summary;
+  }
+
+  /** 输出可直接写入现有 Session.memories JSON 的兼容快照。 */
+  toSnapshot(): ConversationMemorySnapshot {
+    return {
+      messages: this.messages,
+      ...(this.summary ? { summary: this.summary } : {}),
+    };
+  }
+
   /** 返回最后一条会话语义消息。 */
   getLastMessage(): ConversationMemoryMessage | undefined {
     return this.messages.length > 0 ? this.messages[this.messages.length - 1] : undefined;
@@ -42,22 +64,15 @@ export class ConversationMemory {
     this.messages = this.messages.slice(0, -1);
   }
 
-  /**
-   * 保留旧版轻量清理行为，避免本边界任务改变模型输入语义。
-   * 结构化摘要和预算感知压缩由 MEMORY-102/103 替换。
-   */
-  compact(): void {
-    for (const message of this.messages) {
-      if (
-        message.role === 'tool'
-        && ['browser_view', 'browser_navigate'].includes(String(message.function_name))
-      ) {
-        message.content = '(removed)';
-      }
-      if ('reasoning_content' in message) {
-        delete message.reasoning_content;
-      }
-    }
+  /** 在摘要生成成功后原子替换最早的非 system 消息前缀。 */
+  replaceHistoryWithSummary(summary: MemorySummary, messageCount: number): void {
+    const systemOffset = this.messages[0]?.role === 'system' ? 1 : 0;
+    // system 消息属于长期指令，不在摘要覆盖范围内；只移除其后的连续早期历史。
+    this.messages = [
+      ...this.messages.slice(0, systemOffset),
+      ...this.messages.slice(systemOffset + messageCount),
+    ];
+    this.summary = summary;
   }
 
   /** 判断当前会话记忆是否没有任何消息。 */

@@ -237,11 +237,13 @@ export class PlannerFlowRuntimeRunner implements PlannedAgentRunner {
       message: context.message,
       attachments: runtimeAttachments(context),
     });
+    const disclosure = runtimeSkillDisclosure(context);
     for await (const event of this.flow.invoke(
       message,
       toolSelectionRequest(context),
       { scopeId: context.run.id, signal: context.signal },
-      runtimeSkillSystemContext(context),
+      disclosure ? formatRuntimeSkillContext(disclosure) : undefined,
+      disclosure,
     )) {
       const payload = flowEventToRuntimePayload(event);
       if (payload) {
@@ -253,8 +255,15 @@ export class PlannerFlowRuntimeRunner implements PlannedAgentRunner {
 
 /** 从 Runtime 私有上下文提取并格式化当前 Run 的 Skill system context。 */
 function runtimeSkillSystemContext(context: RuntimeExecutionContext): string | undefined {
-  const disclosure = context.privateContext.skillDisclosure as SkillDisclosure | undefined;
+  const disclosure = runtimeSkillDisclosure(context);
   return disclosure ? formatRuntimeSkillContext(disclosure) : undefined;
+}
+
+/** 从 Runtime 私有上下文读取当前 Run 的结构化 Skill Disclosure。 */
+function runtimeSkillDisclosure(
+  context: RuntimeExecutionContext,
+): SkillDisclosure | undefined {
+  return context.privateContext.skillDisclosure as SkillDisclosure | undefined;
 }
 
 /** 为 Runtime 模型路径选择受预算约束、包含当前请求和 Skill 的消息。 */

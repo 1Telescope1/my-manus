@@ -41,7 +41,7 @@ export function createSession(input: Partial<Session> = {}): Session {
     latest_message_at: input.latest_message_at ?? null,
     events: input.events ?? [],
     files: (input.files ?? []).map((file) => createFileModel(file)),
-    memories: normalizeMemories(input.memories),
+    memories: input.memories ?? {},
     status: input.status ?? SessionStatus.PENDING,
     updated_at: input.updated_at ?? new Date(),
     created_at: input.created_at ?? new Date(),
@@ -76,15 +76,4 @@ export function getLatestPlan(session: Session): Plan | undefined {
   }
 
   return undefined;
-}
-
-/** 将旧 JSON 或领域实例统一恢复为 Conversation Memory。 */
-function normalizeMemories(
-  memories?: Record<string, ConversationMemory>,
-): Record<string, ConversationMemory> {
-  const normalized: Record<string, ConversationMemory> = {};
-  for (const [agentName, memory] of Object.entries(memories ?? {})) {
-    normalized[agentName] = ConversationMemory.from(memory);
-  }
-  return normalized;
 }

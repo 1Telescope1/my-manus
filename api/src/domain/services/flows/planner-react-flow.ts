@@ -12,6 +12,7 @@ import { getLatestPlan, SessionStatus } from '../../models/session';
 import { UnitOfWork } from '../../repositories/unit-of-work';
 import { ToolSelectionRequest } from '../../models/tool-selection';
 import { ToolIdempotencyStore } from '../../models/tool-invocation';
+import { SkillDisclosure } from '../../models/skill-disclosure';
 import { PlannerAgent } from '../agents/planner-agent';
 import { ReActAgent } from '../agents/react-agent';
 import { A2ATool } from '../tools/a2a.tool';
@@ -19,6 +20,7 @@ import { createAgentToolset } from '../tools/agent-toolset';
 import { MCPTool } from '../tools/mcp.tool';
 import { BaseFlow, FlowStatus } from './base-flow';
 import { throwIfAborted } from '../runtime/cancellation';
+import { MemoryCompactionContext } from '../memory/memory-compaction.service';
 
 export class PlannerReActFlow extends BaseFlow {
   private readonly logger = new Logger(PlannerReActFlow.name);
@@ -82,6 +84,7 @@ export class PlannerReActFlow extends BaseFlow {
     toolSelection?: ToolSelectionRequest,
     toolInvocation?: { scopeId: string; signal?: AbortSignal },
     protectedSystemContext?: string,
+    skillDisclosure?: SkillDisclosure,
   ): AsyncGenerator<Event> {
     // 1. 调用会话仓库查询会话是否存在。
     const session = await this.withUow((uow) => uow.session.getById(this.sessionId));
@@ -187,7 +190,10 @@ export class PlannerReActFlow extends BaseFlow {
 
         // 21. 压缩执行 Agent 记忆，避免上下文腐化和消耗大量 token。
         this.logger.log(`压缩${this.react.name} Agent记忆/上下文`);
-        await this.react.compactMemory();
+        await this.react.compactMemory(
+          createPlanMemoryCompactionContext(this.plan!, message, skillDisclosure),
+          toolInvocation?.signal,
+        );
 
         // 22. 将状态更新为 updating。
         this.status = FlowStatus.UPDATING;
@@ -243,4 +249,42 @@ export class PlannerReActFlow extends BaseFlow {
     const uow = this.uowFactory();
     return uow.run(handler);
   }
+}
+
+/** 从当前计划与 Skill Disclosure 构造摘要所需的权威运行态语义。 */
+export function createPlanMemoryCompactionContext(
+  plan: Plan,
+  message: Message,
+  disclosure?: SkillDisclosure,
+): MemoryCompactionContext {
+  return {
+    userGoal: plan.goal,
+    // 计划状态是工作进度的权威来源，避免摘要模型根据自然语言猜测步骤是否完成。
+    completedWork: plan.steps
+      .filter((candidate) => candidate.status === ExecutionStatus.COMPLETED)
+      .map((candidate) => candidate.result
+        ? `${candidate.description}：${candidate.result}`
+        : candidate.description),
+    pendingWork: plan.steps
+      .filter((candidate) => [ExecutionStatus.PENDING, ExecutionStatus.RUNNING].includes(
+        candidate.status,
+      ))
+      .map((candidate) => candidate.description),
+    // 只保存 Skill 身份和内容摘要；当前 Run 的完整 Skill 指令仍由 Disclosure 注入。
+    activeSkills: (disclosure?.activated ?? []).map((skill) => ({
+      name: skill.descriptor.name,
+      version: skill.contentDigest,
+    })),
+    // Artifact 只持久化引用和用途，不把附件正文复制进会话摘要。
+    artifacts: [
+      ...message.attachments.map((id) => ({
+        id,
+        description: '当前用户请求的附件',
+      })),
+      ...plan.steps.flatMap((candidate) => candidate.attachments.map((id) => ({
+        id,
+        description: `计划步骤“${candidate.description}”的附件`,
+      }))),
+    ],
+  };
 }

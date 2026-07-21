@@ -1,6 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { ConversationMemory } from '../../domain/models/conversation-memory';
+import {
+  ConversationMemory,
+  ConversationMemorySnapshot,
+} from '../../domain/models/conversation-memory';
 import { ConversationMemoryRepository } from '../../domain/repositories/conversation-memory.repository';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -42,7 +45,7 @@ export class DbConversationMemoryRepository extends ConversationMemoryRepository
     }
 
     const memories = objectJson(record.memories);
-    memories[agentName] = { messages: memory.getMessages() };
+    memories[agentName] = memory.toSnapshot();
     await this.sessionClient.update({
       where: { id: sessionId },
       data: { memories: memories as Prisma.InputJsonObject },
@@ -57,7 +60,7 @@ export class DbConversationMemoryRepository extends ConversationMemoryRepository
     });
     const memory = objectJson(record?.memories)[agentName];
     return memory
-      ? ConversationMemory.from(memory as { messages?: Record<string, any>[] })
+      ? ConversationMemory.fromSnapshot(memory as ConversationMemorySnapshot)
       : new ConversationMemory();
   }
 }

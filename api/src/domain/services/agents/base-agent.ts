@@ -4,6 +4,7 @@ import { LLM, LLMMessage } from '../../external/llm';
 import { AgentConfig } from '../../models/app-config';
 import { Event, events, ToolEventStatus } from '../../models/event';
 import { ConversationMemory } from '../../models/conversation-memory';
+import { formatMemorySummaryForContext } from '../../models/memory-summary';
 import { Message } from '../../models/message';
 import { ToolResult } from '../../models/tool-result';
 import { ToolIdempotencyStore } from '../../models/tool-invocation';
@@ -23,6 +24,11 @@ import {
   createModelContextBudget,
   modelFixedInput,
 } from '../context/context-selector.service';
+import {
+  LLMMemorySummaryGenerator,
+  MemoryCompactionContext,
+  MemoryCompactionService,
+} from '../memory/memory-compaction.service';
 
 /** 等待模型重试间隔，并允许根取消立即打断等待。 */
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
@@ -81,15 +87,28 @@ export abstract class BaseAgent {
     this.toolInvoker = new ToolInvocationService(this.toolRegistry, { idempotencyStore });
   }
 
-  async compactMemory(): Promise<void> {
+  /** 生成可溯源摘要；失败时保留原消息且不阻断主执行流。 */
+  async compactMemory(
+    context: MemoryCompactionContext,
+    signal?: AbortSignal,
+  ): Promise<void> {
     await this.ensureMemory();
-    this.memory?.compact();
+    const memory = this.memory as ConversationMemory;
+    const compaction = new MemoryCompactionService(
+      new LLMMemorySummaryGenerator(this.llm, this.jsonParser),
+      createModelContextBudget(this.llm).inputTokenLimit,
+    );
+    const compacted = await compaction.compact(memory, context, signal);
+    if (!compacted) {
+      return;
+    }
+    // 只有内存已完成原子替换时才持久化，生成失败不会覆盖数据库中的原始历史。
     const uow = this.uowFactory();
     await uow.run(async (active) => {
       await active.conversationMemory.save(
         this.sessionId,
         this.name,
-        this.memory as ConversationMemory,
+        memory,
       );
     });
   }
@@ -390,10 +409,15 @@ export abstract class BaseAgent {
     for (let i = 0; i < this.agentConfig.max_retries; i += 1) {
       // Context 选择错误是确定性的，必须在重试边界外失败；只有厂商请求故障可重试。
       const persistedMessages = this.memory?.getMessages() ?? [];
+      const summary = this.memory?.getSummary();
+      // 摘要是已删除早期历史的唯一替身，必须作为受保护上下文参与每次模型调用。
       const selectedMessages = this.contextSelector.select({
         context: {
           conversationMessages: persistedMessages,
-          protectedInstructions: protectedSystemContext ? [protectedSystemContext] : [],
+          protectedInstructions: [
+            ...(summary ? [formatMemorySummaryForContext(summary)] : []),
+            ...(protectedSystemContext ? [protectedSystemContext] : []),
+          ],
           protectedConversationMessageIndexes: findCurrentRequestIndexes(
             persistedMessages,
             currentUserRequest,

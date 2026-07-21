@@ -1,7 +1,10 @@
 import { Prisma } from '@prisma/client';
 import { Event } from '../../domain/models/event';
 import { createFileModel, FileModel } from '../../domain/models/file';
-import { ConversationMemory } from '../../domain/models/conversation-memory';
+import {
+  ConversationMemory,
+  ConversationMemorySnapshot,
+} from '../../domain/models/conversation-memory';
 import { createSession, Session, SessionStatus } from '../../domain/models/session';
 
 export type SessionPersistenceRecord = {
@@ -68,9 +71,7 @@ function serializeMemories(
 ): Record<string, unknown> {
   const serialized: Record<string, unknown> = {};
   for (const [agentName, memory] of Object.entries(memories)) {
-    serialized[agentName] = {
-      messages: memory.getMessages(),
-    };
+    serialized[agentName] = memory.toSnapshot();
   }
   return serialized;
 }
@@ -105,8 +106,8 @@ function normalizeMemories(memories: unknown): Record<string, ConversationMemory
 
   const normalized: Record<string, ConversationMemory> = {};
   for (const [agentName, memory] of Object.entries(memories as Record<string, unknown>)) {
-    normalized[agentName] = ConversationMemory.from(
-      memory as { messages?: Record<string, any>[] },
+    normalized[agentName] = ConversationMemory.fromSnapshot(
+      memory as ConversationMemorySnapshot,
     );
   }
   return normalized;
